@@ -212,3 +212,4 @@ See:
 - `docs/acl_design.md`
 - `docs/firewall_policy.md`
 - `docs/sdn_design.md`
+- `docs/gns3_lab.md`

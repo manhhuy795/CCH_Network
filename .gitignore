@@ -12,6 +12,7 @@ backups/*.txt
 *.vmsd
 *.vmx
 *.vmxf
+*.vmss
 *.nvram
 *.vmem
 *.scoreboard
