@@ -1,0 +1,101 @@
+interfaces:
+  hq-core-l3:
+    trunks:
+      - name: GigabitEthernet1/0/1
+        description: "TRUNK to hq-access-a"
+        allowed_vlans: [10, 20, 90]
+      - name: GigabitEthernet1/0/2
+        description: "TRUNK to hq-access-b"
+        allowed_vlans: [10, 30, 90]
+      - name: GigabitEthernet1/0/3
+        description: "TRUNK to hq-access-c"
+        allowed_vlans: [10, 40, 90]
+      - name: GigabitEthernet1/0/4
+        description: "TRUNK to hq-voice-mgmt"
+        allowed_vlans: [10, 90]
+    routed:
+      - name: GigabitEthernet1/0/47
+        description: "L3 link to HQ CE router"
+        ip: 10.10.255.1/30
+      - name: GigabitEthernet1/0/48
+        description: "L3 link to HQ firewall inside"
+        ip: 10.10.254.1/30
+  hq-access-a:
+    access_ports:
+      - range: GigabitEthernet1/0/1-48
+        description: "Project A user ports"
+        vlan: 20
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 20, 90]
+  hq-access-b:
+    access_ports:
+      - range: GigabitEthernet1/0/1-48
+        description: "Project B user ports"
+        vlan: 30
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 30, 90]
+  hq-access-c:
+    access_ports:
+      - range: GigabitEthernet1/0/1-48
+        description: "Project C user ports"
+        vlan: 40
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 40, 90]
+  hq-voice-mgmt:
+    access_ports:
+      - range: GigabitEthernet1/0/1-12
+        description: "Management device ports"
+        vlan: 10
+      - range: GigabitEthernet1/0/13-48
+        description: "IP phone/softphone ports"
+        vlan: 90
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 90]
+  br-access:
+    access_ports:
+      - range: GigabitEthernet1/0/1-36
+        description: "Branch telesale ports"
+        vlan: 50
+      - range: GigabitEthernet1/0/37-48
+        description: "Branch admin/backoffice ports"
+        vlan: 60
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to br-dist-l3"
+      allowed_vlans: [50, 60]
+  br-dist-l3:
+    trunks:
+      - name: GigabitEthernet1/0/1
+        description: "TRUNK to br-access"
+        allowed_vlans: [50, 60]
+    routed:
+      - name: GigabitEthernet1/0/47
+        description: "L3 link to Branch CE router"
+        ip: 10.20.255.1/30
+      - name: GigabitEthernet1/0/48
+        description: "L3 link to Branch firewall inside"
+        ip: 10.20.254.1/30
+  hq-ce-router:
+    routed:
+      - name: GigabitEthernet0/0
+        description: "LAN to hq-core-l3"
+        ip: 10.10.255.2/30
+      - name: GigabitEthernet0/1
+        description: "WAN to ISP MPLS PE - HQ"
+        ip: 203.0.113.2/30
+  br-ce-router:
+    routed:
+      - name: GigabitEthernet0/0
+        description: "LAN to br-dist-l3"
+        ip: 10.20.255.2/30
+      - name: GigabitEthernet0/1
+        description: "WAN to ISP MPLS PE - Branch"
+        ip: 198.51.100.2/30

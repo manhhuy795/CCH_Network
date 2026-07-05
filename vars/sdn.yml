@@ -1,0 +1,64 @@
+sdn:
+  enabled: true
+  controller:
+    type: generic_rest
+    url_env: SDN_CONTROLLER_URL
+    username_env: SDN_USERNAME
+    password_env: SDN_PASSWORD
+    api_path: /api/v1/network-intents
+  fabric_scope:
+    - hq-core-l3
+    - hq-access-a
+    - hq-access-b
+    - hq-access-c
+    - hq-voice-mgmt
+    - br-dist-l3
+    - br-access
+  protected_boundaries:
+    - name: mpls_l3vpn
+      rule: "Do not program ISP MPLS PE/P core. Only enterprise CE-facing or LAN fabric policy is in scope."
+    - name: firewall_internet_breakout
+      rule: "Internet app/category control remains on firewall unless the target SDN controller supports service insertion."
+  intents:
+    - name: isolate-hq-project-a
+      type: segmentation
+      source_vlan: 20
+      deny_destination_vlans: [30, 40]
+      allow_destination_vlans: [90]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: isolate-hq-project-b
+      type: segmentation
+      source_vlan: 30
+      deny_destination_vlans: [20, 40]
+      allow_destination_vlans: [90]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: isolate-hq-project-c
+      type: segmentation
+      source_vlan: 40
+      deny_destination_vlans: [20, 30]
+      allow_destination_vlans: [90]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: branch-telesale-limited
+      type: segmentation
+      source_vlan: 50
+      deny_destination_vlans: [60]
+      allowed_services: [dns, ntp, call_app]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: branch-admin-limited
+      type: segmentation
+      source_vlan: 60
+      deny_destination_vlans: [50]
+      allowed_services: [dns, ntp, admin_backoffice]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: internet-policy-steering
+      type: service_insertion
+      source_vlans: [20, 30, 40, 50, 60]
+      next_service: firewall
+      policy_reference: firewall_policy
+      enforcement: route_or_pbr_to_firewall
+      log: true

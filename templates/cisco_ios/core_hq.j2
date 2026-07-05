@@ -1,0 +1,67 @@
+! Generated candidate config for {{ device.name }}
+! Review vendor syntax in lab before production deploy.
+hostname {{ device.name }}
+ip routing
+!
+{% for vlan in site_vlans %}
+vlan {{ vlan.id }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% for vlan_id in device.svi_vlans %}
+{% set vlan = vlans_by_id[vlan_id] %}
+interface Vlan{{ vlan.id }}
+ description SVI {{ vlan.name }} - {{ vlan.description }}
+ ip address {{ vlan.gateway }} {{ vlan.subnet | dotted_netmask }}
+{% set acl_name = acl_name_for_vlan(config, vlan.id) %}
+{% if acl_name %}
+ ip access-group {{ acl_name }} in
+{% endif %}
+ no shutdown
+!
+{% endfor %}
+{% for trunk in interfaces.trunks %}
+interface {{ trunk.name }}
+ description {{ trunk.description }}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ trunk.allowed_vlans | join(',') }}
+ spanning-tree portfast trunk
+!
+{% endfor %}
+{% for iface in interfaces.routed %}
+interface {{ iface.name }}
+ description {{ iface.description }}
+ no switchport
+ ip address {{ iface.ip | ip_address }} {{ iface.ip | dotted_netmask }}
+ no shutdown
+!
+{% endfor %}
+ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_HQ_FIREWALL
+{% for route in routes.intersite_routes %}
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name MPLS_TO_CE
+{% endfor %}
+!
+{% for policy in config.hq_project_isolation %}
+{% set src = vlans_by_id[policy.source_vlan] %}
+ip access-list extended {{ policy.name }}
+ remark Inbound policy for VLAN {{ policy.source_vlan }} - isolate BPO projects
+{% for dst_id in policy.deny_destination_vlans %}
+{% set dst = vlans_by_id[dst_id] %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }} log
+{% endfor %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ vlans_by_id[10].subnet | prefix_to_acl }} log
+{% for dst_id in policy.allow_destination_vlans %}
+{% set dst = vlans_by_id[dst_id] %}
+ permit ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }}
+{% endfor %}
+ permit ip {{ src.subnet | prefix_to_acl }} any
+!
+{% endfor %}
+ip access-list extended {{ config.management_policy.name }}
+ remark Placeholder: permit only admin/jump hosts from management VLAN
+{% for source in config.admin_allowed_sources %}
+ permit ip {{ source | prefix_to_acl }} any
+{% endfor %}
+ deny ip any any log
+!
+end

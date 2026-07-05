@@ -1,0 +1,58 @@
+! Generated candidate config for {{ device.name }}
+hostname {{ device.name }}
+ip routing
+!
+{% for vlan in site_vlans %}
+vlan {{ vlan.id }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% for vlan_id in device.svi_vlans %}
+{% set vlan = vlans_by_id[vlan_id] %}
+interface Vlan{{ vlan.id }}
+ description SVI {{ vlan.name }} - {{ vlan.description }}
+ ip address {{ vlan.gateway }} {{ vlan.subnet | dotted_netmask }}
+{% set acl_name = acl_name_for_vlan(config, vlan.id) %}
+{% if acl_name %}
+ ip access-group {{ acl_name }} in
+{% endif %}
+ no shutdown
+!
+{% endfor %}
+{% for trunk in interfaces.trunks %}
+interface {{ trunk.name }}
+ description {{ trunk.description }}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ trunk.allowed_vlans | join(',') }}
+ spanning-tree portfast trunk
+!
+{% endfor %}
+{% for iface in interfaces.routed %}
+interface {{ iface.name }}
+ description {{ iface.description }}
+ no switchport
+ ip address {{ iface.ip | ip_address }} {{ iface.ip | dotted_netmask }}
+ no shutdown
+!
+{% endfor %}
+ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_BRANCH_FIREWALL
+{% for route in routes.intersite_routes %}
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name MPLS_TO_CE
+{% endfor %}
+!
+{% for policy in config.branch_policies %}
+{% set src = vlans_by_id[policy.source_vlan] %}
+ip access-list extended {{ policy.name }}
+ remark Inbound policy for VLAN {{ policy.source_vlan }} - no implicit full branch access
+{% for dst_id in policy.deny_destination_vlans %}
+{% set dst = vlans_by_id[dst_id] %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }} log
+{% endfor %}
+ remark TODO: add explicit permits for {{ policy.allowed_service_objects | join(', ') }} after service IPs are known
+ permit udp {{ src.subnet | prefix_to_acl }} any eq domain
+ permit udp {{ src.subnet | prefix_to_acl }} any eq ntp
+ deny ip {{ src.subnet | prefix_to_acl }} 172.10.0.0 0.0.255.255 log
+ permit ip {{ src.subnet | prefix_to_acl }} any
+!
+{% endfor %}
+end

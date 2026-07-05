@@ -1,0 +1,45 @@
+# Generated vendor-neutral firewall policy for {{ device.name }}
+# Convert to the target firewall vendor syntax and validate before production.
+
+firewall: {{ firewall_site.firewall_name }}
+site: {{ device.site }}
+interfaces:
+  inside: {{ firewall_site.inside_interface }}
+  outside: {{ firewall_site.outside_interface }}
+
+nat:
+  outbound:
+{% for vlan_id in firewall_site.nat_source_vlans %}
+    - source_vlan: {{ vlan_id }}
+      source_subnet: {{ vlans_by_id[vlan_id].subnet }}
+      translated_to: outside_interface
+{% endfor %}
+
+objects:
+{% for name, object in config.firewall_policy.shared_objects.applications.items() %}
+  {{ name }}:
+    type: {{ object.type }}
+{% if object.fqdn is defined %}
+    fqdn: {{ object.fqdn }}
+{% endif %}
+{% if object.ip is defined %}
+    ip: {{ object.ip }}
+{% endif %}
+{% if object.ports is defined %}
+    ports: {{ object.ports }}
+{% endif %}
+{% if object.categories is defined %}
+    categories: {{ object.categories }}
+{% endif %}
+    notes: "{{ object.notes | default('') }}"
+{% endfor %}
+
+policies:
+{% for policy in firewall_site.policies %}
+  - name: {{ policy.name }}
+    action: {{ policy.action }}
+    source_vlans: {{ policy.sources }}
+    destination: {{ policy.destinations }}
+    applications: {{ policy.applications }}
+    log: {{ policy.log }}
+{% endfor %}

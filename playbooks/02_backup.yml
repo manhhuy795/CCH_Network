@@ -1,0 +1,16 @@
+---
+- name: Backup network devices through guarded Netmiko script
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_file: inventories/lab_inventory.yml
+    backup_dry_run: true
+  tasks:
+    - name: Show backup targets or run backup when explicitly enabled
+      ansible.builtin.command:
+        cmd: >-
+          python scripts/backup_configs.py
+          --inventory {{ inventory_file }}
+          {% if backup_dry_run | bool %}--dry-run{% endif %}
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: not backup_dry_run | bool

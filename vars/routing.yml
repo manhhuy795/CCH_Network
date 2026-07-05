@@ -1,0 +1,84 @@
+links:
+  hq:
+    core_to_ce:
+      core_interface: GigabitEthernet1/0/47
+      core_ip: 10.10.255.1/30
+      ce_interface: GigabitEthernet0/0
+      ce_ip: 10.10.255.2/30
+    core_to_firewall:
+      core_interface: GigabitEthernet1/0/48
+      core_ip: 10.10.254.1/30
+      firewall_inside_ip: 10.10.254.2/30
+    ce_to_pe:
+      ce_interface: GigabitEthernet0/1
+      ce_ip: 203.0.113.2/30
+      pe_ip: 203.0.113.1
+  branch:
+    distribution_to_ce:
+      distribution_interface: GigabitEthernet1/0/47
+      distribution_ip: 10.20.255.1/30
+      ce_interface: GigabitEthernet0/0
+      ce_ip: 10.20.255.2/30
+    distribution_to_firewall:
+      distribution_interface: GigabitEthernet1/0/48
+      distribution_ip: 10.20.254.1/30
+      firewall_inside_ip: 10.20.254.2/30
+    ce_to_pe:
+      ce_interface: GigabitEthernet0/1
+      ce_ip: 198.51.100.2/30
+      pe_ip: 198.51.100.1
+routes:
+  hq-core-l3:
+    default_route:
+      next_hop: 10.10.254.2
+      description: "Internet default route to HQ firewall"
+    intersite_routes:
+      - prefix: 172.10.50.0/24
+        next_hop: 10.10.255.2
+        description: "Branch Telesale via HQ CE"
+      - prefix: 172.10.60.0/24
+        next_hop: 10.10.255.2
+        description: "Branch Admin via HQ CE"
+  br-dist-l3:
+    default_route:
+      next_hop: 10.20.254.2
+      description: "Internet default route to Branch firewall"
+    intersite_routes:
+      - prefix: 172.10.0.0/16
+        next_hop: 10.20.255.2
+        description: "HQ networks summarized via Branch CE"
+  hq-ce-router:
+    provider_next_hop: 203.0.113.1
+    internal_routes:
+      - prefix: 172.10.0.0/24
+        next_hop: 10.10.255.1
+      - prefix: 172.10.20.0/24
+        next_hop: 10.10.255.1
+      - prefix: 172.10.30.0/24
+        next_hop: 10.10.255.1
+      - prefix: 172.10.40.0/24
+        next_hop: 10.10.255.1
+      - prefix: 172.10.90.0/24
+        next_hop: 10.10.255.1
+    mpls_routes:
+      - prefix: 172.10.50.0/24
+        next_hop: 203.0.113.1
+      - prefix: 172.10.60.0/24
+        next_hop: 203.0.113.1
+  br-ce-router:
+    provider_next_hop: 198.51.100.1
+    internal_routes:
+      - prefix: 172.10.50.0/24
+        next_hop: 10.20.255.1
+      - prefix: 172.10.60.0/24
+        next_hop: 10.20.255.1
+    mpls_routes:
+      - prefix: 172.10.0.0/16
+        next_hop: 198.51.100.1
+ce_router_ips:
+  hq-ce-router:
+    lan_ip: 10.10.255.2
+    wan_ip: 203.0.113.2
+  br-ce-router:
+    lan_ip: 10.20.255.2
+    wan_ip: 198.51.100.2

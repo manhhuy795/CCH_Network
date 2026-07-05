@@ -1,0 +1,19 @@
+! Generated candidate config for {{ device.name }}
+! MPLS L3VPN design: CE routes point to local ISP PE, never to remote CE router IPs.
+hostname {{ device.name }}
+!
+{% for iface in interfaces.routed %}
+interface {{ iface.name }}
+ description {{ iface.description }}
+ ip address {{ iface.ip | ip_address }} {{ iface.ip | dotted_netmask }}
+ no shutdown
+!
+{% endfor %}
+{% for route in routes.internal_routes %}
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name INTERNAL_TO_LAN
+{% endfor %}
+{% for route in routes.mpls_routes %}
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name MPLS_VIA_ISP_PE
+{% endfor %}
+!
+end

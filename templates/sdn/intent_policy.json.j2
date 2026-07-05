@@ -1,0 +1,11 @@
+{
+  "metadata": {
+    "name": "callcenter-bpo-sdn-intents",
+    "controller_type": "{{ config.sdn.controller.type }}",
+    "generated_by": "network-automation-callcenter-bpo",
+    "mode": "dry-run-safe"
+  },
+  "fabric_scope": {{ config.sdn.fabric_scope | tojson }},
+  "protected_boundaries": {{ config.sdn.protected_boundaries | tojson }},
+  "intents": {{ config.sdn.intents | tojson }}
+}

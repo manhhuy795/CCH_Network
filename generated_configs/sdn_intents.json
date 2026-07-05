@@ -1,0 +1,116 @@
+{
+  "fabric_scope": [
+    "hq-core-l3",
+    "hq-access-a",
+    "hq-access-b",
+    "hq-access-c",
+    "hq-voice-mgmt",
+    "br-dist-l3",
+    "br-access"
+  ],
+  "intents": [
+    {
+      "allow_destination_vlans": [
+        90
+      ],
+      "deny_destination_vlans": [
+        30,
+        40
+      ],
+      "enforcement": "acl_or_group_policy",
+      "log": true,
+      "name": "isolate-hq-project-a",
+      "source_vlan": 20,
+      "type": "segmentation"
+    },
+    {
+      "allow_destination_vlans": [
+        90
+      ],
+      "deny_destination_vlans": [
+        20,
+        40
+      ],
+      "enforcement": "acl_or_group_policy",
+      "log": true,
+      "name": "isolate-hq-project-b",
+      "source_vlan": 30,
+      "type": "segmentation"
+    },
+    {
+      "allow_destination_vlans": [
+        90
+      ],
+      "deny_destination_vlans": [
+        20,
+        30
+      ],
+      "enforcement": "acl_or_group_policy",
+      "log": true,
+      "name": "isolate-hq-project-c",
+      "source_vlan": 40,
+      "type": "segmentation"
+    },
+    {
+      "allowed_services": [
+        "dns",
+        "ntp",
+        "call_app"
+      ],
+      "deny_destination_vlans": [
+        60
+      ],
+      "enforcement": "acl_or_group_policy",
+      "log": true,
+      "name": "branch-telesale-limited",
+      "source_vlan": 50,
+      "type": "segmentation"
+    },
+    {
+      "allowed_services": [
+        "dns",
+        "ntp",
+        "admin_backoffice"
+      ],
+      "deny_destination_vlans": [
+        50
+      ],
+      "enforcement": "acl_or_group_policy",
+      "log": true,
+      "name": "branch-admin-limited",
+      "source_vlan": 60,
+      "type": "segmentation"
+    },
+    {
+      "enforcement": "route_or_pbr_to_firewall",
+      "log": true,
+      "name": "internet-policy-steering",
+      "next_service": "firewall",
+      "policy_reference": "firewall_policy",
+      "source_vlans": [
+        20,
+        30,
+        40,
+        50,
+        60
+      ],
+      "type": "service_insertion"
+    }
+  ],
+  "metadata": {
+    "controller_type": "generic_rest",
+    "generated_by": "network-automation-callcenter-bpo",
+    "mode": "dry-run-safe",
+    "name": "callcenter-bpo-sdn-intents"
+  },
+  "protected_boundaries": [
+    {
+      "name": "mpls_l3vpn",
+      "rule": "Do not program ISP MPLS PE/P core. Only enterprise CE-facing or LAN fabric policy is in scope."
+    },
+    {
+      "name": "firewall_internet_breakout",
+      "rule": "Internet app/category control remains on firewall unless the target SDN controller supports service insertion."
+    }
+  ]
+}

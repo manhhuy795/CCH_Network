@@ -1,0 +1,27 @@
+---
+- name: Rollback one device from selected backup
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_file: inventories/lab_inventory.yml
+    rollback_apply: false
+    rollback_device: ""
+    rollback_backup_file: ""
+  tasks:
+    - name: Require rollback variables
+      ansible.builtin.assert:
+        that:
+          - rollback_device | length > 0
+          - rollback_backup_file | length > 0
+        fail_msg: "Set rollback_device and rollback_backup_file."
+
+    - name: Run rollback dry-run or apply
+      ansible.builtin.command:
+        cmd: >-
+          python scripts/rollback.py
+          --inventory {{ inventory_file }}
+          --device {{ rollback_device }}
+          --backup-file {{ rollback_backup_file }}
+          {% if rollback_apply | bool %}--apply{% endif %}
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: rollback_apply | bool

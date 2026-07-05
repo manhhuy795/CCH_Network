@@ -1,0 +1,10 @@
+---
+- name: Generate candidate device configurations
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Render generated_configs
+      ansible.builtin.command:
+        cmd: python scripts/generate_configs.py
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: true

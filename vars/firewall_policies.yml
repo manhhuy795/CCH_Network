@@ -1,0 +1,75 @@
+firewall_policy:
+  shared_objects:
+    applications:
+      zalo:
+        type: placeholder
+        fqdn:
+          - "*.zalo.me"
+          - "*.zaloapp.com"
+        app_id: "ZALO_APP_ID_TBD"
+        notes: "Update with vendor-supported App-ID/FQDN object before production."
+      call_app:
+        type: placeholder
+        fqdn:
+          - "call-app.example.com"
+        ip:
+          - 203.0.113.200/32
+        ports:
+          - tcp/443
+          - udp/10000-20000
+        notes: "Replace with actual customer calling application FQDN/IP/ports."
+      social_media:
+        type: category
+        categories:
+          - social-networking
+          - streaming-media
+          - gaming
+  sites:
+    hq:
+      firewall_name: hq-firewall
+      inside_interface: inside
+      outside_interface: outside
+      nat_source_vlans: [20, 30, 40, 90]
+      policies:
+        - name: allow-zalo
+          action: allow
+          sources: [20, 30, 40]
+          destinations: [internet]
+          applications: [zalo]
+          log: true
+        - name: allow-call-app
+          action: allow
+          sources: [20, 30, 40]
+          destinations: [internet]
+          applications: [call_app]
+          log: true
+        - name: deny-social-media
+          action: deny
+          sources: [20, 30, 40]
+          destinations: [internet]
+          applications: [social_media]
+          log: true
+    branch:
+      firewall_name: br-firewall
+      inside_interface: inside
+      outside_interface: outside
+      nat_source_vlans: [50, 60]
+      policies:
+        - name: allow-zalo
+          action: allow
+          sources: [50, 60]
+          destinations: [internet]
+          applications: [zalo]
+          log: true
+        - name: allow-call-app
+          action: allow
+          sources: [50, 60]
+          destinations: [internet]
+          applications: [call_app]
+          log: true
+        - name: deny-social-media
+          action: deny
+          sources: [50, 60]
+          destinations: [internet]
+          applications: [social_media]
+          log: true

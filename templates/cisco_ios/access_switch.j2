@@ -1,0 +1,23 @@
+! Generated candidate config for {{ device.name }}
+hostname {{ device.name }}
+!
+{% for vlan_id in device.access_vlans %}
+{% set vlan = vlans_by_id[vlan_id] %}
+vlan {{ vlan.id }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% for access in interfaces.access_ports %}
+interface range {{ access.range }}
+ description {{ access.description }}
+ switchport mode access
+ switchport access vlan {{ access.vlan }}
+ spanning-tree portfast
+!
+{% endfor %}
+interface {{ interfaces.uplink.name }}
+ description {{ interfaces.uplink.description }}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ interfaces.uplink.allowed_vlans | join(',') }}
+!
+end

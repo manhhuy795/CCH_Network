@@ -1,0 +1,22 @@
+---
+- name: Validate variables and run non-invasive precheck
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Validate source-of-truth YAML
+      ansible.builtin.command:
+        cmd: python scripts/validate_vars.py
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: false
+
+    - name: Render candidate configs for review
+      ansible.builtin.command:
+        cmd: python scripts/generate_configs.py
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: true
+
+    - name: Verify rendered configs offline
+      ansible.builtin.command:
+        cmd: python scripts/verify_network.py
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: false

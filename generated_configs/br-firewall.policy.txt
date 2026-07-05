@@ -1,0 +1,53 @@
+# Generated vendor-neutral firewall policy for br-firewall
+# Convert to the target firewall vendor syntax and validate before production.
+
+firewall: br-firewall
+site: branch
+interfaces:
+  inside: inside
+  outside: outside
+
+nat:
+  outbound:
+    - source_vlan: 50
+      source_subnet: 172.10.50.0/24
+      translated_to: outside_interface
+    - source_vlan: 60
+      source_subnet: 172.10.60.0/24
+      translated_to: outside_interface
+
+objects:
+  zalo:
+    type: placeholder
+    fqdn: ['*.zalo.me', '*.zaloapp.com']
+    notes: "Update with vendor-supported App-ID/FQDN object before production."
+  call_app:
+    type: placeholder
+    fqdn: ['call-app.example.com']
+    ip: ['203.0.113.200/32']
+    ports: ['tcp/443', 'udp/10000-20000']
+    notes: "Replace with actual customer calling application FQDN/IP/ports."
+  social_media:
+    type: category
+    categories: ['social-networking', 'streaming-media', 'gaming']
+    notes: ""
+
+policies:
+  - name: allow-zalo
+    action: allow
+    source_vlans: [50, 60]
+    destination: ['internet']
+    applications: ['zalo']
+    log: True
+  - name: allow-call-app
+    action: allow
+    source_vlans: [50, 60]
+    destination: ['internet']
+    applications: ['call_app']
+    log: True
+  - name: deny-social-media
+    action: deny
+    source_vlans: [50, 60]
+    destination: ['internet']
+    applications: ['social_media']
+    log: True

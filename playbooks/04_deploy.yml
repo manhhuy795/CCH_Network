@@ -1,0 +1,16 @@
+---
+- name: Deploy generated configs with dry-run default
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_file: inventories/lab_inventory.yml
+    deploy_apply: false
+  tasks:
+    - name: Deploy dry-run or real apply when explicitly enabled
+      ansible.builtin.command:
+        cmd: >-
+          python scripts/deploy_configs.py
+          --inventory {{ inventory_file }}
+          {% if deploy_apply | bool %}--apply{% endif %}
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: deploy_apply | bool

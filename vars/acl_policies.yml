@@ -1,0 +1,45 @@
+admin_allowed_sources:
+  - 172.10.0.10/32
+  - 172.10.0.11/32
+
+hq_project_isolation:
+  - name: ACL_VLAN20_IN
+    source_vlan: 20
+    deny_destination_vlans: [30, 40]
+    allow_destination_vlans: [90]
+    allow_internet: true
+  - name: ACL_VLAN30_IN
+    source_vlan: 30
+    deny_destination_vlans: [20, 40]
+    allow_destination_vlans: [90]
+    allow_internet: true
+  - name: ACL_VLAN40_IN
+    source_vlan: 40
+    deny_destination_vlans: [20, 30]
+    allow_destination_vlans: [90]
+    allow_internet: true
+
+management_policy:
+  name: ACL_MGMT_IN
+  source_vlan: 10
+  allowed_sources_ref: admin_allowed_sources
+  deny_from_user_vlans: [20, 30, 40, 50, 60]
+
+branch_policies:
+  - name: ACL_VLAN50_IN
+    source_vlan: 50
+    deny_destination_vlans: [60]
+    allow_destination_vlans: [90]
+    allowed_service_objects:
+      - call_app
+      - dns
+      - ntp
+    default_action: deny_internal_log
+  - name: ACL_VLAN60_IN
+    source_vlan: 60
+    deny_destination_vlans: [50]
+    allowed_service_objects:
+      - admin_backoffice
+      - dns
+      - ntp
+    default_action: deny_internal_log

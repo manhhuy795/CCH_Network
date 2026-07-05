@@ -1,0 +1,34 @@
+# Optional FortiGate-style example for {{ device.name }}.
+# This is illustrative only; update interface names, address groups, UTM profiles, and ISDB/App-Control IDs.
+
+config firewall address
+{% for vlan_id in firewall_site.nat_source_vlans %}
+    edit "VLAN{{ vlan_id }}_{{ vlans_by_id[vlan_id].name }}"
+        set subnet {{ vlans_by_id[vlan_id].subnet | prefix_to_ios }}
+    next
+{% endfor %}
+end
+
+config firewall policy
+    edit 0
+        set name "allow-zalo-call-app"
+        set srcintf "{{ firewall_site.inside_interface }}"
+        set dstintf "{{ firewall_site.outside_interface }}"
+        set srcaddr {% for vlan_id in firewall_site.nat_source_vlans %}"VLAN{{ vlan_id }}_{{ vlans_by_id[vlan_id].name }}" {% endfor %}
+        set dstaddr "ZALO_FQDN_TBD" "CALL_APP_TBD"
+        set action accept
+        set schedule "always"
+        set service "HTTPS" "CALL_APP_PORTS_TBD"
+        set nat enable
+        set logtraffic all
+    next
+    edit 0
+        set name "deny-social-media-log"
+        set srcintf "{{ firewall_site.inside_interface }}"
+        set dstintf "{{ firewall_site.outside_interface }}"
+        set action deny
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+    next
+end

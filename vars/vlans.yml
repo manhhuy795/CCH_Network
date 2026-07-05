@@ -1,0 +1,47 @@
+vlans:
+  - id: 10
+    name: MGMT
+    site: hq
+    subnet: 172.10.0.0/24
+    gateway: 172.10.0.1
+    description: "Management/NMS VLAN"
+  - id: 20
+    name: PROJECT_A
+    site: hq
+    subnet: 172.10.20.0/24
+    gateway: 172.10.20.1
+    approx_users: 50
+    description: "Project A users"
+  - id: 30
+    name: PROJECT_B
+    site: hq
+    subnet: 172.10.30.0/24
+    gateway: 172.10.30.1
+    approx_users: 50
+    description: "Project B users"
+  - id: 40
+    name: PROJECT_C
+    site: hq
+    subnet: 172.10.40.0/24
+    gateway: 172.10.40.1
+    approx_users: 50
+    description: "Project C users"
+  - id: 90
+    name: VOICE
+    site: hq
+    subnet: 172.10.90.0/24
+    gateway: 172.10.90.1
+    description: "IP phone and softphone voice VLAN"
+  - id: 50
+    name: TELESALE
+    site: branch
+    subnet: 172.10.50.0/24
+    gateway: 172.10.50.1
+    approx_users: 50
+    description: "Branch telesale users"
+  - id: 60
+    name: BR_ADMIN
+    site: branch
+    subnet: 172.10.60.0/24
+    gateway: 172.10.60.1
+    description: "Branch admin/backoffice"

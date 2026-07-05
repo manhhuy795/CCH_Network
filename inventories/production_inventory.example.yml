@@ -1,0 +1,35 @@
+all:
+  children:
+    hq:
+      hosts:
+        hq-core-l3:
+          ansible_host: 10.255.10.10
+        hq-access-a:
+          ansible_host: 10.255.10.11
+        hq-access-b:
+          ansible_host: 10.255.10.12
+        hq-access-c:
+          ansible_host: 10.255.10.13
+        hq-voice-mgmt:
+          ansible_host: 10.255.10.14
+        hq-ce-router:
+          ansible_host: 10.255.10.15
+        hq-firewall:
+          ansible_host: 10.255.10.16
+    branch:
+      hosts:
+        br-access:
+          ansible_host: 10.255.50.10
+        br-dist-l3:
+          ansible_host: 10.255.50.11
+        br-ce-router:
+          ansible_host: 10.255.50.12
+        br-firewall:
+          ansible_host: 10.255.50.13
+  vars:
+    ansible_connection: network_cli
+    ansible_user: "{{ lookup('env', 'NET_USERNAME') }}"
+    ansible_password: "{{ lookup('env', 'NET_PASSWORD') }}"
+    ansible_become: true
+    ansible_become_method: enable
+    ansible_become_password: "{{ lookup('env', 'NET_SECRET') }}"

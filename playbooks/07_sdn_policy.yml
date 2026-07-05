@@ -1,0 +1,14 @@
+---
+- name: Render or apply optional SDN intent policy
+  hosts: localhost
+  gather_facts: false
+  vars:
+    sdn_apply: false
+  tasks:
+    - name: Render SDN intents or apply when explicitly enabled
+      ansible.builtin.command:
+        cmd: >-
+          python scripts/generate_sdn_policies.py
+          {% if sdn_apply | bool %}--apply{% endif %}
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: sdn_apply | bool

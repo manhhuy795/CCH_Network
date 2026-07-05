@@ -1,0 +1,15 @@
+---
+- name: Verify network state
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_file: inventories/lab_inventory.yml
+    live_verify: false
+  tasks:
+    - name: Run offline or live verification
+      ansible.builtin.command:
+        cmd: >-
+          python scripts/verify_network.py
+          {% if live_verify | bool %}--live --inventory {{ inventory_file }}{% endif %}
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: false
