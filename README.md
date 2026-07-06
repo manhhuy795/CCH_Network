@@ -38,6 +38,7 @@ playbooks/               Ansible orchestration wrappers
 scripts/                 Python automation
 tests/                   Unit tests
 docs/                    Design notes
+sdn_demo/                Mininet/Open vSwitch SDN simulation demo
 ```
 
 ## Install
@@ -118,6 +119,49 @@ Render optional SDN intent policy:
 ```powershell
 python scripts/generate_sdn_policies.py
 ```
+
+## SDN Simulation Demo
+
+The `sdn_demo/` module runs a practical SDN demo in an Ubuntu VM with Mininet,
+Open vSwitch and OS-Ken/Ryu. It does not require physical devices.
+
+It simulates:
+
+- HQ Project A/B/C traffic isolation.
+- Voice service access when `voice_enabled=true`.
+- Zalo and Call App allowed.
+- Social Media blocked.
+- Branch Telesale and Branch Admin limited by policy.
+
+Quick start on Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv python3-yaml mininet openvswitch-switch
+sudo systemctl enable --now openvswitch-switch
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r sdn_demo/requirements.txt
+
+chmod +x sdn_demo/run_demo.sh
+./sdn_demo/run_demo.sh
+```
+
+Inside Mininet, copy/paste command lines from `sdn_demo/test_commands.txt`:
+
+```text
+h20 ping -c 2 h30
+h20 ping -c 2 h90
+h20 ping -c 2 hzalo
+h20 ping -c 2 hcall
+h20 ping -c 2 hsocial
+h50 ping -c 2 h60
+h50 ping -c 2 hcall
+h50 ping -c 2 hsocial
+```
+
+See `sdn_demo/README.md` and `docs/sdn_mininet_demo.md`.
 
 Backup dry-run:
 
@@ -213,3 +257,4 @@ See:
 - `docs/firewall_policy.md`
 - `docs/sdn_design.md`
 - `docs/gns3_lab.md`
+- `docs/sdn_mininet_demo.md`

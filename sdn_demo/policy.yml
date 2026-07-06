@@ -1,0 +1,109 @@
+metadata:
+  name: callcenter-bpo-sdn-policy
+  description: "SDN policy simulation for Call Center BPO lab"
+  openflow_version: "1.3"
+  controller: "127.0.0.1:6653"
+  note: "This is an enterprise SDN policy simulation only. It does not program ISP MPLS PE/P routers."
+
+gateway:
+  mac: "00:00:00:aa:bb:cc"
+
+voice_enabled: true
+
+hosts:
+  h20:
+    role: project_a
+    site: hq
+    ip: 172.10.20.10
+    cidr: 172.10.20.10/24
+    gateway: 172.10.20.1
+    mac: "00:00:00:00:20:10"
+    switch_port: 1
+  h30:
+    role: project_b
+    site: hq
+    ip: 172.10.30.10
+    cidr: 172.10.30.10/24
+    gateway: 172.10.30.1
+    mac: "00:00:00:00:30:10"
+    switch_port: 2
+  h40:
+    role: project_c
+    site: hq
+    ip: 172.10.40.10
+    cidr: 172.10.40.10/24
+    gateway: 172.10.40.1
+    mac: "00:00:00:00:40:10"
+    switch_port: 3
+  h50:
+    role: telesale
+    site: branch
+    ip: 172.10.50.10
+    cidr: 172.10.50.10/24
+    gateway: 172.10.50.1
+    mac: "00:00:00:00:50:10"
+    switch_port: 4
+  h60:
+    role: branch_admin
+    site: branch
+    ip: 172.10.60.10
+    cidr: 172.10.60.10/24
+    gateway: 172.10.60.1
+    mac: "00:00:00:00:60:10"
+    switch_port: 5
+  h90:
+    role: voice_service
+    site: shared_services
+    ip: 172.10.90.10
+    cidr: 172.10.90.10/24
+    gateway: 172.10.90.1
+    mac: "00:00:00:00:90:10"
+    switch_port: 6
+  hzalo:
+    role: zalo_service
+    site: internet_services
+    ip: 172.10.200.10
+    cidr: 172.10.200.10/24
+    gateway: 172.10.200.1
+    mac: "00:00:00:00:20:00"
+    switch_port: 7
+  hcall:
+    role: call_app_service
+    site: internet_services
+    ip: 172.10.201.10
+    cidr: 172.10.201.10/24
+    gateway: 172.10.201.1
+    mac: "00:00:00:00:20:01"
+    switch_port: 8
+  hsocial:
+    role: social_media_service
+    site: internet_services
+    ip: 172.10.202.10
+    cidr: 172.10.202.10/24
+    gateway: 172.10.202.1
+    mac: "00:00:00:00:20:02"
+    switch_port: 9
+
+client_hosts:
+  - h20
+  - h30
+  - h40
+  - h50
+  - h60
+
+voice_service: h90
+
+allowed_services:
+  - hzalo
+  - hcall
+
+blocked_services:
+  - hsocial
+
+deny_pairs:
+  - [h20, h30]
+  - [h20, h40]
+  - [h30, h40]
+  - [h50, h60]
+
+default_action: deny

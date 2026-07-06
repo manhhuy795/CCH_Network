@@ -1,0 +1,8 @@
+h20 ping -c 2 h30      # expected fail
+h20 ping -c 2 h90      # expected pass
+h20 ping -c 2 hzalo    # expected pass
+h20 ping -c 2 hcall    # expected pass
+h20 ping -c 2 hsocial  # expected fail
+h50 ping -c 2 h60      # expected fail/limited
+h50 ping -c 2 hcall    # expected pass
+h50 ping -c 2 hsocial  # expected fail
