@@ -36,6 +36,21 @@ outputs packets to the correct OVS port.
 
 ## Install Ubuntu Packages
 
+Fast setup script with Vietnamese guidance:
+
+```bash
+chmod +x sdn_demo/setup_ubuntu_vm_vi.sh
+./sdn_demo/setup_ubuntu_vm_vi.sh
+```
+
+Install and run the demo immediately:
+
+```bash
+./sdn_demo/setup_ubuntu_vm_vi.sh --run
+```
+
+Manual install:
+
 ```bash
 sudo apt update
 sudo apt install -y git python3 python3-pip python3-venv python3-yaml mininet openvswitch-switch
@@ -150,4 +165,5 @@ topology_callcenter.py             Mininet/OVS topology
 controller_callcenter_policy.py    OS-Ken/Ryu OpenFlow 1.3 controller
 run_demo.sh                        Helper runner
 test_commands.txt                  Mininet CLI test commands
+setup_ubuntu_vm_vi.sh              Vietnamese setup helper for Ubuntu VM
 ```

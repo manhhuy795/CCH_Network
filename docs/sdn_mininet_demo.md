@@ -26,6 +26,21 @@ not require physical network devices.
 
 ## Run
 
+Quick Vietnamese setup script:
+
+```bash
+chmod +x sdn_demo/setup_ubuntu_vm_vi.sh
+./sdn_demo/setup_ubuntu_vm_vi.sh
+```
+
+Install and start the demo immediately:
+
+```bash
+./sdn_demo/setup_ubuntu_vm_vi.sh --run
+```
+
+Manual setup:
+
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-pip python3-venv python3-yaml mininet openvswitch-switch
