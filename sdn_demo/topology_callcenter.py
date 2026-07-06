@@ -64,8 +64,13 @@ def build_topology():
         port=6653,
     )
 
-    info("*** Adding central Open vSwitch s-core with OpenFlow 1.3\n")
-    switch = net.addSwitch("s-core", protocols="OpenFlow13", failMode="secure")
+    info("*** Adding central Open vSwitch s1-core with OpenFlow 1.3\n")
+    switch = net.addSwitch(
+        "s1",
+        dpid="0000000000000001",
+        protocols="OpenFlow13",
+        failMode="secure",
+    )
 
     info("*** Adding hosts\n")
     for host_name, host_data in policy["hosts"].items():

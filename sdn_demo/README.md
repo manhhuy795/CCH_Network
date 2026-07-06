@@ -117,6 +117,13 @@ controller logs to:
 sdn_demo/controller.log
 ```
 
+If the script reports that the controller crashed or port `6653` is not
+listening, inspect the log:
+
+```bash
+cat sdn_demo/controller.log
+```
+
 ## Test Commands
 
 Inside the Mininet CLI:
