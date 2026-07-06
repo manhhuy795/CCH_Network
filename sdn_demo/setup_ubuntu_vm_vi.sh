@@ -68,10 +68,26 @@ setup_python_env() {
   python -m pip install --upgrade pip
 
   if python -m pip install -r sdn_demo/requirements.txt; then
-    echo "Da cai OS-Ken thanh cong."
+    echo "Da cai OS-Ken thanh cong bang pip."
   else
-    echo "Cai OS-Ken bi loi, thu cai Ryu thay the."
-    python -m pip install ryu PyYAML
+    echo "Cai OS-Ken bang pip bi loi, thu cai Ryu thay the."
+    python -m pip install ryu PyYAML || true
+  fi
+
+  if command -v osken-manager >/dev/null 2>&1 || command -v ryu-manager >/dev/null 2>&1; then
+    return
+  fi
+
+  if python -c "import os_ken" >/dev/null 2>&1 || python -c "import ryu" >/dev/null 2>&1; then
+    echo "Da cai module controller, co the chay bang python -m neu entrypoint khong co."
+    return
+  fi
+
+  echo "Pip chua cai duoc OS-Ken/Ryu. Thu fallback bang apt neu Ubuntu co goi python3-ryu."
+  if apt-cache show python3-ryu >/dev/null 2>&1; then
+    sudo apt install -y python3-ryu
+  else
+    echo "Khong thay goi apt python3-ryu tren ban Ubuntu nay."
   fi
 }
 
@@ -97,8 +113,17 @@ verify_tools() {
     echo "Controller: osken-manager da san sang"
   elif command -v ryu-manager >/dev/null 2>&1; then
     echo "Controller: ryu-manager da san sang"
+  elif python -c "import os_ken" >/dev/null 2>&1; then
+    echo "Controller: module os_ken da san sang, run_demo.sh se chay bang python -m os_ken.cmd.manager"
+  elif python -c "import ryu" >/dev/null 2>&1; then
+    echo "Controller: module ryu da san sang, run_demo.sh se chay bang python -m ryu.cmd.manager"
   else
-    echo "Loi: chua tim thay osken-manager hoac ryu-manager trong .venv."
+    echo "Loi: chua tim thay OS-Ken/Ryu."
+    echo "Neu VM dang dung Python qua moi, vi du Python 3.14, hay thu:"
+    echo "  source .venv/bin/activate"
+    echo "  pip install 'setuptools<81' eventlet PyYAML"
+    echo "  pip install ryu"
+    echo "Hoac dung Ubuntu 22.04/24.04 voi Python 3.10/3.12 de tuong thich tot hon."
     exit 1
   fi
 }

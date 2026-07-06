@@ -8,11 +8,15 @@ CONTROLLER_LOG="${DEMO_DIR}/controller.log"
 cd "${REPO_ROOT}"
 
 if command -v osken-manager >/dev/null 2>&1; then
-  MANAGER="osken-manager"
+  MANAGER_CMD=(osken-manager)
 elif command -v ryu-manager >/dev/null 2>&1; then
-  MANAGER="ryu-manager"
+  MANAGER_CMD=(ryu-manager)
+elif python -c "import os_ken" >/dev/null 2>&1; then
+  MANAGER_CMD=(python -m os_ken.cmd.manager)
+elif python -c "import ryu" >/dev/null 2>&1; then
+  MANAGER_CMD=(python -m ryu.cmd.manager)
 else
-  echo "Could not find osken-manager or ryu-manager. Install OS-Ken/Ryu first."
+  echo "Could not find OS-Ken or Ryu. Run: ./sdn_demo/setup_ubuntu_vm_vi.sh"
   exit 1
 fi
 
@@ -26,8 +30,8 @@ trap cleanup EXIT
 echo "[1/4] Cleaning old Mininet state"
 sudo mn -c >/dev/null 2>&1 || true
 
-echo "[2/4] Starting SDN controller with ${MANAGER} on 127.0.0.1:6653"
-"${MANAGER}" sdn_demo/controller_callcenter_policy.py --ofp-tcp-listen-port 6653 >"${CONTROLLER_LOG}" 2>&1 &
+echo "[2/4] Starting SDN controller with ${MANAGER_CMD[*]} on 127.0.0.1:6653"
+"${MANAGER_CMD[@]}" sdn_demo/controller_callcenter_policy.py --ofp-tcp-listen-port 6653 >"${CONTROLLER_LOG}" 2>&1 &
 CTRL_PID=$!
 sleep 3
 

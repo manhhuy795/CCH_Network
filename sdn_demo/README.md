@@ -73,6 +73,13 @@ If OS-Ken is unavailable for your Python version, install Ryu instead:
 pip install ryu PyYAML
 ```
 
+If both installers fail on a very new Python version such as Python 3.14, use an
+Ubuntu LTS VM such as 22.04 or 24.04, or try the apt-packaged Ryu controller:
+
+```bash
+sudo apt install -y python3-ryu
+```
+
 ## Run Controller and Topology Manually
 
 Terminal 1:
