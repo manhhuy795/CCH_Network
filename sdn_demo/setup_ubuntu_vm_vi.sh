@@ -11,6 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUN_AFTER_SETUP="false"
+PYTHON_BIN="${PYTHON_BIN:-python3.12}"
 
 if [[ "${1:-}" == "--run" ]]; then
   RUN_AFTER_SETUP="true"
@@ -41,18 +42,25 @@ require_ubuntu_like() {
 }
 
 install_system_packages() {
-  print_step "1. Cai goi he thong: Python, Mininet, Open vSwitch"
+  print_step "1. Cai goi he thong: Python 3.12, Mininet, Open vSwitch"
   sudo apt update
   sudo apt install -y \
     git \
-    python3 \
+    python3.12 \
+    python3.12-venv \
     python3-pip \
-    python3-venv \
     python3-yaml \
     mininet \
     openvswitch-switch
 
   sudo systemctl enable --now openvswitch-switch
+
+  if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    echo "Loi: khong tim thay ${PYTHON_BIN} sau khi cai dat."
+    echo "Khuyen nghi dung Ubuntu 24.04 LTS vi co san Python 3.12 trong apt."
+    echo "Neu ban dung Python khac, co the chay: PYTHON_BIN=python3 ./sdn_demo/setup_ubuntu_vm_vi.sh"
+    exit 1
+  fi
 }
 
 setup_python_env() {
@@ -60,7 +68,7 @@ setup_python_env() {
   cd "${REPO_ROOT}"
 
   if [[ ! -d .venv ]]; then
-    python3 -m venv .venv
+    "${PYTHON_BIN}" -m venv .venv
   fi
 
   # shellcheck disable=SC1091
@@ -123,7 +131,7 @@ verify_tools() {
     echo "  source .venv/bin/activate"
     echo "  pip install 'setuptools<81' eventlet PyYAML"
     echo "  pip install ryu"
-    echo "Hoac dung Ubuntu 22.04/24.04 voi Python 3.10/3.12 de tuong thich tot hon."
+    echo "Khuyen nghi dung Ubuntu 24.04 LTS voi Python 3.12 de tuong thich on dinh hon."
     exit 1
   fi
 }

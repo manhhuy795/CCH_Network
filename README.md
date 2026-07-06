@@ -12,8 +12,7 @@ Call Center BPO hai site. Repo có hai phần chính:
 
 Để chạy ổn định nhất, nên dùng:
 
-- **Ubuntu 22.04 LTS + Python 3.10**: khuyến nghị tốt nhất cho OS-Ken/Ryu.
-- **Ubuntu 24.04 LTS + Python 3.12**: vẫn phù hợp.
+- **Ubuntu 24.04 LTS + Python 3.12**: khuyến nghị chính cho repo này.
 
 Không khuyến nghị dùng Python quá mới như **Python 3.14** cho SDN demo, vì
 OS-Ken/Ryu có thể chưa tương thích tốt.
@@ -21,7 +20,7 @@ OS-Ken/Ryu có thể chưa tương thích tốt.
 Kiểm tra Python:
 
 ```bash
-python3 --version
+python3.12 --version
 ```
 
 ## Cấu Trúc Repo
@@ -45,12 +44,12 @@ Nếu chỉ muốn chạy automation offline:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip git
+sudo apt install -y python3.12 python3.12-venv python3-pip git
 
 git clone https://github.com/manhhuy795/CCH_Network.git
 cd CCH_Network
 
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
@@ -109,16 +108,16 @@ Nếu muốn cài xong chạy demo luôn:
 sudo apt update
 sudo apt install -y \
   git \
-  python3 \
+  python3.12 \
+  python3.12-venv \
   python3-pip \
-  python3-venv \
   python3-yaml \
   mininet \
   openvswitch-switch
 
 sudo systemctl enable --now openvswitch-switch
 
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r sdn_demo/requirements.txt
 ```
@@ -130,7 +129,8 @@ source .venv/bin/activate
 pip install ryu PyYAML
 ```
 
-Nếu vẫn lỗi do Python quá mới, nên đổi sang Ubuntu 22.04/24.04.
+Nếu `apt` không tìm thấy `python3.12`, nên dùng Ubuntu 24.04 LTS hoặc cài Python
+3.12 từ nguồn package phù hợp với bản Ubuntu của bạn.
 
 ## Lệnh Test Trong Mininet
 

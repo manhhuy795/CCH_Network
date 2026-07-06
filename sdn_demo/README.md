@@ -19,7 +19,6 @@ tạo logic CE-to-CE, và không program ISP MPLS PE/P core.
 
 Nên dùng:
 
-- Ubuntu 22.04 LTS với Python 3.10.
 - Ubuntu 24.04 LTS với Python 3.12.
 
 Không khuyến nghị Python 3.14 vì OS-Ken/Ryu có thể chưa tương thích ổn định.
@@ -63,16 +62,16 @@ Cài xong và chạy demo luôn:
 sudo apt update
 sudo apt install -y \
   git \
-  python3 \
+  python3.12 \
+  python3.12-venv \
   python3-pip \
-  python3-venv \
   python3-yaml \
   mininet \
   openvswitch-switch
 
 sudo systemctl enable --now openvswitch-switch
 
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r sdn_demo/requirements.txt
 ```
@@ -84,8 +83,9 @@ source .venv/bin/activate
 pip install ryu PyYAML
 ```
 
-Nếu cả OS-Ken và Ryu đều lỗi trên Python quá mới, hãy dùng Ubuntu 22.04/24.04
-hoặc thử:
+Nếu `apt` không tìm thấy `python3.12`, hãy dùng Ubuntu 24.04 LTS hoặc cài Python
+3.12 từ nguồn package phù hợp với bản Ubuntu của bạn. Nếu OS-Ken/Ryu vẫn lỗi,
+thử:
 
 ```bash
 sudo apt install -y python3-ryu

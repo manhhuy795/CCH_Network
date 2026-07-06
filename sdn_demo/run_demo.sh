@@ -4,6 +4,11 @@ set -euo pipefail
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${DEMO_DIR}/.." && pwd)"
 CONTROLLER_LOG="${DEMO_DIR}/controller.log"
+TOPOLOGY_PYTHON="${TOPOLOGY_PYTHON:-python3.12}"
+
+if ! command -v "${TOPOLOGY_PYTHON}" >/dev/null 2>&1; then
+  TOPOLOGY_PYTHON="python3"
+fi
 
 cd "${REPO_ROOT}"
 
@@ -76,7 +81,7 @@ echo "[3/4] Starting Mininet topology"
 echo "Controller log: ${CONTROLLER_LOG}"
 echo "Inside Mininet, copy/paste commands from: sdn_demo/test_commands.txt"
 echo
-sudo python3 sdn_demo/topology_callcenter.py
+sudo "${TOPOLOGY_PYTHON}" sdn_demo/topology_callcenter.py
 
 echo "[4/4] Cleaning Mininet state"
 sudo mn -c >/dev/null 2>&1 || true

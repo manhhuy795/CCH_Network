@@ -43,10 +43,10 @@ Manual setup:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip python3-venv python3-yaml mininet openvswitch-switch
+sudo apt install -y python3.12 python3.12-venv python3-pip python3-yaml mininet openvswitch-switch
 sudo systemctl enable --now openvswitch-switch
 
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r sdn_demo/requirements.txt
 
