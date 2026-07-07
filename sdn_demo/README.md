@@ -101,6 +101,15 @@ source .venv/bin/activate
 pip install ryu PyYAML
 ```
 
+Nếu thấy lỗi `No module named os_ken.cmd.manager`, nghĩa là package `os_ken`
+có trong môi trường nhưng thiếu manager để chạy controller. Cài Ryu rồi chạy lại:
+
+```bash
+source .venv/bin/activate
+pip install ryu PyYAML
+./sdn_demo/run_demo.sh
+```
+
 Nếu `apt` không tìm thấy `python3.12`, hãy dùng Ubuntu 24.04 LTS hoặc cài Python
 3.12 bằng Deadsnakes PPA như ví dụ trên. Nếu OS-Ken/Ryu vẫn lỗi, thử:
 

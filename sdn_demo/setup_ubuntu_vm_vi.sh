@@ -91,12 +91,15 @@ setup_python_env() {
     python -m pip install ryu PyYAML || true
   fi
 
-  if command -v osken-manager >/dev/null 2>&1 || command -v ryu-manager >/dev/null 2>&1; then
+  if has_controller_manager; then
     return
   fi
 
-  if python -c "import os_ken" >/dev/null 2>&1 || python -c "import ryu" >/dev/null 2>&1; then
-    echo "Da cai module controller, co the chay bang python -m neu entrypoint khong co."
+  echo "Chua thay controller manager hop le. Thu cai Ryu thay the."
+  python -m pip install ryu PyYAML || true
+
+  if has_controller_manager; then
+    echo "Da cai controller manager hop le."
     return
   fi
 
@@ -106,6 +109,13 @@ setup_python_env() {
   else
     echo "Khong thay goi apt python3-ryu tren ban Ubuntu nay."
   fi
+}
+
+has_controller_manager() {
+  command -v osken-manager >/dev/null 2>&1 \
+    || command -v ryu-manager >/dev/null 2>&1 \
+    || python -c "import os_ken.cmd.manager" >/dev/null 2>&1 \
+    || python -c "import ryu.cmd.manager" >/dev/null 2>&1
 }
 
 verify_tools() {
@@ -130,9 +140,9 @@ verify_tools() {
     echo "Controller: osken-manager da san sang"
   elif command -v ryu-manager >/dev/null 2>&1; then
     echo "Controller: ryu-manager da san sang"
-  elif python -c "import os_ken" >/dev/null 2>&1; then
+  elif python -c "import os_ken.cmd.manager" >/dev/null 2>&1; then
     echo "Controller: module os_ken da san sang, run_demo.sh se chay bang python -m os_ken.cmd.manager"
-  elif python -c "import ryu" >/dev/null 2>&1; then
+  elif python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
     echo "Controller: module ryu da san sang, run_demo.sh se chay bang python -m ryu.cmd.manager"
   else
     echo "Loi: chua tim thay OS-Ken/Ryu."
