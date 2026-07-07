@@ -43,7 +43,13 @@ Manual setup:
 
 ```bash
 sudo apt update
-sudo apt install -y python3.12 python3.12-venv python3-pip python3-yaml mininet openvswitch-switch
+sudo apt install -y software-properties-common git python3 python3-pip python3-yaml mininet openvswitch-switch
+
+# Ubuntu 22.04 khong co python3.12 mac dinh, can them PPA nay.
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install -y python3.12 python3.12-venv
+
 sudo systemctl enable --now openvswitch-switch
 
 python3.12 -m venv .venv

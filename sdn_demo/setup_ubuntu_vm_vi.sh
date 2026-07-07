@@ -44,14 +44,23 @@ require_ubuntu_like() {
 install_system_packages() {
   print_step "1. Cai goi he thong: Python 3.12, Mininet, Open vSwitch"
   sudo apt update
+
   sudo apt install -y \
+    software-properties-common \
     git \
-    python3.12 \
-    python3.12-venv \
+    python3 \
     python3-pip \
     python3-yaml \
     mininet \
     openvswitch-switch
+
+  if ! sudo apt install -y python3.12 python3.12-venv; then
+    echo "Ubuntu hien tai chua co python3.12 trong apt mac dinh."
+    echo "Thu them Deadsnakes PPA de cai Python 3.12."
+    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    sudo apt update
+    sudo apt install -y python3.12 python3.12-venv
+  fi
 
   sudo systemctl enable --now openvswitch-switch
 

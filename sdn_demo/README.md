@@ -58,17 +58,35 @@ Cài xong và chạy demo luôn:
 
 ## Cài Đặt Thủ Công
 
+Ubuntu 24.04 thường có sẵn Python 3.12 trong apt. Với Ubuntu 22.04, nếu apt
+báo không tìm thấy `python3.12`, thêm Deadsnakes PPA:
+
 ```bash
 sudo apt update
 sudo apt install -y \
+  software-properties-common \
   git \
+  python3 \
   python3.12 \
   python3.12-venv \
   python3-pip \
   python3-yaml \
   mininet \
   openvswitch-switch
+```
 
+Nếu lệnh trên báo không tìm thấy `python3.12`:
+
+```bash
+sudo apt install -y software-properties-common
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install -y python3.12 python3.12-venv
+```
+
+Sau đó tạo môi trường Python 3.12 cho controller:
+
+```bash
 sudo systemctl enable --now openvswitch-switch
 
 python3.12 -m venv .venv
@@ -84,8 +102,7 @@ pip install ryu PyYAML
 ```
 
 Nếu `apt` không tìm thấy `python3.12`, hãy dùng Ubuntu 24.04 LTS hoặc cài Python
-3.12 từ nguồn package phù hợp với bản Ubuntu của bạn. Nếu OS-Ken/Ryu vẫn lỗi,
-thử:
+3.12 bằng Deadsnakes PPA như ví dụ trên. Nếu OS-Ken/Ryu vẫn lỗi, thử:
 
 ```bash
 sudo apt install -y python3-ryu
