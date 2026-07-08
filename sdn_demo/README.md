@@ -98,7 +98,8 @@ Nếu OS-Ken lỗi, thử Ryu:
 
 ```bash
 source .venv/bin/activate
-pip install ryu PyYAML
+pip install --upgrade "pip<26" wheel "setuptools<81"
+pip install --no-build-isolation "ryu==4.34" PyYAML
 ```
 
 Nếu thấy lỗi `No module named os_ken.cmd.manager`, nghĩa là package `os_ken`
@@ -106,7 +107,8 @@ có trong môi trường nhưng thiếu manager để chạy controller. Cài Ry
 
 ```bash
 source .venv/bin/activate
-pip install ryu PyYAML
+pip install --upgrade "pip<26" wheel "setuptools<81"
+pip install --no-build-isolation "ryu==4.34" PyYAML
 ./sdn_demo/run_demo.sh
 ```
 

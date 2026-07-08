@@ -82,21 +82,18 @@ setup_python_env() {
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade pip
+  python -m pip install --upgrade "pip<26" wheel "setuptools<81"
+  python -m pip install -r sdn_demo/requirements.txt
 
-  if python -m pip install -r sdn_demo/requirements.txt; then
-    echo "Da cai OS-Ken thanh cong bang pip."
-  else
-    echo "Cai OS-Ken bang pip bi loi, thu cai Ryu thay the."
-    python -m pip install ryu PyYAML || true
-  fi
+  echo "Cai Ryu controller bang --no-build-isolation de tranh loi setuptools moi."
+  python -m pip install --no-build-isolation "ryu==4.34" PyYAML || true
 
   if has_controller_manager; then
     return
   fi
 
-  echo "Chua thay controller manager hop le. Thu cai Ryu thay the."
-  python -m pip install ryu PyYAML || true
+  echo "Chua thay Ryu manager. Thu OS-Ken fallback."
+  python -m pip install "os-ken>=4.2.1" || true
 
   if has_controller_manager; then
     echo "Da cai controller manager hop le."
@@ -146,11 +143,10 @@ verify_tools() {
     echo "Controller: module ryu da san sang, run_demo.sh se chay bang python -m ryu.cmd.manager"
   else
     echo "Loi: chua tim thay OS-Ken/Ryu."
-    echo "Neu VM dang dung Python qua moi, vi du Python 3.14, hay thu:"
+    echo "Hay thu chay thu cong:"
     echo "  source .venv/bin/activate"
-    echo "  pip install 'setuptools<81' eventlet PyYAML"
-    echo "  pip install ryu"
-    echo "Khuyen nghi dung Ubuntu 24.04 LTS voi Python 3.12 de tuong thich on dinh hon."
+    echo "  pip install --upgrade 'pip<26' wheel 'setuptools<81'"
+    echo "  pip install --no-build-isolation 'ryu==4.34' PyYAML"
     exit 1
   fi
 }

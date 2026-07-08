@@ -53,14 +53,15 @@ setup_venv_controller() {
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade pip wheel "setuptools<81"
-  python -m pip install -r sdn_demo/requirements.txt || true
+  python -m pip install --upgrade "pip<26" wheel "setuptools<81"
+  python -m pip install -r sdn_demo/requirements.txt
+  python -m pip install --no-build-isolation "ryu==4.34" PyYAML || true
 
   if ! command -v osken-manager >/dev/null 2>&1 \
     && ! command -v ryu-manager >/dev/null 2>&1 \
     && ! python -c "import os_ken.cmd.manager" >/dev/null 2>&1 \
     && ! python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
-    python -m pip install ryu PyYAML
+    python -m pip install "os-ken>=4.2.1" || true
   fi
 }
 
