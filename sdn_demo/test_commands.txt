@@ -1,3 +1,5 @@
+testsdn                  # run full detailed SDN policy test suite
+sdninfo                  # show SDN controller/policy/log entry points
 h20 ping -c 2 h30      # expected fail
 h20 ping -c 2 h90      # expected pass
 h20 ping -c 2 hzalo    # expected pass

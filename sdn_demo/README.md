@@ -1,30 +1,10 @@
-# SDN Demo - Mininet + Open vSwitch + OS-Ken/Ryu
+# SDN Demo - Mininet + Open vSwitch
 
-Thư mục này dùng để demo SDN thực tế trên Ubuntu VM. Demo không cần thiết bị
-mạng thật, không cần GNS3/EVE-NG, và không phụ thuộc firewall/router vật lý.
+Thu muc nay demo SDN cho he thong Call Center BPO tren Ubuntu VM.
 
-Controller standalone dùng OpenFlow 1.3 để điều khiển Open vSwitch:
+Demo khong can thiet bi that, khong can GNS3/EVE-NG, khong can Ryu/OS-Ken. Controller hien tai la `controller_standalone_policy.py`, tu viet bang Python va noi voi Open vSwitch bang OpenFlow 1.3.
 
-- Cách ly Project A/B/C.
-- Cho phép truy cập Voice nếu `voice_enabled=true`.
-- Cho phép Zalo simulator.
-- Cho phép Call App simulator.
-- Chặn Social Media simulator.
-- Không mở full access hai chiều giữa Telesale và Branch Admin.
-
-Đây chỉ là **SDN policy simulation**. Demo không mô phỏng MPLS L3VPN thật, không
-tạo logic CE-to-CE, và không program ISP MPLS PE/P core.
-
-## Khuyến Nghị Môi Trường
-
-Nên dùng:
-
-- Ubuntu 24.04 LTS với Python 3.12.
-
-Với Ubuntu 22.04, dùng Python mặc định 3.10 là đủ. Demo hiện dùng controller
-standalone tự viết nên không cần cài Ryu/OS-Ken.
-
-## Topology
+## Mo hinh
 
 ```text
 h20      Project A              172.10.20.10/24
@@ -38,124 +18,104 @@ hcall    Call App simulator     172.10.201.10/24
 hsocial  Social Media simulator 172.10.202.10/24
 ```
 
-Demo dùng một Open vSwitch trung tâm. Vì các host nằm ở nhiều subnet `/24`,
-topology sẽ đặt default gateway giả và static ARP. Controller sẽ rewrite MAC và
-đẩy packet ra đúng port dựa trên policy.
+Policy chinh:
 
-## Cài Đặt Nhanh Bằng Script Tiếng Việt
+- h20/h30/h40 bi cach ly voi nhau.
+- h20/h30/h40/h50/h60 duoc di Voice neu `voice_enabled=true`.
+- h20/h30/h40/h50/h60 duoc di Zalo va Call App.
+- h20/h30/h40/h50/h60 bi chan Social Media.
+- h50 va h60 khong co full access hai chieu.
 
-Chạy từ thư mục gốc repo:
+Day la SDN policy simulation, khong mo phong MPLS L3VPN that va khong program ISP PE/P core.
+
+## Cai dat nhanh tren Ubuntu 22.04
+
+Chay tu thu muc goc repo:
 
 ```bash
 chmod +x sdn_demo/setup_ubuntu_vm_vi.sh
 ./sdn_demo/setup_ubuntu_vm_vi.sh
 ```
 
-Cài xong và chạy demo luôn:
+Neu muon cai xong va chay demo luon:
 
 ```bash
 ./sdn_demo/setup_ubuntu_vm_vi.sh --run
 ```
 
-## Cài Đặt Thủ Công
-
-Ubuntu 24.04 thường có sẵn Python 3.12 trong apt. Với Ubuntu 22.04, nếu apt
-báo không tìm thấy `python3.12`, thêm Deadsnakes PPA:
+## Cai dat thu cong
 
 ```bash
 sudo apt update
-sudo apt install -y \
-  software-properties-common \
-  git \
-  python3 \
-  python3 \
-  python3-venv \
-  python3-pip \
-  python3-yaml \
-  mininet \
-  openvswitch-switch
-```
-
-Nếu lệnh trên báo không tìm thấy `python3.12`:
-
-```bash
-sudo apt install -y software-properties-common
-sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt update
-sudo apt install -y python3.12 python3.12-venv
-```
-
-Sau đó tạo môi trường Python 3.12 cho controller:
-
-```bash
+sudo apt install -y git python3 python3-pip python3-venv python3-yaml mininet openvswitch-switch
 sudo systemctl enable --now openvswitch-switch
+```
+
+Khong can tao `.venv`, khong can Python 3.12, khong can `pip install ryu`.
+
+## Chay demo
+
+```bash
+sudo mn -c
+chmod +x sdn_demo/run_demo.sh
 ./sdn_demo/run_demo.sh
 ```
 
-Nếu `apt` không tìm thấy `python3.12`, hãy dùng Ubuntu 24.04 LTS hoặc cài Python
-3.12 bằng Deadsnakes PPA như ví dụ trên. Nếu OS-Ken/Ryu vẫn lỗi, thử:
-
-```bash
-sudo apt install -y python3-ryu
-```
-
-## Chạy Demo
-
-```bash
-./sdn_demo/run_demo.sh
-```
-
-Script sẽ:
-
-1. Dọn Mininet cũ bằng `sudo mn -c`.
-2. Chạy OS-Ken/Ryu controller ở `127.0.0.1:6653`.
-3. Chạy topology Mininet.
-4. Ghi log controller vào `sdn_demo/controller.log`.
-
-Nếu controller lỗi, xem log:
-
-```bash
-cat sdn_demo/controller.log
-```
-
-## Lệnh Test Trong Mininet
-
-Khi thấy:
+Khi thay prompt nay la ban da vao lab SDN:
 
 ```text
 mininet>
 ```
 
-copy/paste từng lệnh:
+## Lenh quan trong trong Mininet
 
-```text
-h20 ping -c 2 h30      # mong đợi fail
-h20 ping -c 2 h90      # mong đợi pass
-h20 ping -c 2 hzalo    # mong đợi pass
-h20 ping -c 2 hcall    # mong đợi pass
-h20 ping -c 2 hsocial  # mong đợi fail
-h50 ping -c 2 h60      # mong đợi fail/limited
-h50 ping -c 2 hcall    # mong đợi pass
-h50 ping -c 2 hsocial  # mong đợi fail
+Chay test chi tiet bang mot lenh:
+
+```bash
+testsdn
 ```
 
-Các lệnh này cũng có trong:
+Xem ban dang o dau trong phan SDN:
+
+```bash
+sdninfo
+```
+
+Xem danh sach lenh test:
 
 ```bash
 sh cat sdn_demo/test_commands.txt
 ```
 
-Luu y: lenh tren chay khi ban dang o prompt `mininet>`. Neu da thoat ve terminal Ubuntu binh thuong thi dung `cat sdn_demo/test_commands.txt`.
+Test thu cong:
 
-## Xem Log Controller
+```text
+h20 ping -c 2 h30      # expected fail
+h20 ping -c 2 h90      # expected pass
+h20 ping -c 2 hzalo    # expected pass
+h20 ping -c 2 hcall    # expected pass
+h20 ping -c 2 hsocial  # expected fail
+h50 ping -c 2 h60      # expected fail/limited
+h50 ping -c 2 hcall    # expected pass
+h50 ping -c 2 hsocial  # expected fail
+```
 
-Mở terminal khác:
+## Xem flow va log SDN
+
+Trong `mininet>`:
+
+```bash
+sh ovs-ofctl -O OpenFlow13 dump-flows s1
+sh tail -n 80 sdn_demo/controller.log
+```
+
+Trong terminal Ubuntu khac:
 
 ```bash
 tail -f sdn_demo/controller.log
 ```
 
-Log sẽ có dạng:
+Log controller se co dang:
 
 ```text
 ALLOW policy: h20(172.10.20.10) -> h90(172.10.90.10)
@@ -165,18 +125,26 @@ DENY default: ...
 
 ## Cleanup
 
+Thoat Mininet:
+
+```bash
+exit
+```
+
+Don lab:
+
 ```bash
 sudo mn -c
 ```
 
-## File Quan Trọng
+## File quan trong
 
 ```text
 policy.yml                          Policy SDN source-of-truth
-topology_callcenter.py              Topology Mininet/OVS
-controller_standalone_policy.py     Controller OpenFlow 1.3 standalone, không cần Ryu
-controller_callcenter_policy.py     Controller Ryu/OS-Ken cũ, chỉ giữ tham khảo
-run_demo.sh                         Script chạy demo
-setup_ubuntu_vm_vi.sh               Script cài đặt tiếng Việt cho Ubuntu VM
-test_commands.txt                   Lệnh test trong Mininet
+topology_callcenter.py              Topology Mininet/OVS va lenh testsdn/sdninfo
+controller_standalone_policy.py     Controller OpenFlow 1.3 standalone
+controller_callcenter_policy.py     Controller Ryu/OS-Ken cu, chi giu de tham khao
+run_demo.sh                         Script chay demo
+setup_ubuntu_vm_vi.sh               Script cai dat tieng Viet cho Ubuntu VM
+test_commands.txt                   Lenh test trong Mininet
 ```
