@@ -54,7 +54,7 @@ setup_venv_controller() {
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade "pip<24.1" wheel "setuptools<70"
+  python -m pip install --upgrade "pip<24.1" wheel "setuptools==59.6.0"
   python -m pip install -r sdn_demo/requirements.txt
   python -m pip install "ryu==4.34" PyYAML
 

@@ -76,7 +76,7 @@ setup_python_env() {
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade "pip<24.1" wheel "setuptools<70"
+  python -m pip install --upgrade "pip<24.1" wheel "setuptools==59.6.0"
   python -m pip install -r sdn_demo/requirements.txt
 
   echo "Cai Ryu controller."
@@ -121,7 +121,7 @@ verify_tools() {
     echo "Loi: chua tim thay Ryu."
     echo "Hay thu chay thu cong:"
     echo "  source .venv/bin/activate"
-    echo "  pip install --upgrade 'pip<24.1' wheel 'setuptools<70'"
+    echo "  pip install --upgrade 'pip<24.1' wheel 'setuptools==59.6.0'"
     echo "  pip install 'ryu==4.34' PyYAML"
     exit 1
   fi

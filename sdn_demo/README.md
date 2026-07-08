@@ -100,7 +100,7 @@ Nếu cần cài thủ công lại Ryu:
 
 ```bash
 source .venv/bin/activate
-pip install --upgrade "pip<24.1" wheel "setuptools<70"
+pip install --upgrade "pip<24.1" wheel "setuptools==59.6.0"
 pip install "ryu==4.34" PyYAML
 ./sdn_demo/run_demo.sh
 ```
