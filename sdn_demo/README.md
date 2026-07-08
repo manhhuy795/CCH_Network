@@ -3,7 +3,7 @@
 Thư mục này dùng để demo SDN thực tế trên Ubuntu VM. Demo không cần thiết bị
 mạng thật, không cần GNS3/EVE-NG, và không phụ thuộc firewall/router vật lý.
 
-Controller dùng OpenFlow 1.3 để điều khiển Open vSwitch:
+Controller standalone dùng OpenFlow 1.3 để điều khiển Open vSwitch:
 
 - Cách ly Project A/B/C.
 - Cho phép truy cập Voice nếu `voice_enabled=true`.
@@ -21,8 +21,8 @@ Nên dùng:
 
 - Ubuntu 24.04 LTS với Python 3.12.
 
-Với Ubuntu 22.04, nên dùng Python mặc định 3.10 để chạy Ryu/Mininet ổn định.
-Không khuyến nghị Python 3.12/3.14 cho Ryu 4.34 vì package này khá cũ.
+Với Ubuntu 22.04, dùng Python mặc định 3.10 là đủ. Demo hiện dùng controller
+standalone tự viết nên không cần cài Ryu/OS-Ken.
 
 ## Topology
 
@@ -89,19 +89,6 @@ Sau đó tạo môi trường Python 3.12 cho controller:
 
 ```bash
 sudo systemctl enable --now openvswitch-switch
-
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r sdn_demo/requirements.txt
-pip install "ryu==4.34" PyYAML
-```
-
-Nếu cần cài thủ công lại Ryu:
-
-```bash
-source .venv/bin/activate
-pip install --upgrade "pip<24.1" wheel "setuptools==59.6.0"
-pip install "ryu==4.34" PyYAML
 ./sdn_demo/run_demo.sh
 ```
 
@@ -115,7 +102,6 @@ sudo apt install -y python3-ryu
 ## Chạy Demo
 
 ```bash
-source .venv/bin/activate
 ./sdn_demo/run_demo.sh
 ```
 
@@ -184,10 +170,11 @@ sudo mn -c
 ## File Quan Trọng
 
 ```text
-policy.yml                         Policy SDN source-of-truth
-topology_callcenter.py             Topology Mininet/OVS
-controller_callcenter_policy.py    Controller OS-Ken/Ryu OpenFlow 1.3
-run_demo.sh                        Script chạy demo
-setup_ubuntu_vm_vi.sh              Script cài đặt tiếng Việt cho Ubuntu VM
-test_commands.txt                  Lệnh test trong Mininet
+policy.yml                          Policy SDN source-of-truth
+topology_callcenter.py              Topology Mininet/OVS
+controller_standalone_policy.py     Controller OpenFlow 1.3 standalone, không cần Ryu
+controller_callcenter_policy.py     Controller Ryu/OS-Ken cũ, chỉ giữ tham khảo
+run_demo.sh                         Script chạy demo
+setup_ubuntu_vm_vi.sh               Script cài đặt tiếng Việt cho Ubuntu VM
+test_commands.txt                   Lệnh test trong Mininet
 ```

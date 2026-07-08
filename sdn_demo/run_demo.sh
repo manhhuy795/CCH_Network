@@ -7,19 +7,7 @@ CONTROLLER_LOG="${DEMO_DIR}/controller.log"
 TOPOLOGY_PYTHON="${TOPOLOGY_PYTHON:-python3}"
 
 cd "${REPO_ROOT}"
-
-if command -v ryu-manager >/dev/null 2>&1; then
-  MANAGER_CMD=(ryu-manager)
-elif python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
-  MANAGER_CMD=(python -m ryu.cmd.manager)
-else
-  echo "Could not find a valid Ryu manager."
-  echo "Try:"
-  echo "  source .venv/bin/activate"
-  echo "  pip install 'ryu==4.34' PyYAML"
-  echo "  ./sdn_demo/run_demo.sh"
-  exit 1
-fi
+MANAGER_CMD=(python3 sdn_demo/controller_standalone_policy.py)
 
 cleanup() {
   if [[ -n "${CTRL_PID:-}" ]]; then
@@ -67,9 +55,10 @@ wait_for_controller() {
 
 echo "[1/4] Cleaning old Mininet state"
 sudo mn -c >/dev/null 2>&1 || true
+pkill -f "sdn_demo/controller_standalone_policy.py" >/dev/null 2>&1 || true
 
-echo "[2/4] Starting SDN controller with ${MANAGER_CMD[*]} on 127.0.0.1:6653"
-"${MANAGER_CMD[@]}" sdn_demo/controller_callcenter_policy.py --ofp-tcp-listen-port 6653 >"${CONTROLLER_LOG}" 2>&1 &
+echo "[2/4] Starting standalone SDN controller on 127.0.0.1:6653"
+"${MANAGER_CMD[@]}" >"${CONTROLLER_LOG}" 2>&1 &
 CTRL_PID=$!
 wait_for_controller
 

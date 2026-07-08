@@ -45,24 +45,10 @@ install_mininet_ovs() {
   sudo mn -c >/dev/null 2>&1 || true
 }
 
-setup_venv_controller() {
-  note "Tao .venv Python 3.10 va cai Ryu controller"
+setup_python_yaml() {
+  note "Kiem tra PyYAML cho standalone controller"
   cd "${REPO_ROOT}"
-
-  rm -rf .venv
-  "${PYTHON_BIN}" -m venv .venv
-
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
-  python -m pip install --upgrade "pip<24.1" wheel "setuptools==59.6.0"
-  python -m pip install -r sdn_demo/requirements.txt
-  python -m pip install "ryu==4.34" PyYAML
-
-  if ! command -v ryu-manager >/dev/null 2>&1 \
-    && ! python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
-    echo "Loi: chua cai duoc ryu-manager."
-    exit 1
-  fi
+  python3 -c "import yaml; print('PyYAML OK')"
 }
 
 show_test_notes() {
@@ -90,8 +76,6 @@ EOF
 run_demo() {
   note "Chay SDN demo"
   cd "${REPO_ROOT}"
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
   chmod +x sdn_demo/run_demo.sh
   ./sdn_demo/run_demo.sh
 }
@@ -100,7 +84,7 @@ main() {
   require_repo
   install_python_on_ubuntu22
   install_mininet_ovs
-  setup_venv_controller
+  setup_python_yaml
   show_test_notes
   run_demo
 }

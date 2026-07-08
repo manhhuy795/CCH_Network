@@ -68,41 +68,17 @@ install_system_packages() {
 }
 
 setup_python_env() {
-  print_step "2. Tao Python virtualenv va cai Ryu"
+  print_step "2. Kiem tra Python va PyYAML cho standalone controller"
   cd "${REPO_ROOT}"
-
-  rm -rf .venv
-  "${PYTHON_BIN}" -m venv .venv
-
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
-  python -m pip install --upgrade "pip<24.1" wheel "setuptools==59.6.0"
-  python -m pip install -r sdn_demo/requirements.txt
-
-  echo "Cai Ryu controller."
-  python -m pip install "ryu==4.34" PyYAML
-
-  if has_controller_manager; then
-    return
-  fi
-
-  echo "Loi: chua thay ryu-manager sau khi cai."
-  exit 1
-}
-
-has_controller_manager() {
-  command -v ryu-manager >/dev/null 2>&1 \
-    || python -c "import ryu.cmd.manager" >/dev/null 2>&1
+  python3 -c "import yaml; print('PyYAML OK')"
 }
 
 verify_tools() {
   print_step "3. Kiem tra cong cu"
   cd "${REPO_ROOT}"
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
 
   echo "Python:"
-  python --version
+  python3 --version
 
   echo
   echo "Mininet:"
@@ -113,18 +89,7 @@ verify_tools() {
   ovs-vsctl --version | head -n 1 || true
 
   echo
-  if command -v ryu-manager >/dev/null 2>&1; then
-    echo "Controller: ryu-manager da san sang"
-  elif python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
-    echo "Controller: module ryu da san sang, run_demo.sh se chay bang python -m ryu.cmd.manager"
-  else
-    echo "Loi: chua tim thay Ryu."
-    echo "Hay thu chay thu cong:"
-    echo "  source .venv/bin/activate"
-    echo "  pip install --upgrade 'pip<24.1' wheel 'setuptools==59.6.0'"
-    echo "  pip install 'ryu==4.34' PyYAML"
-    exit 1
-  fi
+  echo "Controller: standalone Python OpenFlow controller da san sang"
 }
 
 show_next_steps() {
@@ -132,7 +97,6 @@ show_next_steps() {
   cat <<'EOF'
 Neu chua chay demo, dung lenh:
 
-  source .venv/bin/activate
   ./sdn_demo/run_demo.sh
 
 Khi thay prompt:
@@ -171,8 +135,6 @@ main() {
   if [[ "${RUN_AFTER_SETUP}" == "true" ]]; then
     print_step "5. Chay SDN demo Mininet"
     cd "${REPO_ROOT}"
-    # shellcheck disable=SC1091
-    source .venv/bin/activate
     ./sdn_demo/run_demo.sh
   fi
 }
