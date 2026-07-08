@@ -82,7 +82,7 @@ setup_python_env() {
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade "pip<26" wheel "setuptools<81"
+  python -m pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
   python -m pip install -r sdn_demo/requirements.txt
 
   echo "Cai Ryu controller bang --no-build-isolation de tranh loi setuptools moi."
@@ -145,7 +145,7 @@ verify_tools() {
     echo "Loi: chua tim thay OS-Ken/Ryu."
     echo "Hay thu chay thu cong:"
     echo "  source .venv/bin/activate"
-    echo "  pip install --upgrade 'pip<26' wheel 'setuptools<81'"
+    echo "  pip install --upgrade 'pip<26' wheel 'setuptools==75.8.0'"
     echo "  pip install --no-build-isolation 'ryu==4.34' PyYAML"
     exit 1
   fi

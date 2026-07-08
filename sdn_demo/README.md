@@ -98,7 +98,7 @@ Nếu OS-Ken lỗi, thử Ryu:
 
 ```bash
 source .venv/bin/activate
-pip install --upgrade "pip<26" wheel "setuptools<81"
+pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
 pip install --no-build-isolation "ryu==4.34" PyYAML
 ```
 
@@ -107,7 +107,7 @@ có trong môi trường nhưng thiếu manager để chạy controller. Cài Ry
 
 ```bash
 source .venv/bin/activate
-pip install --upgrade "pip<26" wheel "setuptools<81"
+pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
 pip install --no-build-isolation "ryu==4.34" PyYAML
 ./sdn_demo/run_demo.sh
 ```
