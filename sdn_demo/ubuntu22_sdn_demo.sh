@@ -55,7 +55,7 @@ setup_venv_controller() {
   source .venv/bin/activate
   python -m pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
   python -m pip install -r sdn_demo/requirements.txt
-  python -m pip install --no-build-isolation "ryu==4.34" PyYAML || true
+  python -m pip install --no-build-isolation --no-use-pep517 "ryu==4.34" PyYAML || true
 
   if ! command -v osken-manager >/dev/null 2>&1 \
     && ! command -v ryu-manager >/dev/null 2>&1 \

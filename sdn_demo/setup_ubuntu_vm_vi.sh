@@ -85,8 +85,8 @@ setup_python_env() {
   python -m pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
   python -m pip install -r sdn_demo/requirements.txt
 
-  echo "Cai Ryu controller bang --no-build-isolation de tranh loi setuptools moi."
-  python -m pip install --no-build-isolation "ryu==4.34" PyYAML || true
+  echo "Cai Ryu controller bang legacy setup.py de tranh loi PEP517/setuptools moi."
+  python -m pip install --no-build-isolation --no-use-pep517 "ryu==4.34" PyYAML || true
 
   if has_controller_manager; then
     return
@@ -146,7 +146,7 @@ verify_tools() {
     echo "Hay thu chay thu cong:"
     echo "  source .venv/bin/activate"
     echo "  pip install --upgrade 'pip<26' wheel 'setuptools==75.8.0'"
-    echo "  pip install --no-build-isolation 'ryu==4.34' PyYAML"
+    echo "  pip install --no-build-isolation --no-use-pep517 'ryu==4.34' PyYAML"
     exit 1
   fi
 }
