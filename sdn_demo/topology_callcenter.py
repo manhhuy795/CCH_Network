@@ -101,7 +101,7 @@ def build_topology():
     info("\n*** SDN Call Center BPO demo is ready\n")
     info("*** Try: h20 ping -c 2 h90\n")
     info("*** Try: h20 ping -c 2 h30\n")
-    info("*** Test list: cat sdn_demo/test_commands.txt\n\n")
+    info("*** Test list inside Mininet: sh cat sdn_demo/test_commands.txt\n\n")
 
     CLI(net)
     net.stop()

@@ -1,10 +1,13 @@
 import ipaddress
+import importlib.util
+import struct
 from pathlib import Path
 
 import yaml
 
 
 POLICY_PATH = Path(__file__).resolve().parents[1] / "sdn_demo" / "policy.yml"
+CONTROLLER_PATH = POLICY_PATH.with_name("controller_standalone_policy.py")
 
 
 def load_policy():
@@ -49,3 +52,18 @@ def test_sdn_demo_policy_matches_required_allow_deny_model():
     assert ("h20", "h40") in deny_pairs
     assert ("h30", "h40") in deny_pairs
     assert ("h50", "h60") in deny_pairs
+
+
+def test_standalone_controller_set_field_action_lengths_are_padded():
+    spec = importlib.util.spec_from_file_location("controller_standalone_policy", CONTROLLER_PATH)
+    controller = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(controller)
+
+    action = controller.action_set_field(
+        controller.OXM_ETH_DST,
+        controller.mac_to_bytes("00:00:00:00:90:10"),
+    )
+
+    assert len(action) == 16
+    assert struct.unpack("!H", action[2:4])[0] == 16

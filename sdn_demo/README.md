@@ -142,8 +142,10 @@ h50 ping -c 2 hsocial  # mong đợi fail
 Các lệnh này cũng có trong:
 
 ```bash
-cat sdn_demo/test_commands.txt
+sh cat sdn_demo/test_commands.txt
 ```
+
+Luu y: lenh tren chay khi ban dang o prompt `mininet>`. Neu da thoat ve terminal Ubuntu binh thuong thi dung `cat sdn_demo/test_commands.txt`.
 
 ## Xem Log Controller
 

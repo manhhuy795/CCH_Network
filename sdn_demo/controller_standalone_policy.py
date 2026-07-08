@@ -95,8 +95,9 @@ def action_output(port: int, max_len: int = 0) -> bytes:
 
 def action_set_field(field: int, value: bytes) -> bytes:
     payload = oxm(field, value)
-    length = 4 + len(payload)
-    return pad8(struct.pack("!HH", OFPAT_SET_FIELD, length) + payload)
+    raw_length = 4 + len(payload)
+    padded_length = raw_length + ((8 - raw_length % 8) % 8)
+    return struct.pack("!HH", OFPAT_SET_FIELD, padded_length) + payload + (b"\x00" * (padded_length - raw_length))
 
 
 def instruction_apply_actions(actions: bytes) -> bytes:
