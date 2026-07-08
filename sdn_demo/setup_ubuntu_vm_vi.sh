@@ -11,7 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUN_AFTER_SETUP="false"
-PYTHON_BIN="${PYTHON_BIN:-python3.12}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if [[ "${1:-}" == "--run" ]]; then
   RUN_AFTER_SETUP="true"
@@ -42,25 +42,20 @@ require_ubuntu_like() {
 }
 
 install_system_packages() {
-  print_step "1. Cai goi he thong: Python 3.12, Mininet, Open vSwitch"
+  print_step "1. Cai goi he thong: Python mac dinh Ubuntu, Mininet, Open vSwitch"
   sudo apt update
 
   sudo apt install -y \
-    software-properties-common \
     git \
     python3 \
     python3-pip \
+    python3-venv \
     python3-yaml \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
     mininet \
     openvswitch-switch
-
-  if ! sudo apt install -y python3.12 python3.12-venv; then
-    echo "Ubuntu hien tai chua co python3.12 trong apt mac dinh."
-    echo "Thu them Deadsnakes PPA de cai Python 3.12."
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt update
-    sudo apt install -y python3.12 python3.12-venv
-  fi
 
   sudo systemctl enable --now openvswitch-switch
 
@@ -73,45 +68,30 @@ install_system_packages() {
 }
 
 setup_python_env() {
-  print_step "2. Tao Python virtualenv va cai OS-Ken/Ryu"
+  print_step "2. Tao Python virtualenv va cai Ryu"
   cd "${REPO_ROOT}"
 
-  if [[ ! -d .venv ]]; then
-    "${PYTHON_BIN}" -m venv .venv
-  fi
+  rm -rf .venv
+  "${PYTHON_BIN}" -m venv .venv
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
+  python -m pip install --upgrade "pip<24.1" wheel "setuptools<70"
   python -m pip install -r sdn_demo/requirements.txt
 
-  echo "Cai Ryu controller bang legacy setup.py de tranh loi PEP517/setuptools moi."
-  python -m pip install --no-build-isolation --no-use-pep517 "ryu==4.34" PyYAML || true
+  echo "Cai Ryu controller."
+  python -m pip install "ryu==4.34" PyYAML
 
   if has_controller_manager; then
     return
   fi
 
-  echo "Chua thay Ryu manager. Thu OS-Ken fallback."
-  python -m pip install "os-ken>=4.2.1" || true
-
-  if has_controller_manager; then
-    echo "Da cai controller manager hop le."
-    return
-  fi
-
-  echo "Pip chua cai duoc OS-Ken/Ryu. Thu fallback bang apt neu Ubuntu co goi python3-ryu."
-  if apt-cache show python3-ryu >/dev/null 2>&1; then
-    sudo apt install -y python3-ryu
-  else
-    echo "Khong thay goi apt python3-ryu tren ban Ubuntu nay."
-  fi
+  echo "Loi: chua thay ryu-manager sau khi cai."
+  exit 1
 }
 
 has_controller_manager() {
-  command -v osken-manager >/dev/null 2>&1 \
-    || command -v ryu-manager >/dev/null 2>&1 \
-    || python -c "import os_ken.cmd.manager" >/dev/null 2>&1 \
+  command -v ryu-manager >/dev/null 2>&1 \
     || python -c "import ryu.cmd.manager" >/dev/null 2>&1
 }
 
@@ -133,20 +113,16 @@ verify_tools() {
   ovs-vsctl --version | head -n 1 || true
 
   echo
-  if command -v osken-manager >/dev/null 2>&1; then
-    echo "Controller: osken-manager da san sang"
-  elif command -v ryu-manager >/dev/null 2>&1; then
+  if command -v ryu-manager >/dev/null 2>&1; then
     echo "Controller: ryu-manager da san sang"
-  elif python -c "import os_ken.cmd.manager" >/dev/null 2>&1; then
-    echo "Controller: module os_ken da san sang, run_demo.sh se chay bang python -m os_ken.cmd.manager"
   elif python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
     echo "Controller: module ryu da san sang, run_demo.sh se chay bang python -m ryu.cmd.manager"
   else
-    echo "Loi: chua tim thay OS-Ken/Ryu."
+    echo "Loi: chua tim thay Ryu."
     echo "Hay thu chay thu cong:"
     echo "  source .venv/bin/activate"
-    echo "  pip install --upgrade 'pip<26' wheel 'setuptools==75.8.0'"
-    echo "  pip install --no-build-isolation --no-use-pep517 'ryu==4.34' PyYAML"
+    echo "  pip install --upgrade 'pip<24.1' wheel 'setuptools<70'"
+    echo "  pip install 'ryu==4.34' PyYAML"
     exit 1
   fi
 }

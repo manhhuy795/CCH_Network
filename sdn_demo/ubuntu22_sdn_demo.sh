@@ -7,7 +7,7 @@ set -euo pipefail
 #   ./sdn_demo/ubuntu22_sdn_demo.sh
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="python3.12"
+PYTHON_BIN="python3"
 
 note() {
   echo
@@ -22,16 +22,18 @@ require_repo() {
   fi
 }
 
-install_python312_on_ubuntu22() {
-  note "Cai Python 3.12 cho Ubuntu 22.04"
+install_python_on_ubuntu22() {
+  note "Cai Python mac dinh Ubuntu 22.04 (Python 3.10), Mininet prerequisites"
   sudo apt update
-  sudo apt install -y software-properties-common git python3 python3-pip python3-yaml
-
-  if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt update
-    sudo apt install -y python3.12 python3.12-venv
-  fi
+  sudo apt install -y \
+    git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-yaml \
+    build-essential \
+    libffi-dev \
+    libssl-dev
 
   "${PYTHON_BIN}" --version
 }
@@ -44,24 +46,22 @@ install_mininet_ovs() {
 }
 
 setup_venv_controller() {
-  note "Tao .venv Python 3.12 va cai controller"
+  note "Tao .venv Python 3.10 va cai Ryu controller"
   cd "${REPO_ROOT}"
 
-  if [[ ! -d .venv ]]; then
-    "${PYTHON_BIN}" -m venv .venv
-  fi
+  rm -rf .venv
+  "${PYTHON_BIN}" -m venv .venv
 
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -m pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
+  python -m pip install --upgrade "pip<24.1" wheel "setuptools<70"
   python -m pip install -r sdn_demo/requirements.txt
-  python -m pip install --no-build-isolation --no-use-pep517 "ryu==4.34" PyYAML || true
+  python -m pip install "ryu==4.34" PyYAML
 
-  if ! command -v osken-manager >/dev/null 2>&1 \
-    && ! command -v ryu-manager >/dev/null 2>&1 \
-    && ! python -c "import os_ken.cmd.manager" >/dev/null 2>&1 \
+  if ! command -v ryu-manager >/dev/null 2>&1 \
     && ! python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
-    python -m pip install "os-ken>=4.2.1" || true
+    echo "Loi: chua cai duoc ryu-manager."
+    exit 1
   fi
 }
 
@@ -98,7 +98,7 @@ run_demo() {
 
 main() {
   require_repo
-  install_python312_on_ubuntu22
+  install_python_on_ubuntu22
   install_mininet_ovs
   setup_venv_controller
   show_test_notes

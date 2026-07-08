@@ -21,7 +21,8 @@ Nên dùng:
 
 - Ubuntu 24.04 LTS với Python 3.12.
 
-Không khuyến nghị Python 3.14 vì OS-Ken/Ryu có thể chưa tương thích ổn định.
+Với Ubuntu 22.04, nên dùng Python mặc định 3.10 để chạy Ryu/Mininet ổn định.
+Không khuyến nghị Python 3.12/3.14 cho Ryu 4.34 vì package này khá cũ.
 
 ## Topology
 
@@ -67,8 +68,8 @@ sudo apt install -y \
   software-properties-common \
   git \
   python3 \
-  python3.12 \
-  python3.12-venv \
+  python3 \
+  python3-venv \
   python3-pip \
   python3-yaml \
   mininet \
@@ -89,26 +90,18 @@ Sau đó tạo môi trường Python 3.12 cho controller:
 ```bash
 sudo systemctl enable --now openvswitch-switch
 
-python3.12 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r sdn_demo/requirements.txt
+pip install "ryu==4.34" PyYAML
 ```
 
-Nếu OS-Ken lỗi, thử Ryu:
+Nếu cần cài thủ công lại Ryu:
 
 ```bash
 source .venv/bin/activate
-pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
-pip install --no-build-isolation --no-use-pep517 "ryu==4.34" PyYAML
-```
-
-Nếu thấy lỗi `No module named os_ken.cmd.manager`, nghĩa là package `os_ken`
-có trong môi trường nhưng thiếu manager để chạy controller. Cài Ryu rồi chạy lại:
-
-```bash
-source .venv/bin/activate
-pip install --upgrade "pip<26" wheel "setuptools==75.8.0"
-pip install --no-build-isolation --no-use-pep517 "ryu==4.34" PyYAML
+pip install --upgrade "pip<24.1" wheel "setuptools<70"
+pip install "ryu==4.34" PyYAML
 ./sdn_demo/run_demo.sh
 ```
 

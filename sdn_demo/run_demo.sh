@@ -8,19 +8,15 @@ TOPOLOGY_PYTHON="${TOPOLOGY_PYTHON:-python3}"
 
 cd "${REPO_ROOT}"
 
-if command -v osken-manager >/dev/null 2>&1; then
-  MANAGER_CMD=(osken-manager)
-elif command -v ryu-manager >/dev/null 2>&1; then
+if command -v ryu-manager >/dev/null 2>&1; then
   MANAGER_CMD=(ryu-manager)
-elif python -c "import os_ken.cmd.manager" >/dev/null 2>&1; then
-  MANAGER_CMD=(python -m os_ken.cmd.manager)
 elif python -c "import ryu.cmd.manager" >/dev/null 2>&1; then
   MANAGER_CMD=(python -m ryu.cmd.manager)
 else
-  echo "Could not find a valid OS-Ken/Ryu manager."
+  echo "Could not find a valid Ryu manager."
   echo "Try:"
   echo "  source .venv/bin/activate"
-  echo "  pip install ryu PyYAML"
+  echo "  pip install 'ryu==4.34' PyYAML"
   echo "  ./sdn_demo/run_demo.sh"
   exit 1
 fi
