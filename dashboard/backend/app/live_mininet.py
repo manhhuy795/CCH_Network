@@ -85,6 +85,66 @@ def policy_payload() -> dict[str, Any]:
     return {"metadata": policy.get("metadata", {}), "hosts": policy["hosts"], "policies": policies}
 
 
+def policy_decision(source: str, destination: str) -> dict[str, Any]:
+    policy = load_policy()
+    hosts = policy["hosts"]
+    if source not in hosts or destination not in hosts:
+        return {
+            "action": "deny",
+            "reason": "Khong tim thay source hoac destination trong policy.",
+            "path": [],
+            "expected_reachable": False,
+        }
+
+    deny_pairs = {tuple(pair) for pair in policy.get("deny_pairs", [])}
+    pair = (source, destination)
+    reverse_pair = (destination, source)
+    path = [source, BRIDGE, destination]
+
+    if pair in deny_pairs or reverse_pair in deny_pairs:
+        return {
+            "action": "deny",
+            "reason": "Bi chan boi policy cach ly VLAN/project.",
+            "path": path,
+            "expected_reachable": False,
+        }
+
+    blocked_services = set(policy.get("blocked_services", []))
+    clients = set(policy.get("client_hosts", []))
+    if (destination in blocked_services and source in clients) or (source in blocked_services and destination in clients):
+        return {
+            "action": "deny",
+            "reason": "Bi chan boi policy Internet Security: block Social Media.",
+            "path": path,
+            "expected_reachable": False,
+        }
+
+    if policy.get("voice_enabled") and (source == policy.get("voice_service") or destination == policy.get("voice_service")):
+        return {
+            "action": "allow",
+            "reason": "Voice enabled: user duoc phep truy cap voice service.",
+            "path": path,
+            "expected_reachable": True,
+        }
+
+    allowed_services = set(policy.get("allowed_services", []))
+    if (destination in allowed_services and source in clients) or (source in allowed_services and destination in clients):
+        service = destination if destination in allowed_services else source
+        return {
+            "action": "allow",
+            "reason": f"Policy cho phep truy cap service {service}.",
+            "path": path,
+            "expected_reachable": True,
+        }
+
+    return {
+        "action": "deny",
+        "reason": "Bi chan boi default deny cua SDN policy.",
+        "path": path,
+        "expected_reachable": False,
+    }
+
+
 def host_pid(host: str) -> str | None:
     ok, output = run_command(["pgrep", "-f", f"mininet:{host}"], timeout=5)
     if not ok or not output:
@@ -137,11 +197,21 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
     policy = load_policy()
     if source not in policy["hosts"] or destination not in policy["hosts"]:
         return {"ok": False, "message": "Sai source/destination.", "raw": ""}
+    decision = policy_decision(source, destination)
     dst_ip = policy["hosts"][destination]["ip"]
     ok, output = run_in_host(source, ["ping", "-c", str(count), "-W", "1", dst_ip], timeout=count + 5)
     parsed = parse_ping(output)
-    message = f"{source} -> {destination}: {'PING DUOC' if parsed.get('reachable') else 'KHONG PING DUOC'}"
-    return {"ok": ok and parsed.get("reachable", False), "message": message, "result": parsed, "raw": output}
+    reachable = bool(parsed.get("reachable"))
+    message = f"{source} -> {destination}: {'PING DUOC' if reachable else 'KHONG PING DUOC'}"
+    if not reachable:
+        message += f" | Ly do: {decision['reason']}"
+    return {
+        "ok": ok and reachable,
+        "message": message,
+        "decision": decision,
+        "result": parsed,
+        "raw": output,
+    }
 
 
 def parse_iperf(output: str) -> dict[str, Any]:
@@ -164,6 +234,9 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     policy = load_policy()
     if source not in policy["hosts"] or destination not in policy["hosts"]:
         return {"ok": False, "message": "Sai source/destination.", "raw": ""}
+    decision = policy_decision(source, destination)
+    if decision["action"] == "deny":
+        return {"ok": False, "message": f"Khong do bandwidth duoc. {decision['reason']}", "decision": decision, "raw": ""}
     if not command_exists("iperf"):
         return {"ok": False, "message": "Chua cai iperf. Chay: sudo apt install -y iperf", "raw": ""}
 
@@ -183,7 +256,7 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     run_in_host(destination, ["sh", "-lc", "pkill -f 'iperf -s -p 5001' >/dev/null 2>&1 || true"], timeout=5)
     parsed = parse_iperf(output)
     message = f"{source} -> {destination}: da do bang thong {protocol.upper()}"
-    return {"ok": ok, "message": message, "result": parsed, "raw": output}
+    return {"ok": ok, "message": message, "decision": decision, "result": parsed, "raw": output}
 
 
 def parse_flow_line(line: str, host_by_ip: dict[str, str]) -> dict[str, Any] | None:
@@ -197,15 +270,28 @@ def parse_flow_line(line: str, host_by_ip: dict[str, str]) -> dict[str, Any] | N
     actions = line.split("actions=", 1)[1] if "actions=" in line else ""
     output = re.search(r"output:(\d+)", actions)
 
+    action = "DROP" if actions == "drop" or actions == "" else "ALLOW"
+    src = host_by_ip.get(src_ip.group(1), src_ip.group(1)) if src_ip else "*"
+    dst = host_by_ip.get(dst_ip.group(1), dst_ip.group(1)) if dst_ip else "*"
+    output_port = output.group(1) if output else "DROP"
+    if action == "DROP":
+        explanation = f"Chan traffic {src} -> {dst}"
+    elif src == "*" and dst == "*":
+        explanation = "Table-miss: gui packet dau tien len controller"
+    else:
+        explanation = f"Cho phep {src} -> {dst}, day ra port {output_port}"
+
     return {
         "switch": BRIDGE,
-        "src": host_by_ip.get(src_ip.group(1), src_ip.group(1)) if src_ip else "*",
-        "dst": host_by_ip.get(dst_ip.group(1), dst_ip.group(1)) if dst_ip else "*",
-        "action": "DROP" if actions == "drop" or actions == "" else "ALLOW",
+        "src": src,
+        "dst": dst,
+        "action": action,
         "priority": int(priority.group(1)) if priority else 0,
-        "output_port": output.group(1) if output else "DROP",
+        "output_port": output_port,
         "packets": int(packets.group(1)) if packets else 0,
         "bytes": int(byte_count.group(1)) if byte_count else 0,
+        "explanation": explanation,
+        "match": f"{src} -> {dst}",
         "reason": actions or "table miss/drop",
         "raw": line,
     }

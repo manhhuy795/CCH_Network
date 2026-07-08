@@ -1,8 +1,9 @@
 # SDN Mininet Demo
 
 The `sdn_demo/` module demonstrates the Call Center BPO policy model with
-Mininet, Open vSwitch and OS-Ken/Ryu. It is designed for an Ubuntu VM and does
-not require physical network devices.
+Mininet, Open vSwitch and a standalone Python OpenFlow controller. It is
+designed for an Ubuntu VM and does not require physical network devices,
+Ryu or OS-Ken.
 
 ## What It Proves
 
@@ -43,18 +44,8 @@ Manual setup:
 
 ```bash
 sudo apt update
-sudo apt install -y software-properties-common git python3 python3-pip python3-yaml mininet openvswitch-switch
-
-# Ubuntu 22.04 khong co python3.12 mac dinh, can them PPA nay.
-sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt update
-sudo apt install -y python3.12 python3.12-venv
-
+sudo apt install -y git python3 python3-pip python3-yaml iperf mininet openvswitch-switch
 sudo systemctl enable --now openvswitch-switch
-
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r sdn_demo/requirements.txt
 
 chmod +x sdn_demo/run_demo.sh
 ./sdn_demo/run_demo.sh
@@ -63,6 +54,10 @@ chmod +x sdn_demo/run_demo.sh
 Inside Mininet, copy/paste the command part from `sdn_demo/test_commands.txt`:
 
 ```text
+testsdn
+sdninfo
+sdnstats
+sdnbw h20 h90 5
 h20 ping -c 2 h30
 h20 ping -c 2 h90
 h20 ping -c 2 hzalo

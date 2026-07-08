@@ -42,3 +42,19 @@ def test_dashboard_serves_live_web_page():
     assert "CCH SDN Live Dashboard" in response.text
     assert "Ping" in response.text
     assert "Iperf" in response.text
+    assert "So do mang SDN" in response.text
+    assert "OpenFlow flows da dich" in response.text
+
+
+def test_dashboard_policy_decision_explains_allow_and_deny():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import policy_decision
+
+    assert policy_decision("h20", "h90")["action"] == "allow"
+
+    denied = policy_decision("h20", "h30")
+    assert denied["action"] == "deny"
+    assert "cach ly" in denied["reason"]

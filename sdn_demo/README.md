@@ -170,7 +170,6 @@ sudo mn -c
 policy.yml                          Policy SDN source-of-truth
 topology_callcenter.py              Topology Mininet/OVS va lenh testsdn/sdninfo
 controller_standalone_policy.py     Controller OpenFlow 1.3 standalone
-controller_callcenter_policy.py     Controller Ryu/OS-Ken cu, chi giu de tham khao
 run_demo.sh                         Script chay demo
 setup_ubuntu_vm_vi.sh               Script cai dat tieng Viet cho Ubuntu VM
 test_commands.txt                   Lenh test trong Mininet

@@ -67,5 +67,8 @@ WS   /ws/metrics
 - Xem flow OVS: chay `ovs-ofctl -O OpenFlow13 dump-flows s1`.
 - Block bang OpenFlow: them drop flow priority 500.
 - Unblock: xoa drop flow tam thoi.
+- So do mang SDN: ve h20/h30/h40/h50/h60, switch s1 va cac service h90/hzalo/hcall/hsocial bang duong thang/ngang/cheo.
+- Gia lap goi tin: khi bam Ping, duong di se chuyen xanh neu pass hoac do/dau X neu fail, kem ly do policy.
+- Bang OpenFlow da dich: hien y nghia rule, match host, action allow/drop, priority va counter packet/byte.
 
 Neu web bao khong tim thay namespace host, hay kiem tra terminal Mininet van dang o prompt `mininet>`.
