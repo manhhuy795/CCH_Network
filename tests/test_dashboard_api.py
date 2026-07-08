@@ -42,9 +42,8 @@ def test_dashboard_serves_live_web_page():
     assert "CCH SDN Live Dashboard" in response.text
     assert "Ping" in response.text
     assert "Iperf" in response.text
-    assert "So do logic CCH - SDN view" in response.text
-    assert "Project A" in response.text
-    assert "VLAN 20 - HQ" in response.text
+    assert "So do logic CCH" in response.text
+    assert "/assets/So_do_logic_CCH.png" in response.text
     assert "OpenFlow flows da dich" in response.text
 
 
