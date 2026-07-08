@@ -14,6 +14,30 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 POLICY_FILE = REPO_ROOT / "sdn_demo" / "policy.yml"
 BRIDGE = "s1"
 
+HOST_LABELS = {
+    "h20": "Project A - VLAN 20 - HQ",
+    "h30": "Project B - VLAN 30 - HQ",
+    "h40": "Project C - VLAN 40 - HQ",
+    "h50": "Telesale - VLAN 50 - Branch",
+    "h60": "Backoffice - VLAN 60 - Branch",
+    "h90": "Voice Service - VLAN 90 - HQ",
+    "hzalo": "Zalo Service - Internet",
+    "hcall": "Call App Service - Internet",
+    "hsocial": "Social Media - Blocked",
+}
+
+LOGICAL_PATHS = {
+    "h20": ["h20", "access_hq_a", "core_hq"],
+    "h30": ["h30", "access_hq_b", "core_hq"],
+    "h40": ["h40", "access_hq_c", "core_hq"],
+    "h50": ["h50", "access_branch", "dist_branch"],
+    "h60": ["h60", "access_branch", "dist_branch"],
+    "h90": ["h90", "voice_mgmt", "core_hq"],
+    "hzalo": ["internet", "hzalo"],
+    "hcall": ["internet", "hcall"],
+    "hsocial": ["internet", "hsocial"],
+}
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -43,7 +67,7 @@ def topology_payload() -> dict[str, Any]:
     policy = load_policy()
     nodes = [
         {"id": "c0", "label": "SDN Controller", "type": "controller", "ip": "127.0.0.1:6653"},
-        {"id": BRIDGE, "label": "Open vSwitch Core", "type": "switch", "ip": "OpenFlow13"},
+        {"id": BRIDGE, "label": "OVS Dataplane Switch", "type": "switch", "ip": "OpenFlow13"},
     ]
     links = [{"id": f"c0-{BRIDGE}", "source": "c0", "target": BRIDGE, "status": "up"}]
 
@@ -51,7 +75,7 @@ def topology_payload() -> dict[str, Any]:
         nodes.append(
             {
                 "id": host,
-                "label": data.get("role", host),
+                "label": HOST_LABELS.get(host, data.get("role", host)),
                 "type": data.get("role", "host"),
                 "site": data.get("site", ""),
                 "ip": data["ip"],
@@ -85,6 +109,34 @@ def policy_payload() -> dict[str, Any]:
     return {"metadata": policy.get("metadata", {}), "hosts": policy["hosts"], "policies": policies}
 
 
+def logical_path(source: str, destination: str) -> list[str]:
+    left = LOGICAL_PATHS.get(source, [source])
+    right = LOGICAL_PATHS.get(destination, [destination])
+    src_site = "branch" if source in {"h50", "h60"} else "hq"
+
+    if source in {"h20", "h30", "h40"} and destination in {"h20", "h30", "h40"}:
+        return [*left, *list(reversed(right[:-1]))]
+
+    if source in {"h50", "h60"} and destination in {"h50", "h60"}:
+        return [*left, "dist_branch", "access_branch", destination]
+
+    if destination == "h90" or source == "h90":
+        if source == "h90":
+            return list(reversed(logical_path(destination, source)))
+        return [*left, "voice_mgmt", "h90"] if "voice_mgmt" not in left else [*left, "h90"]
+
+    if destination in {"hzalo", "hcall", "hsocial"}:
+        edge = ["fw_branch", "policy_branch"] if src_site == "branch" else ["fw_hq", "policy_hq"]
+        return [*left, *edge, "internet", destination]
+
+    if source in {"hzalo", "hcall", "hsocial"}:
+        return list(reversed(logical_path(destination, source)))
+
+    if src_site == "branch":
+        return [*left, "dist_branch"]
+    return [*left, "core_hq"]
+
+
 def policy_decision(source: str, destination: str) -> dict[str, Any]:
     policy = load_policy()
     hosts = policy["hosts"]
@@ -99,7 +151,7 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     deny_pairs = {tuple(pair) for pair in policy.get("deny_pairs", [])}
     pair = (source, destination)
     reverse_pair = (destination, source)
-    path = [source, BRIDGE, destination]
+    path = logical_path(source, destination)
 
     if pair in deny_pairs or reverse_pair in deny_pairs:
         return {

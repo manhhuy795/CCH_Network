@@ -71,4 +71,6 @@ WS   /ws/metrics
 - Gia lap goi tin: khi bam Ping, duong di se chuyen xanh neu pass hoac do/dau X neu fail, kem ly do policy.
 - Bang OpenFlow da dich: hien y nghia rule, match host, action allow/drop, priority va counter packet/byte.
 
+So do tren web duoc ve theo logic tham chieu trong `docs/assets/So_do_logic_CCH.png`, nhung ket qua ping/iperf/flow van lay tu Mininet + OVS dang chay.
+
 Neu web bao khong tim thay namespace host, hay kiem tra terminal Mininet van dang o prompt `mininet>`.

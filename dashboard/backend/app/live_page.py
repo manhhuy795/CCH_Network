@@ -53,17 +53,27 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
     .badge { border-radius: 999px; display: inline-block; font-size: 12px; font-weight: 700; min-width: 62px; padding: 4px 9px; text-align: center; }
     .badge.allow { background: #dff6ea; color: #176b55; }
     .badge.drop { background: #fde6e3; color: #a33428; }
-    .topology-wrap { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-    svg { display: block; width: 100%; height: auto; }
-    .zone { fill: #eef4f8; stroke: #d5e0ea; }
-    .zone-label { fill: #64748b; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
-    .node rect { fill: #fff; stroke: #cbd5e1; stroke-width: 1.4; rx: 7; }
-    .node.service rect { stroke: #a6dcc2; stroke-width: 2; }
-    .node.blocked rect { stroke: #efb6ae; stroke-width: 2; }
-    .node.switch rect { stroke: #5b52b8; stroke-width: 2; }
-    .node text { fill: #172033; font-size: 12px; font-weight: 700; }
-    .node .sub { fill: #64748b; font-size: 10px; font-weight: 500; }
-    .link { stroke: #66758a; stroke-width: 2.2; marker-end: url(#arrow); }
+    .topology-wrap { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: auto; }
+    svg { display: block; min-width: 1180px; width: 100%; height: auto; }
+    .layer { fill: #f2f4f7; stroke: #9aa8b8; }
+    .layer-text { fill: #26344a; font-size: 12px; font-weight: 800; }
+    .site { fill: transparent; stroke: #9aa8b8; stroke-width: 1.2; }
+    .site-title { fill: #172033; font-size: 13px; font-weight: 800; }
+    .node rect { fill: #fff; stroke: #cbd5e1; stroke-width: 1.4; rx: 3; }
+    .node.user rect { fill: #d9e8ff; stroke: #7aa0dc; }
+    .node.access rect { fill: #dff0d8; stroke: #77ad65; }
+    .node.core rect, .node.dist rect { fill: #ffe8c8; stroke: #efa221; }
+    .node.ce rect { fill: #e4d7ef; stroke: #9a7bb7; }
+    .node.firewall rect { fill: #f8cfcc; stroke: #df7770; }
+    .node.policy rect { fill: #ffd99d; stroke: #e19424; }
+    .node.service rect { fill: #e8f7ee; stroke: #6fbd8d; }
+    .node.blocked rect { fill: #ffe8e5; stroke: #df7770; }
+    .node.cloud ellipse { fill: #fff0bf; stroke: #dda935; stroke-width: 1.4; }
+    .node text { fill: #172033; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .node .sub { fill: #435267; font-size: 9.5px; font-weight: 500; }
+    .link { stroke: #2f3642; stroke-width: 2; marker-end: url(#arrow); }
+    .link.policy-link { stroke-dasharray: 7 6; }
+    .link.static { stroke: #8b95a3; stroke-width: 1.6; }
     .link.active { stroke: #176b55; stroke-width: 4; marker-end: url(#arrowActive); }
     .link.blocked { stroke: #b23b30; stroke-dasharray: 7 5; stroke-width: 4; marker-end: url(#arrowBlocked); }
     .packet { fill: #176b55; opacity: 0; }
@@ -80,7 +90,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
   <header>
     <div>
       <h1>CCH SDN Live Dashboard</h1>
-      <p>Dieu khien policy, ping, bandwidth va OpenFlow tren Mininet + Open vSwitch dang chay.</p>
+      <p>So do logic theo Site/VLAN/Layer, ket qua ping va bandwidth lay truc tiep tu Mininet + OVS.</p>
     </div>
     <button class="primary" onclick="refreshAll()">Refresh</button>
   </header>
@@ -88,9 +98,9 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
   <section class="panel" style="margin-bottom:14px">
     <div class="panel-head"><h2>Mo ta he thong</h2><span id="liveStatus">checking...</span></div>
     <div class="content description">
-      <div><h3>Data plane</h3><p>Mininet tao cac host h20/h30/h40/h50/h60 va service h90/hzalo/hcall/hsocial. Open vSwitch s1 chuyen goi theo flow.</p></div>
-      <div><h3>Control plane</h3><p>Controller Python doc policy trong sdn_demo/policy.yml va cai flow allow/drop xuong OVS bang OpenFlow 1.3.</p></div>
-      <div><h3>Management plane</h3><p>Web nay goi lenh that vao namespace Mininet de ping, do iperf, block/unblock va doc counter flow.</p></div>
+      <div><h3>Endpoint/User</h3><p>User duoc nhom theo Project, VLAN va Site de de lien he voi so do logic CCH.</p></div>
+      <div><h3>SDN Control</h3><p>Controller doc policy va cai flow allow/drop xuong Open vSwitch bang OpenFlow 1.3.</p></div>
+      <div><h3>Security/Internet</h3><p>Firewall va policy node the hien logic Allow Zalo/Call App, Block Social Media.</p></div>
     </div>
   </section>
 
@@ -107,44 +117,83 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
   <div class="grid">
     <div>
       <section class="panel">
-        <div class="panel-head"><h2>So do mang SDN</h2><span>duong thang, ngang, cheo</span></div>
+        <div class="panel-head"><h2>So do logic CCH - SDN view</h2><span>Endpoint -> Access -> Core/Distribution -> WAN/Security -> Internet</span></div>
         <div class="content">
           <div class="topology-wrap">
-            <svg viewBox="0 0 1040 520" role="img" aria-label="SDN topology">
+            <svg viewBox="0 0 1180 720" role="img" aria-label="CCH logical SDN topology">
               <defs>
-                <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#66758a"/></marker>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#2f3642"/></marker>
                 <marker id="arrowActive" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#176b55"/></marker>
                 <marker id="arrowBlocked" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#b23b30"/></marker>
               </defs>
-              <rect class="zone" x="18" y="48" width="250" height="290" rx="8"/>
-              <text class="zone-label" x="34" y="72">HQ USERS</text>
-              <rect class="zone" x="18" y="360" width="250" height="130" rx="8"/>
-              <text class="zone-label" x="34" y="384">BRANCH USERS</text>
-              <rect class="zone" x="774" y="48" width="246" height="442" rx="8"/>
-              <text class="zone-label" x="790" y="72">SERVICE ZONE</text>
 
-              <line id="link-h20-s1" class="link" x1="168" y1="112" x2="470" y2="250"/>
-              <line id="link-h30-s1" class="link" x1="168" y1="192" x2="470" y2="250"/>
-              <line id="link-h40-s1" class="link" x1="168" y1="272" x2="470" y2="250"/>
-              <line id="link-h50-s1" class="link" x1="168" y1="414" x2="470" y2="250"/>
-              <line id="link-h60-s1" class="link" x1="168" y1="464" x2="470" y2="250"/>
-              <line id="link-s1-h90" class="link" x1="570" y1="250" x2="880" y2="112"/>
-              <line id="link-s1-hzalo" class="link" x1="570" y1="250" x2="880" y2="192"/>
-              <line id="link-s1-hcall" class="link" x1="570" y1="250" x2="880" y2="272"/>
-              <line id="link-s1-hsocial" class="link" x1="570" y1="250" x2="880" y2="352"/>
+              <rect class="layer" x="18" y="8" width="140" height="28"/><text class="layer-text" x="88" y="27" text-anchor="middle">ENDPOINT / USER</text>
+              <rect class="layer" x="206" y="8" width="140" height="28"/><text class="layer-text" x="276" y="27" text-anchor="middle">ACCESS LAYER</text>
+              <rect class="layer" x="410" y="8" width="190" height="28"/><text class="layer-text" x="505" y="27" text-anchor="middle">CORE / DISTRIBUTION</text>
+              <rect class="layer" x="670" y="8" width="210" height="28"/><text class="layer-text" x="775" y="27" text-anchor="middle">WAN / SECURITY EDGE</text>
+              <rect class="layer" x="974" y="8" width="170" height="28"/><text class="layer-text" x="1059" y="27" text-anchor="middle">ISP / INTERNET</text>
 
-              <g id="node-h20" class="node"><rect x="38" y="92" width="130" height="42"/><text x="52" y="112">h20 Project A</text><text class="sub" x="52" y="126">172.10.20.10</text></g>
-              <g id="node-h30" class="node"><rect x="38" y="172" width="130" height="42"/><text x="52" y="192">h30 Project B</text><text class="sub" x="52" y="206">172.10.30.10</text></g>
-              <g id="node-h40" class="node"><rect x="38" y="252" width="130" height="42"/><text x="52" y="272">h40 Project C</text><text class="sub" x="52" y="286">172.10.40.10</text></g>
-              <g id="node-h50" class="node"><rect x="38" y="394" width="130" height="42"/><text x="52" y="414">h50 Telesale</text><text class="sub" x="52" y="428">172.10.50.10</text></g>
-              <g id="node-h60" class="node"><rect x="38" y="444" width="130" height="42"/><text x="52" y="464">h60 Admin</text><text class="sub" x="52" y="478">172.10.60.10</text></g>
-              <g id="node-s1" class="node switch"><rect x="470" y="222" width="100" height="56"/><text x="492" y="248">s1 OVS</text><text class="sub" x="486" y="264">OpenFlow13</text></g>
-              <g id="node-h90" class="node service"><rect x="880" y="92" width="124" height="42"/><text x="894" y="112">h90 Voice</text><text class="sub" x="894" y="126">172.10.90.10</text></g>
-              <g id="node-hzalo" class="node service"><rect x="880" y="172" width="124" height="42"/><text x="894" y="192">hzalo</text><text class="sub" x="894" y="206">172.10.200.10</text></g>
-              <g id="node-hcall" class="node service"><rect x="880" y="252" width="124" height="42"/><text x="894" y="272">hcall</text><text class="sub" x="894" y="286">172.10.201.10</text></g>
-              <g id="node-hsocial" class="node blocked"><rect x="880" y="332" width="124" height="42"/><text x="894" y="352">hsocial</text><text class="sub" x="894" y="366">172.10.202.10</text></g>
-              <circle id="packetDot" class="packet" cx="520" cy="250" r="7"/>
-              <g id="xmark" class="xmark"><line x1="944" y1="398" x2="980" y2="434"/><line x1="980" y1="398" x2="944" y2="434"/></g>
+              <rect class="site" x="10" y="52" width="900" height="330"/><text class="site-title" x="460" y="74" text-anchor="middle">SITE CHINH - TRU SO</text>
+              <rect class="site" x="10" y="408" width="900" height="270"/><text class="site-title" x="460" y="430" text-anchor="middle">SITE CHI NHANH - TELESALE</text>
+
+              <line id="link-h20-access_hq_a" class="link" x1="150" y1="112" x2="224" y2="112"/>
+              <line id="link-h30-access_hq_b" class="link" x1="150" y1="170" x2="224" y2="170"/>
+              <line id="link-h40-access_hq_c" class="link" x1="150" y1="228" x2="224" y2="228"/>
+              <line id="link-h90-voice_mgmt" class="link" x1="150" y1="322" x2="224" y2="322"/>
+              <line id="link-access_hq_a-core_hq" class="link" x1="340" y1="112" x2="438" y2="180"/>
+              <line id="link-access_hq_b-core_hq" class="link" x1="340" y1="170" x2="438" y2="205"/>
+              <line id="link-access_hq_c-core_hq" class="link" x1="340" y1="228" x2="438" y2="230"/>
+              <line id="link-voice_mgmt-core_hq" class="link" x1="340" y1="322" x2="438" y2="250"/>
+              <line id="link-core_hq-fw_hq" class="link" x1="590" y1="220" x2="692" y2="220"/>
+              <line id="link-fw_hq-policy_hq" class="link policy-link" x1="775" y1="252" x2="775" y2="296"/>
+              <line id="link-policy_hq-internet" class="link policy-link" x1="858" y1="316" x2="1012" y2="316"/>
+
+              <line id="link-h50-access_branch" class="link" x1="150" y1="486" x2="224" y2="520"/>
+              <line id="link-h60-access_branch" class="link" x1="150" y1="562" x2="224" y2="536"/>
+              <line id="link-access_branch-dist_branch" class="link" x1="340" y1="528" x2="438" y2="528"/>
+              <line id="link-dist_branch-fw_branch" class="link" x1="590" y1="528" x2="692" y2="528"/>
+              <line id="link-fw_branch-policy_branch" class="link policy-link" x1="775" y1="560" x2="775" y2="604"/>
+              <line id="link-policy_branch-internet" class="link policy-link" x1="858" y1="624" x2="1012" y2="422"/>
+
+              <line id="link-core_hq-ce_hq" class="link static" x1="590" y1="180" x2="692" y2="128"/>
+              <line id="link-ce_hq-mpls_cloud" class="link static" x1="858" y1="128" x2="1012" y2="210"/>
+              <line id="link-dist_branch-ce_branch" class="link static" x1="590" y1="488" x2="692" y2="472"/>
+              <line id="link-ce_branch-mpls_cloud" class="link static" x1="858" y1="472" x2="1012" y2="330"/>
+              <line id="link-internet-hzalo" class="link" x1="1100" y1="350" x2="1100" y2="208"/>
+              <line id="link-internet-hcall" class="link" x1="1100" y1="350" x2="1100" y2="270"/>
+              <line id="link-internet-hsocial" class="link" x1="1100" y1="350" x2="1100" y2="560"/>
+
+              <g id="node-h20" class="node user"><rect x="28" y="88" width="122" height="48"/><text x="89" y="106">Project A</text><text class="sub" x="89" y="121">VLAN 20 - HQ</text><text class="sub" x="89" y="133">172.10.20.0/24</text></g>
+              <g id="node-h30" class="node user"><rect x="28" y="146" width="122" height="48"/><text x="89" y="164">Project B</text><text class="sub" x="89" y="179">VLAN 30 - HQ</text><text class="sub" x="89" y="191">172.10.30.0/24</text></g>
+              <g id="node-h40" class="node user"><rect x="28" y="204" width="122" height="48"/><text x="89" y="222">Project C</text><text class="sub" x="89" y="237">VLAN 40 - HQ</text><text class="sub" x="89" y="249">172.10.40.0/24</text></g>
+              <g id="node-h90" class="node user"><rect x="28" y="298" width="122" height="48"/><text x="89" y="316">Voice Service</text><text class="sub" x="89" y="331">VLAN 90 - HQ</text><text class="sub" x="89" y="343">172.10.90.0/24</text></g>
+
+              <g id="node-access_hq_a" class="node access"><rect x="224" y="88" width="116" height="48"/><text x="282" y="108">Access SW A</text><text class="sub" x="282" y="124">VLAN 20</text></g>
+              <g id="node-access_hq_b" class="node access"><rect x="224" y="146" width="116" height="48"/><text x="282" y="166">Access SW B</text><text class="sub" x="282" y="182">VLAN 30</text></g>
+              <g id="node-access_hq_c" class="node access"><rect x="224" y="204" width="116" height="48"/><text x="282" y="224">Access SW C</text><text class="sub" x="282" y="240">VLAN 40</text></g>
+              <g id="node-voice_mgmt" class="node access"><rect x="224" y="298" width="116" height="48"/><text x="282" y="316">Voice/Mgmt SW</text><text class="sub" x="282" y="331">VLAN 90</text></g>
+
+              <g id="node-core_hq" class="node core"><rect x="438" y="154" width="152" height="132"/><text x="514" y="196">Core L3 - HQ</text><text class="sub" x="514" y="214">SVI GW VLAN</text><text class="sub" x="514" y="228">10/20/30/40/90</text><text class="sub" x="514" y="244">Default -> Firewall</text></g>
+              <g id="node-ce_hq" class="node ce"><rect x="692" y="100" width="166" height="56"/><text x="775" y="122">CE Router HQ</text><text class="sub" x="775" y="138">MPLS WAN Edge</text></g>
+              <g id="node-fw_hq" class="node firewall"><rect x="692" y="196" width="166" height="56"/><text x="775" y="218">Firewall HQ</text><text class="sub" x="775" y="234">Internet Breakout</text></g>
+              <g id="node-policy_hq" class="node policy"><rect x="692" y="296" width="166" height="48"/><text x="775" y="314">Policy Internet HQ</text><text class="sub" x="775" y="330">Allow Zalo + Call App</text></g>
+
+              <g id="node-h50" class="node user"><rect x="28" y="462" width="122" height="48"/><text x="89" y="480">Telesale</text><text class="sub" x="89" y="495">VLAN 50 - Branch</text><text class="sub" x="89" y="507">172.10.50.0/24</text></g>
+              <g id="node-h60" class="node user"><rect x="28" y="538" width="122" height="48"/><text x="89" y="556">Backoffice</text><text class="sub" x="89" y="571">VLAN 60 - Branch</text><text class="sub" x="89" y="583">172.10.60.0/24</text></g>
+              <g id="node-access_branch" class="node access"><rect x="224" y="500" width="116" height="56"/><text x="282" y="520">Access SW</text><text class="sub" x="282" y="536">VLAN 50/60</text></g>
+              <g id="node-dist_branch" class="node dist"><rect x="438" y="478" width="152" height="100"/><text x="514" y="514">Distribution L3</text><text class="sub" x="514" y="532">Branch SVI GW</text><text class="sub" x="514" y="546">VLAN 50/60</text></g>
+              <g id="node-ce_branch" class="node ce"><rect x="692" y="444" width="166" height="56"/><text x="775" y="466">CE Router Branch</text><text class="sub" x="775" y="482">MPLS WAN Edge</text></g>
+              <g id="node-fw_branch" class="node firewall"><rect x="692" y="504" width="166" height="56"/><text x="775" y="526">Firewall Branch</text><text class="sub" x="775" y="542">Internet Breakout</text></g>
+              <g id="node-policy_branch" class="node policy"><rect x="692" y="604" width="166" height="48"/><text x="775" y="622">Policy Internet Branch</text><text class="sub" x="775" y="638">Allow Zalo + Call App</text></g>
+
+              <g id="node-mpls_cloud" class="node cloud"><ellipse cx="1058" cy="260" rx="86" ry="74"/><text x="1058" y="244">MPLS L3VPN</text><text class="sub" x="1058" y="262">ISP PE/P Core</text></g>
+              <g id="node-internet" class="node cloud"><ellipse cx="1058" cy="408" rx="86" ry="62"/><text x="1058" y="412">Internet</text></g>
+              <g id="node-hzalo" class="node service"><rect x="1038" y="184" width="116" height="48"/><text x="1096" y="204">Zalo Service</text><text class="sub" x="1096" y="220">172.10.200.10</text></g>
+              <g id="node-hcall" class="node service"><rect x="1038" y="246" width="116" height="48"/><text x="1096" y="266">Call App</text><text class="sub" x="1096" y="282">172.10.201.10</text></g>
+              <g id="node-hsocial" class="node blocked"><rect x="1038" y="536" width="116" height="48"/><text x="1096" y="556">Social Media</text><text class="sub" x="1096" y="572">Blocked</text></g>
+
+              <circle id="packetDot" class="packet" cx="514" cy="220" r="7"/>
+              <g id="xmark" class="xmark"><line x1="1078" y1="586" x2="1114" y2="622"/><line x1="1114" y1="586" x2="1078" y2="622"/></g>
             </svg>
           </div>
         </div>
@@ -211,9 +260,13 @@ const selectedPair = () => ({
   destination: document.getElementById('destination').value,
 });
 
-const xPositions = {
-  h20: [168, 112], h30: [168, 192], h40: [168, 272], h50: [168, 414], h60: [168, 464],
-  h90: [880, 112], hzalo: [880, 192], hcall: [880, 272], hsocial: [880, 352],
+const nodePositions = {
+  h20: [150, 112], h30: [150, 170], h40: [150, 228], h90: [150, 322],
+  access_hq_a: [224, 112], access_hq_b: [224, 170], access_hq_c: [224, 228], voice_mgmt: [224, 322],
+  core_hq: [514, 220], ce_hq: [775, 128], fw_hq: [775, 224], policy_hq: [775, 320],
+  h50: [150, 486], h60: [150, 562], access_branch: [224, 528], dist_branch: [514, 528],
+  ce_branch: [775, 472], fw_branch: [775, 532], policy_branch: [775, 628],
+  internet: [1058, 408], hzalo: [1096, 208], hcall: [1096, 270], hsocial: [1096, 560],
 };
 
 function lineId(a, b) {
@@ -237,22 +290,22 @@ function drawDecision(payload) {
   }
   const packet = document.getElementById('packetDot');
   const dst = path[path.length - 1];
-  if (xPositions[dst]) {
-    packet.setAttribute('cx', xPositions[dst][0]);
-    packet.setAttribute('cy', xPositions[dst][1]);
+  if (nodePositions[dst]) {
+    packet.setAttribute('cx', nodePositions[dst][0]);
+    packet.setAttribute('cy', nodePositions[dst][1]);
   }
   packet.classList.add('active');
-  if (blocked && xPositions[dst]) {
+  if (blocked && nodePositions[dst]) {
     const xmark = document.getElementById('xmark');
-    const [x, y] = xPositions[dst];
-    xmark.querySelectorAll('line')[0].setAttribute('x1', x + 18);
-    xmark.querySelectorAll('line')[0].setAttribute('y1', y + 18);
-    xmark.querySelectorAll('line')[0].setAttribute('x2', x + 50);
-    xmark.querySelectorAll('line')[0].setAttribute('y2', y + 50);
-    xmark.querySelectorAll('line')[1].setAttribute('x1', x + 50);
-    xmark.querySelectorAll('line')[1].setAttribute('y1', y + 18);
-    xmark.querySelectorAll('line')[1].setAttribute('x2', x + 18);
-    xmark.querySelectorAll('line')[1].setAttribute('y2', y + 50);
+    const [x, y] = nodePositions[dst];
+    xmark.querySelectorAll('line')[0].setAttribute('x1', x + 12);
+    xmark.querySelectorAll('line')[0].setAttribute('y1', y + 12);
+    xmark.querySelectorAll('line')[0].setAttribute('x2', x + 44);
+    xmark.querySelectorAll('line')[0].setAttribute('y2', y + 44);
+    xmark.querySelectorAll('line')[1].setAttribute('x1', x + 44);
+    xmark.querySelectorAll('line')[1].setAttribute('y1', y + 12);
+    xmark.querySelectorAll('line')[1].setAttribute('x2', x + 12);
+    xmark.querySelectorAll('line')[1].setAttribute('y2', y + 44);
     xmark.classList.add('show');
   }
 }
@@ -272,7 +325,7 @@ async function loadTopology() {
   const hosts = topology.nodes.filter((node) => node.id.startsWith('h'));
   for (const id of ['source', 'destination']) {
     const select = document.getElementById(id);
-    select.innerHTML = hosts.map((host) => `<option value="${host.id}">${host.id} - ${host.label} - ${host.ip}</option>`).join('');
+    select.innerHTML = hosts.map((host) => `<option value="${host.id}">${host.label} (${host.id}) - ${host.ip}</option>`).join('');
   }
   document.getElementById('source').value = 'h20';
   document.getElementById('destination').value = 'h90';
