@@ -33,7 +33,8 @@ install_python_on_ubuntu22() {
     python3-yaml \
     build-essential \
     libffi-dev \
-    libssl-dev
+    libssl-dev \
+    iperf
 
   "${PYTHON_BIN}" --version
 }
@@ -55,6 +56,13 @@ show_test_notes() {
   note "Lenh test khi vao Mininet"
   cat <<'EOF'
 Khi thay prompt "mininet>", copy/paste:
+
+testsdn                  # test chi tiet allow/deny
+sdninfo                  # xem controller/policy/log
+sdnstats                 # xem flow/port counter OpenFlow
+sdnbw h20 h90 5          # do bang thong bang iperf
+sdnblock h20 h90         # chan tam thoi bang OpenFlow rule
+sdnunblock h20 h90       # go chan tam thoi
 
 h20 ping -c 2 h30      # fail
 h20 ping -c 2 h90      # pass

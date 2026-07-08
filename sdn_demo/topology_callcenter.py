@@ -63,7 +63,20 @@ def packet_loss_line(output):
     return "no ping summary returned"
 
 
+def usage(command, example):
+    info(f"Usage: {command}\n")
+    info(f"Example: {example}\n")
+
+
+def has_node(net, name):
+    return name in net.nameToNode
+
+
 class CallCenterCLI(CLI):
+    def __init__(self, net, policy):
+        self.policy = policy
+        super().__init__(net)
+
     def do_testsdn(self, line):
         "Run the expected SDN allow/deny ping test suite."
         info("\n*** Running SDN policy tests\n")
@@ -104,10 +117,99 @@ class CallCenterCLI(CLI):
         info(f"Controller log: {CONTROLLER_LOG}\n")
         info("\nUseful commands:\n")
         info("  testsdn                              run detailed allow/deny tests\n")
+        info("  sdnbw h20 h90                        measure bandwidth with iperf\n")
+        info("  sdnstats                             show OpenFlow flow/port counters\n")
+        info("  sdnblock h20 h90                     add temporary high-priority drop flow\n")
+        info("  sdnunblock h20 h90                   remove temporary drop flow\n")
         info("  sh ovs-ofctl -O OpenFlow13 dump-flows s1\n")
         info("  sh tail -n 80 sdn_demo/controller.log\n")
         info("  nodes                                list simulated hosts\n")
         info("  net                                  show links\n")
+
+    def do_sdnpolicy(self, line):
+        "Show the current source-of-truth SDN policy summary."
+        info("\n*** SDN policy source-of-truth\n")
+        info(f"Policy file: {POLICY_FILE}\n")
+        info(f"Voice enabled: {self.policy.get('voice_enabled')}\n")
+        info(f"Client hosts: {', '.join(self.policy['client_hosts'])}\n")
+        info(f"Allowed services: {', '.join(self.policy['allowed_services'])}\n")
+        info(f"Blocked services: {', '.join(self.policy['blocked_services'])}\n")
+        info("Deny pairs:\n")
+        for left, right in self.policy["deny_pairs"]:
+            info(f"  {left} <-> {right}\n")
+
+    def do_sdnstats(self, line):
+        "Show OpenFlow flow counters and OVS port counters."
+        switch = self.mn.get("s1")
+        info("\n*** OpenFlow flows on s1\n")
+        info(switch.cmd("ovs-ofctl -O OpenFlow13 dump-flows s1"))
+        info("\n*** OpenFlow port counters on s1\n")
+        info(switch.cmd("ovs-ofctl -O OpenFlow13 dump-ports s1"))
+
+    def do_sdnbw(self, line):
+        "Measure bandwidth between two hosts with iperf. Usage: sdnbw h20 h90 [seconds]."
+        parts = line.split()
+        if len(parts) not in (2, 3):
+            usage("sdnbw <src-host> <dst-host> [seconds]", "sdnbw h20 h90 5")
+            return
+
+        src_name, dst_name = parts[0], parts[1]
+        seconds = parts[2] if len(parts) == 3 else "5"
+        if not has_node(self.mn, src_name) or not has_node(self.mn, dst_name):
+            info("Unknown host. Use 'nodes' to list available hosts.\n")
+            return
+        if not seconds.isdigit() or int(seconds) < 1:
+            info("Seconds must be a positive integer.\n")
+            return
+
+        src = self.mn.get(src_name)
+        dst = self.mn.get(dst_name)
+        if "missing" in src.cmd("command -v iperf >/dev/null 2>&1 && echo ok || echo missing"):
+            info("iperf is not installed. Run: sudo apt install -y iperf\n")
+            return
+
+        dst.cmd("pkill -f 'iperf -s -p 5001' >/dev/null 2>&1 || true")
+        dst.cmd("iperf -s -p 5001 >/tmp/sdn_iperf_server.log 2>&1 &")
+        info(f"\n*** Measuring bandwidth: {src_name} -> {dst_name} for {seconds}s\n")
+        info(src.cmd(f"iperf -c {dst.IP()} -p 5001 -t {seconds} -i 1"))
+        dst.cmd("pkill -f 'iperf -s -p 5001' >/dev/null 2>&1 || true")
+
+    def do_sdnblock(self, line):
+        "Temporarily block traffic between two hosts with high-priority OpenFlow drop rules."
+        parts = line.split()
+        if len(parts) != 2:
+            usage("sdnblock <host-a> <host-b>", "sdnblock h20 h90")
+            return
+        self.set_temporary_block(parts[0], parts[1], block=True)
+
+    def do_sdnunblock(self, line):
+        "Remove temporary block rules between two hosts."
+        parts = line.split()
+        if len(parts) != 2:
+            usage("sdnunblock <host-a> <host-b>", "sdnunblock h20 h90")
+            return
+        self.set_temporary_block(parts[0], parts[1], block=False)
+
+    def set_temporary_block(self, left_name, right_name, block):
+        if not has_node(self.mn, left_name) or not has_node(self.mn, right_name):
+            info("Unknown host. Use 'nodes' to list available hosts.\n")
+            return
+
+        left = self.mn.get(left_name)
+        right = self.mn.get(right_name)
+        switch = self.mn.get("s1")
+        pairs = [(left.IP(), right.IP()), (right.IP(), left.IP())]
+
+        for src_ip, dst_ip in pairs:
+            match = f"ip,nw_src={src_ip},nw_dst={dst_ip}"
+            if block:
+                switch.cmd(f"ovs-ofctl -O OpenFlow13 add-flow s1 'priority=500,{match},actions=drop'")
+            else:
+                switch.cmd(f"ovs-ofctl -O OpenFlow13 del-flows s1 '{match}'")
+
+        action = "blocked" if block else "unblocked"
+        info(f"Temporary SDN override {action}: {left_name} <-> {right_name}\n")
+        info("Verify with: sdnstats\n")
 
 
 def build_topology():
@@ -171,7 +273,7 @@ def build_topology():
     info("*** Show SDN entry points: sdninfo\n")
     info("*** Test list inside Mininet: sh cat sdn_demo/test_commands.txt\n\n")
 
-    CallCenterCLI(net)
+    CallCenterCLI(net, policy)
     net.stop()
 
 

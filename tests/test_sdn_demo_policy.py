@@ -8,6 +8,8 @@ import yaml
 
 POLICY_PATH = Path(__file__).resolve().parents[1] / "sdn_demo" / "policy.yml"
 CONTROLLER_PATH = POLICY_PATH.with_name("controller_standalone_policy.py")
+TOPOLOGY_PATH = POLICY_PATH.with_name("topology_callcenter.py")
+SETUP_SCRIPT_PATH = POLICY_PATH.with_name("setup_ubuntu_vm_vi.sh")
 
 
 def load_policy():
@@ -67,3 +69,13 @@ def test_standalone_controller_set_field_action_lengths_are_padded():
 
     assert len(action) == 16
     assert struct.unpack("!H", action[2:4])[0] == 16
+
+
+def test_sdn_demo_exposes_operational_commands_and_bandwidth_tooling():
+    topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
+    setup_script = SETUP_SCRIPT_PATH.read_text(encoding="utf-8")
+
+    for command in ("do_testsdn", "do_sdnstats", "do_sdnbw", "do_sdnblock", "do_sdnunblock"):
+        assert command in topology
+
+    assert "iperf" in setup_script

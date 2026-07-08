@@ -1,5 +1,10 @@
 testsdn                  # run full detailed SDN policy test suite
 sdninfo                  # show SDN controller/policy/log entry points
+sdnpolicy                # show current source-of-truth policy
+sdnstats                 # show OpenFlow flow and port counters
+sdnbw h20 h90 5          # measure bandwidth with iperf
+sdnblock h20 h90         # temporarily block h20 and h90 with OpenFlow
+sdnunblock h20 h90       # remove the temporary block
 h20 ping -c 2 h30      # expected fail
 h20 ping -c 2 h90      # expected pass
 h20 ping -c 2 hzalo    # expected pass

@@ -47,7 +47,7 @@ Neu muon cai xong va chay demo luon:
 
 ```bash
 sudo apt update
-sudo apt install -y git python3 python3-pip python3-venv python3-yaml mininet openvswitch-switch
+sudo apt install -y git python3 python3-pip python3-venv python3-yaml iperf mininet openvswitch-switch
 sudo systemctl enable --now openvswitch-switch
 ```
 
@@ -79,6 +79,33 @@ Xem ban dang o dau trong phan SDN:
 
 ```bash
 sdninfo
+```
+
+Xem policy dang duoc dung:
+
+```bash
+sdnpolicy
+```
+
+Xem flow counter va port counter cua Open vSwitch:
+
+```bash
+sdnstats
+```
+
+Do bang thong that giua hai host bang iperf:
+
+```bash
+sdnbw h20 h90 5
+```
+
+Thao tac SDN: chan/mo tam thoi mot cap host bang OpenFlow rule priority cao:
+
+```bash
+sdnblock h20 h90
+h20 ping -c 2 h90      # expected fail sau khi block
+sdnunblock h20 h90
+h20 ping -c 2 h90      # expected pass sau khi unblock
 ```
 
 Xem danh sach lenh test:

@@ -54,6 +54,7 @@ install_system_packages() {
     build-essential \
     libffi-dev \
     libssl-dev \
+    iperf \
     mininet \
     openvswitch-switch
 
@@ -104,6 +105,13 @@ Khi thay prompt:
   mininet>
 
 Hay copy/paste cac lenh test:
+
+  testsdn                  # test chi tiet allow/deny
+  sdninfo                  # xem controller/policy/log
+  sdnstats                 # xem flow/port counter OpenFlow
+  sdnbw h20 h90 5          # do bang thong bang iperf
+  sdnblock h20 h90         # chan tam thoi bang OpenFlow rule
+  sdnunblock h20 h90       # go chan tam thoi
 
   h20 ping -c 2 h30      # mong doi fail
   h20 ping -c 2 h90      # mong doi pass
