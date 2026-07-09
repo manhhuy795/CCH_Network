@@ -9,6 +9,7 @@ backups/*.txt
 *.log
 node_modules/
 dist/
+*.tsbuildinfo
 sdn_mpls_demo/runtime/
 *.iso
 *.flp

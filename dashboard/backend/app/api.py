@@ -70,14 +70,14 @@ def api_live_unblock(payload: HostPair):
 
 @router.post("/policy/apply")
 def api_policy_apply():
-    return {"ok": True, "message": "Policy file nam trong sdn_demo/policy.yml. Controller doc policy khi restart."}
+    return {"ok": True, "message": "Policy nằm trong sdn_mpls_demo/policy.yml. Khởi động lại controller để áp dụng."}
 
 
 @router.post("/policy/toggle")
 def api_policy_toggle(payload: PolicyToggleRequest):
     try:
         policies = toggle_policy(payload.key, payload.enabled)
-        return {"ok": True, "message": "Da cap nhat trang thai hien thi policy tren dashboard.", "policies": policies}
+        return {"ok": True, "message": "Đã cập nhật trạng thái hiển thị policy trên dashboard.", "policies": policies}
     except KeyError as exc:
         return {"ok": False, "message": str(exc)}
 
@@ -85,6 +85,20 @@ def api_policy_toggle(payload: PolicyToggleRequest):
 @router.post("/simulate/path")
 def api_simulate_path(payload: HostPair, request: Request):
     decision = policy_decision(payload.source, payload.destination)
+    path = decision.get("path", [])
+    failed = failed_links(request)
+    for index, (left, right) in enumerate(zip(path, path[1:])):
+        if f"{left}-{right}" in failed or f"{right}-{left}" in failed:
+            return {
+                "src": payload.source,
+                "dst": payload.destination,
+                "action": "deny",
+                "reason": "Không có đường đi hợp lệ do liên kết đang bị lỗi.",
+                "path": path[: index + 1],
+                "blocked_at": left,
+                "failed_link": f"{left}-{right}",
+                "mode": "logical_architecture",
+            }
     return {
         "src": payload.source,
         "dst": payload.destination,
@@ -96,16 +110,16 @@ def api_simulate_path(payload: HostPair, request: Request):
 
 @router.post("/link/update")
 def api_link_update(payload: LinkUpdateRequest):
-    return {"ok": True, "message": "Ban co the thay doi bandwidth/delay bang tc trong Mininet neu can.", "link": payload.model_dump()}
+    return {"ok": True, "message": "Có thể thay đổi bandwidth/delay/loss bằng TCLink trong Mininet.", "link": payload.model_dump()}
 
 
 @router.post("/link/fail")
 def api_link_fail(payload: LinkStateRequest, request: Request):
     failed_links(request).add(payload.link_id)
-    return {"ok": True, "message": f"Da danh dau link {payload.link_id} tren dashboard.", "failed_links": sorted(failed_links(request))}
+    return {"ok": True, "message": f"Đã mô phỏng lỗi liên kết {payload.link_id}.", "failed_links": sorted(failed_links(request))}
 
 
 @router.post("/link/recover")
 def api_link_recover(payload: LinkStateRequest, request: Request):
     failed_links(request).discard(payload.link_id)
-    return {"ok": True, "message": f"Da khoi phuc link {payload.link_id} tren dashboard.", "failed_links": sorted(failed_links(request))}
+    return {"ok": True, "message": f"Đã khôi phục liên kết {payload.link_id}.", "failed_links": sorted(failed_links(request))}

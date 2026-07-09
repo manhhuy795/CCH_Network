@@ -19,6 +19,8 @@ def test_dashboard_api_topology_and_policy_endpoints():
 
     assert topology["nodes"]
     assert topology["links"]
+    assert len(topology["hosts"]) == 105
+    assert topology["summary"]["user_count"] == 100
     assert policies["policies"]["block_social_media"] is True
 
 
@@ -55,22 +57,22 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
 
     from app.live_mininet import policy_decision
 
-    assert policy_decision("h20", "h90")["action"] == "allow"
+    assert policy_decision("h20_01", "h90")["action"] == "allow"
 
-    denied = policy_decision("h20", "h30")
+    denied = policy_decision("h20_01", "h30_01")
     assert denied["action"] == "deny"
     assert "cách ly" in denied["reason"]
-    assert denied["path"] == ["h20", "access_hq_a", "core_hq"]
+    assert denied["path"] == ["project_a", "access_hq_a", "core_hq"]
     assert denied["blocked_at"] == "core_hq"
 
-    social = policy_decision("h50", "hsocial")
-    assert social["path"] == ["h50", "access_branch", "dist_branch", "fw_branch"]
+    social = policy_decision("h50_01", "hsocial")
+    assert social["path"] == ["telesale", "access_branch", "dist_branch", "fw_branch"]
     assert social["blocked_at"] == "fw_branch"
 
-    intersite = policy_decision("h50", "h20")
+    intersite = policy_decision("h50_01", "h20_01")
     assert intersite["action"] == "allow"
     assert intersite["path"] == [
-        "h50",
+        "telesale",
         "access_branch",
         "dist_branch",
         "ce_branch",
@@ -78,7 +80,7 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
         "ce_hq",
         "core_hq",
         "access_hq_a",
-        "h20",
+        "project_a",
     ]
 
 

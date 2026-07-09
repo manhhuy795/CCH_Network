@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class HostPair(BaseModel):
-    source: str = Field(..., examples=["h20"])
+    source: str = Field(..., examples=["h20_01"])
     destination: str = Field(..., examples=["hcall"])
 
 
@@ -35,4 +35,3 @@ class ApiMessage(BaseModel):
     ok: bool
     message: str
     data: dict[str, Any] | None = None
-

@@ -8,6 +8,7 @@ from sdn_mpls_demo.policy_engine import PolicyEngine
 REPO_ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = REPO_ROOT / "sdn_mpls_demo" / "policy.yml"
 TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
+CONTROLLER_PATH = REPO_ROOT / "sdn_mpls_demo" / "controller_policy.py"
 
 
 def test_hybrid_topology_has_one_hundred_users_and_five_services():
@@ -42,3 +43,13 @@ def test_only_expected_ovs_are_controller_managed():
     ):
         assert f'"{switch}"' in topology
     assert 'net.addSwitch("mpls_cloud", cls=OVSBridge' in topology
+
+
+def test_controller_is_real_osken_openflow_13_app():
+    controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+
+    assert "app_manager.OSKenApp" in controller
+    assert "ofproto_v1_3.OFP_VERSION" in controller
+    assert "EventOFPPacketIn" in controller
+    assert "OFPFlowMod" in controller
+    assert "installed_flows.json" in controller

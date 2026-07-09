@@ -14,13 +14,12 @@ def run_command(command: list[str], timeout: int = 20) -> tuple[bool, str]:
         output = (result.stdout or "") + (result.stderr or "")
         return result.returncode == 0, output.strip()
     except FileNotFoundError:
-        return False, f"Khong tim thay lenh {command[0]}. Hay cai Mininet/OVS/iperf3 truoc."
+        return False, f"Không tìm thấy lệnh {command[0]}. Hãy cài Mininet/OVS/iperf3 trước."
     except subprocess.TimeoutExpired:
-        return False, "Lenh bi timeout. Hay kiem tra topology Mininet co dang chay khong."
+        return False, "Lệnh bị quá thời gian. Hãy kiểm tra topology Mininet có đang chạy không."
 
 
 def mininet_hint() -> str:
     if not command_exists("ovs-vsctl"):
-        return "Open vSwitch chua san sang tren may nay."
-    return "Neu test that bai, hay chay controller va topology Mininet truoc."
-
+        return "Open vSwitch chưa sẵn sàng trên máy này."
+    return "Nếu test thất bại, hãy chạy controller và topology Mininet trước."

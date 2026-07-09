@@ -9,7 +9,7 @@ TEXT_SUFFIXES = {".md", ".py", ".yml", ".yaml", ".j2", ".cfg", ".txt", ".json"}
 
 
 def test_primary_sources_do_not_use_old_non_private_plan():
-    checked_roots = ["vars", "templates", "scripts", "docs", "generated_configs", "sdn_demo"]
+    checked_roots = ["vars", "templates", "scripts", "docs", "generated_configs", "sdn_demo", "sdn_mpls_demo"]
     violations = []
 
     for root_name in checked_roots:

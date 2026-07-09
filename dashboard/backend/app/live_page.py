@@ -40,6 +40,8 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
     .system-info div:nth-child(2) { border-color: var(--green); }
     .system-info div:nth-child(3) { border-color: var(--amber); }
     .system-info p { font-size: 12px; }
+    .sdn-explainer { border-left: 4px solid #7c3aed; margin-bottom: 12px; padding: 11px 14px; }
+    .sdn-explainer p { font-size: 12px; }
     .stats { display: grid; gap: 8px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 12px; }
     .stat { border: 1px solid #dde5ec; border-radius: 7px; min-height: 71px; padding: 9px; }
     .stat strong { display: block; font-size: 20px; line-height: 1.2; }
@@ -118,9 +120,13 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
     <div><h3>Điều khiển SDN</h3><p>Controller cài flow allow/drop/steering xuống Open vSwitch qua OpenFlow 1.3.</p></div>
     <div><h3>WAN/MPLS và Internet</h3><p>Traffic liên site qua MPLS L3VPN; traffic Internet đi qua Firewall của từng site.</p></div>
   </div>
+  <section class="sdn-explainer">
+    <h3>SDN hoạt động như thế nào?</h3>
+    <p>SDN Controller là bộ não điều khiển mạng. Khi Open vSwitch chưa có rule cho một luồng mới, switch gửi Packet-In lên controller. Controller kiểm tra policy, tính đường đi và cài Flow-Mod; các gói tiếp theo được switch xử lý trực tiếp. Controller chỉ điều khiển OVS qua OpenFlow 1.3, không điều khiển MPLS L3VPN Cloud.</p>
+  </section>
 
   <div class="stats">
-    <div class="stat"><strong id="hostCount">0/10</strong><span>Host Mininet hoạt động</span></div>
+    <div class="stat"><strong id="hostCount">0/105</strong><span>Endpoint Mininet hoạt động</span></div>
     <div class="stat"><strong id="flowCount">0</strong><span>Luồng OpenFlow</span></div>
     <div class="stat"><strong id="rttValue">--</strong><span>RTT trung bình (ms)</span></div>
     <div class="stat"><strong id="jitterValue">--</strong><span>Jitter UDP (ms)</span></div>
@@ -150,17 +156,17 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <rect class="zone" x="1200" y="90" width="380" height="785" rx="7"/>
               <text class="zone-title" x="1218" y="116">DỊCH VỤ / INTERNET</text>
 
-              <path id="link-h20-access_hq_a" class="net-link" d="M165 160 L225 160"/>
-              <path id="link-h30-access_hq_b" class="net-link" d="M165 240 L225 240"/>
-              <path id="link-h40-access_hq_c" class="net-link" d="M165 320 L225 320"/>
+              <path id="link-project_a-access_hq_a" class="net-link" d="M165 160 L225 160"/>
+              <path id="link-project_b-access_hq_b" class="net-link" d="M165 240 L225 240"/>
+              <path id="link-project_c-access_hq_c" class="net-link" d="M165 320 L225 320"/>
               <path id="link-h90-voice_mgmt" class="net-link" d="M165 420 L225 420"/>
               <path id="link-access_hq_a-core_hq" class="net-link" d="M365 160 L430 250"/>
               <path id="link-access_hq_b-core_hq" class="net-link" d="M365 240 L430 275"/>
               <path id="link-access_hq_c-core_hq" class="net-link" d="M365 320 L430 300"/>
               <path id="link-voice_mgmt-core_hq" class="net-link" d="M365 420 L430 325"/>
 
-              <path id="link-h50-access_branch" class="net-link" d="M165 635 L230 675"/>
-              <path id="link-h60-access_branch" class="net-link" d="M165 760 L230 700"/>
+              <path id="link-telesale-access_branch" class="net-link" d="M165 635 L230 675"/>
+              <path id="link-backoffice-access_branch" class="net-link" d="M165 760 L230 700"/>
               <path id="link-access_branch-dist_branch" class="net-link" d="M370 687 L430 687"/>
 
               <path id="link-core_hq-ce_hq" class="net-link mpls" d="M550 300 L620 385"/>
@@ -185,9 +191,9 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <path id="link-c0-access_hq_c" class="net-link control" d="M730 155 L350 305"/>
               <path id="link-c0-access_branch" class="net-link control" d="M800 170 L335 655"/>
 
-              <g id="h20" class="node user" transform="translate(45 135)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án A</text><text class="sub" x="60" y="35">h20 · VLAN 20 · .10</text></g>
-              <g id="h30" class="node user" transform="translate(45 215)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án B</text><text class="sub" x="60" y="35">h30 · VLAN 30 · .10</text></g>
-              <g id="h40" class="node user" transform="translate(45 295)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án C</text><text class="sub" x="60" y="35">h40 · VLAN 40 · .10</text></g>
+              <g id="project_a" class="node user" transform="translate(45 135)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án A</text><text class="sub" x="60" y="35">20 user · VLAN 20</text></g>
+              <g id="project_b" class="node user" transform="translate(45 215)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án B</text><text class="sub" x="60" y="35">20 user · VLAN 30</text></g>
+              <g id="project_c" class="node user" transform="translate(45 295)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án C</text><text class="sub" x="60" y="35">20 user · VLAN 40</text></g>
               <g id="h90" class="node service" transform="translate(45 395)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice VLAN</text><text class="sub" x="60" y="35">h90 · VLAN 90 · .10</text></g>
               <g id="access_hq_a" class="node switch" transform="translate(225 137)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-A</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_b" class="node switch" transform="translate(225 217)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-B</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
@@ -195,8 +201,8 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <g id="voice_mgmt" class="node switch" transform="translate(225 397)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Voice Access</text><text class="sub" x="70" y="34">VLAN 90</text></g>
               <g id="core_hq" class="node switch" transform="translate(430 250)"><rect width="120" height="75" rx="6"/><text x="60" y="29">HQ Core SDN</text><text class="sub" x="60" y="49">OVS · OpenFlow 1.3</text></g>
 
-              <g id="h50" class="node user" transform="translate(45 610)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Telesale</text><text class="sub" x="60" y="35">h50 · VLAN 50 · .10</text></g>
-              <g id="h60" class="node user" transform="translate(45 735)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Backoffice</text><text class="sub" x="60" y="35">h60 · VLAN 60 · .10</text></g>
+              <g id="telesale" class="node user" transform="translate(45 610)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Telesale</text><text class="sub" x="60" y="35">20 user · VLAN 50</text></g>
+              <g id="backoffice" class="node user" transform="translate(45 735)"><rect width="120" height="50" rx="5"/><text x="60" y="19">BackOffice</text><text class="sub" x="60" y="35">20 user · VLAN 60</text></g>
               <g id="access_branch" class="node switch" transform="translate(230 662)"><rect width="140" height="50" rx="5"/><text x="70" y="20">Branch Access</text><text class="sub" x="70" y="36">Open vSwitch</text></g>
               <g id="dist_branch" class="node switch" transform="translate(430 650)"><rect width="120" height="75" rx="6"/><text x="60" y="29">Branch Distribution</text><text class="sub" x="60" y="49">OVS · OpenFlow 1.3</text></g>
 
@@ -241,7 +247,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
         <div class="panel-head"><h2>Bảng luồng OpenFlow dễ đọc</h2><button onclick="loadFlows()">↻ Đọc lại flow</button></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Điểm áp dụng</th><th>Diễn giải</th><th>Nguồn → Đích</th><th>Quyết định</th><th>Ưu tiên</th><th>Bộ đếm</th></tr></thead>
+            <thead><tr><th>Switch</th><th>Nguồn</th><th>Đích</th><th>Quyết định</th><th>Ưu tiên</th><th>Match</th><th>Action</th><th>Packet</th><th>Byte</th><th>Lý do</th></tr></thead>
             <tbody id="flowRows"><tr><td colspan="5">Đang tải dữ liệu...</td></tr></tbody>
           </table>
         </div>
@@ -299,10 +305,10 @@ const pair = () => ({
   destination: document.getElementById('destination').value,
 });
 const positions = {
-  h20:[105,160], h30:[105,240], h40:[105,320], h90:[105,420],
+  project_a:[105,160], project_b:[105,240], project_c:[105,320], h90:[105,420],
   access_hq_a:[295,160], access_hq_b:[295,240], access_hq_c:[295,320], voice_mgmt:[295,420],
   core_hq:[490,287], ce_hq:[690,385], mpls_cloud:[800,500], ce_branch:[690,615],
-  h50:[105,635], h60:[105,760], access_branch:[300,687], dist_branch:[490,687],
+  telesale:[105,635], backoffice:[105,760], access_branch:[300,687], dist_branch:[490,687],
   fw_hq:[1050,340], fw_branch:[1050,660], internet:[1295,470],
   hzalo:[1480,210], hcall:[1480,350], hsocial:[1480,570], hinternet:[1480,720],
   c0:[765,137],
@@ -408,12 +414,12 @@ async function execute(title, request) {
 }
 async function loadTopology() {
   const topology = await api('/api/topology');
-  const hosts = topology.nodes.filter((node) => node.id.startsWith('h'));
+  const hosts = topology.hosts || [];
   for (const id of ['source', 'destination']) {
     document.getElementById(id).innerHTML = hosts
-      .map((host) => `<option value="${host.id}">${host.label} (${host.ip})</option>`).join('');
+      .map((host) => `<option value="${host.name}">${host.label} (${host.name} - ${host.ip})</option>`).join('');
   }
-  document.getElementById('source').value = 'h20';
+  document.getElementById('source').value = 'h20_01';
   document.getElementById('destination').value = 'h90';
   document.getElementById('hostCount').dataset.total = hosts.length;
 }
@@ -423,17 +429,18 @@ async function loadStatus() {
   const total = document.getElementById('hostCount').dataset.total || Object.keys(status.hosts || {}).length;
   document.getElementById('hostCount').textContent = `${found}/${total}`;
   document.getElementById('liveStatus').innerHTML = status.ovs_bridge
-    ? '<span class="status-up">● OVS s1 đang hoạt động</span>'
-    : '<span class="status-down">● OVS s1 chưa hoạt động</span>';
+    ? '<span class="status-up">● OVS SDN đang hoạt động</span>'
+    : '<span class="status-down">● Chưa thấy OVS SDN</span>';
 }
 async function loadFlows() {
   const payload = await api('/api/flows');
   const flows = payload.flows || [];
   document.getElementById('flowRows').innerHTML = flows.length ? flows.map((flow) => `
-    <tr><td>${flow.logical_device || flow.switch}</td><td>${flow.explanation}</td><td>${flow.match}</td>
-    <td><span class="badge ${flow.action === 'ALLOW' ? 'allow' : 'drop'}">${flow.action === 'ALLOW' ? 'CHO PHÉP' : 'CHẶN'}</span></td>
-    <td>${flow.priority}</td><td>${flow.packets} gói<br>${flow.bytes} byte</td></tr>`).join('')
-    : '<tr><td colspan="6">Chưa đọc được flow. Hãy kiểm tra OVS s1 và quyền chạy dashboard.</td></tr>';
+    <tr><td>${flow.switch}</td><td>${flow.source}</td><td>${flow.destination}</td>
+    <td><span class="badge ${flow.action === 'ALLOW' ? 'allow' : 'drop'}">${flow.action === 'ALLOW' ? 'CHO PHÉP' : flow.action}</span></td>
+    <td>${flow.priority}</td><td>${flow.raw_match}</td><td>${flow.raw_action}</td>
+    <td>${flow.packets}</td><td>${flow.bytes}</td><td>${flow.reason}</td></tr>`).join('')
+    : '<tr><td colspan="10">Chưa đọc được flow. Hãy kiểm tra 7 OVS và quyền chạy dashboard.</td></tr>';
   document.getElementById('flowCount').textContent = flows.length;
 }
 function runPing() { return execute('Kết quả Ping', () => post('/api/test/ping', pair())); }

@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import subprocess
+import time
 
 
 def run(command, timeout=30):
@@ -61,6 +62,7 @@ def iperf3(source, destination, protocol, seconds):
     )
     if not server_ok:
         return {"ok": False, "message": "Không khởi động được iperf3 server.", "raw": server_output}
+    time.sleep(0.4)
     command = ["iperf3", "-c", destination_ip, "-t", str(seconds), "--json"]
     if protocol == "udp":
         command.extend(["-u", "-b", "20M"])

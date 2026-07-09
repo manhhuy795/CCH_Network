@@ -10,6 +10,6 @@ def get_policy_payload() -> dict:
 def toggle_policy(key: str, enabled: bool) -> dict:
     payload = policy_payload()
     if key not in payload["policies"]:
-        raise KeyError(f"Khong co policy: {key}")
+        raise KeyError(f"Không có policy: {key}")
     payload["policies"][key] = enabled
     return payload["policies"]
