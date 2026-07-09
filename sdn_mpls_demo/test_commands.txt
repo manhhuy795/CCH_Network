@@ -1,6 +1,8 @@
 # Chạy các lệnh này tại dấu nhắc mininet>
 nodes
 net
+testpolicy
+isolationflows
 
 h20_01 ping -c 2 h30_01     # mong đợi: fail
 h20_01 ping -c 2 h90        # mong đợi: pass

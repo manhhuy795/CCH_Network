@@ -90,6 +90,13 @@ npm run dev -- --host 0.0.0.0
 Khi thấy `mininet>`, dùng các lệnh trong
 `sdn_mpls_demo/test_commands.txt`.
 
+Kiểm tra nhanh segmentation bằng traffic thật:
+
+```text
+testpolicy       # chạy 8 ca ALLOW/DENY
+isolationflows   # xem DROP flow priority 400 trên 7 OVS
+```
+
 Terminal 3, chạy backend:
 
 ```bash

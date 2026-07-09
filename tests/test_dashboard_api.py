@@ -48,6 +48,9 @@ def test_dashboard_serves_live_web_page():
     assert 'id="link-mpls_cloud-ce_branch"' in html
     assert 'id="link-dist_branch-wan"' not in html
     assert 'id="wan"' not in html
+    assert "FIREWALL HQ TẠI BIÊN SITE" in html
+    assert "FIREWALL BRANCH TẠI BIÊN SITE" in html
+    assert "BẢO MẬT / INTERNET EDGE" not in html
 
 
 def test_dashboard_policy_decision_explains_allow_and_deny():

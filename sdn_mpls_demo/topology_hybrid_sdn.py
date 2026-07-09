@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from pathlib import Path
 
 import yaml
@@ -38,6 +39,59 @@ class LinuxRouter(Node):
     def terminate(self):
         self.cmd("sysctl -w net.ipv4.ip_forward=0 >/dev/null")
         super().terminate()
+
+
+POLICY_TESTS = (
+    ("h20_01", "h30_01", False, "Cách ly VLAN 20 và VLAN 30"),
+    ("h20_01", "h40_01", False, "Cách ly VLAN 20 và VLAN 40"),
+    ("h50_01", "h60_01", False, "Cách ly VLAN 50 và VLAN 60"),
+    ("h20_01", "h90", True, "Cho phép Voice"),
+    ("h20_01", "hcall", True, "Cho phép Call App qua Firewall HQ"),
+    ("h50_01", "hcall", True, "Cho phép Call App qua Firewall Branch"),
+    ("h20_01", "hsocial", False, "Chặn Social Media"),
+    ("h50_01", "h20_01", True, "Cho phép liên site có kiểm soát"),
+)
+
+
+class CallCenterCLI(CLI):
+    def __init__(self, net, policy):
+        self.policy = policy
+        super().__init__(net)
+
+    def service_ip(self, host_name):
+        service = self.policy.get("services", {}).get(host_name)
+        return service["ip"] if service else self.mn.get(host_name).IP()
+
+    def do_testpolicy(self, _line):
+        "Chạy bộ ping kiểm tra allow/drop bắt buộc."
+        info("\n*** Kiểm tra policy bằng traffic thật\n")
+        passed = 0
+        for source_name, destination_name, expected, reason in POLICY_TESTS:
+            source = self.mn.get(source_name)
+            destination_ip = self.service_ip(destination_name)
+            output = source.cmd(f"ping -c 2 -W 1 {destination_ip}")
+            loss = re.search(r"([0-9.]+)% packet loss", output)
+            reachable = bool(loss and float(loss.group(1)) < 100)
+            matched = reachable == expected
+            passed += int(matched)
+            info(
+                f"{'PASS' if matched else 'FAIL':4} "
+                f"{source_name:>7} -> {destination_name:<8} "
+                f"expected={'ALLOW' if expected else 'DENY':<5} "
+                f"actual={'ALLOW' if reachable else 'DENY':<5} | {reason}\n"
+            )
+        info(f"\n*** Kết quả: {passed}/{len(POLICY_TESTS)} policy test đạt\n")
+
+    def do_isolationflows(self, _line):
+        "Hiển thị các flow DROP priority 400 trên OVS."
+        info("\n*** Isolation flow priority 400\n")
+        for switch_name in DPIDS:
+            switch = self.mn.get(switch_name)
+            info(f"\n--- {switch_name} ---\n")
+            info(switch.cmd(
+                f"ovs-ofctl -O OpenFlow13 dump-flows {switch_name} "
+                f"| grep 'priority=400' || true"
+            ))
 
 
 def load_policy():
@@ -313,7 +367,9 @@ def build_topology():
     info("*** Thử: h20_01 ping -c 2 h30_01 (bị chặn)\n")
     info("*** Thử: h20_01 ping -c 2 h90 (cho phép)\n")
     info("*** Thử: h50_01 ping -c 2 h20_01 (liên site qua MPLS logic)\n")
-    CLI(net)
+    info("*** Chạy toàn bộ kiểm tra policy: testpolicy\n")
+    info("*** Xem DROP flow chủ động: isolationflows\n")
+    CallCenterCLI(net, policy)
     net.stop()
 
 

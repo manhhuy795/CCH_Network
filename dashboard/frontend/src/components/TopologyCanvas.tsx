@@ -2,12 +2,13 @@ import { RotateCcw, Unplug } from "lucide-react";
 import type { Decision, Link } from "../api/client";
 
 const positions: Record<string, [number, number]> = {
-  project_a: [90, 125], project_b: [90, 205], project_c: [90, 285], h90: [90, 385],
-  access_hq_a: [270, 125], access_hq_b: [270, 205], access_hq_c: [270, 285], voice_mgmt: [270, 385],
-  core_hq: [450, 250], c0: [665, 70],
+  project_a: [90, 155], project_b: [90, 235], project_c: [90, 315], h90: [90, 415],
+  access_hq_a: [270, 155], access_hq_b: [270, 235], access_hq_c: [270, 315], voice_mgmt: [270, 415],
+  core_hq: [450, 280], c0: [760, 70],
   telesale: [90, 575], backoffice: [90, 680], access_branch: [270, 625], dist_branch: [450, 625],
-  ce_hq: [620, 310], mpls_cloud: [700, 440], ce_branch: [620, 570],
-  fw_hq: [850, 300], fw_branch: [850, 585], internet: [1040, 440],
+  fw_hq: [610, 390], fw_branch: [610, 550],
+  ce_hq: [760, 280], mpls_cloud: [820, 440], ce_branch: [760, 625],
+  internet: [1040, 440],
   hzalo: [1220, 170], hcall: [1220, 320], hsocial: [1220, 530], hinternet: [1220, 680],
 };
 
@@ -62,11 +63,10 @@ export default function TopologyCanvas({ links, decision, activeIndex, failedLin
       </div>
       <div className="topology-scroll">
         <svg className="topology-svg" viewBox="0 0 1320 750" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
-          <rect className="zone" x="20" y="90" width="510" height="365" /><text className="zone-label" x="35" y="112">TRỤ SỞ CHÍNH</text>
-          <rect className="zone" x="20" y="485" width="510" height="245" /><text className="zone-label" x="35" y="507">CHI NHÁNH</text>
-          <rect className="zone" x="550" y="240" width="260" height="490" /><text className="zone-label" x="565" y="262">WAN / MPLS L3VPN</text>
-          <rect className="zone" x="825" y="240" width="150" height="490" /><text className="zone-label" x="840" y="262">BẢO MẬT</text>
-          <rect className="zone" x="990" y="90" width="310" height="640" /><text className="zone-label" x="1005" y="112">DỊCH VỤ / INTERNET</text>
+          <rect className="zone" x="20" y="90" width="650" height="365" /><text className="zone-label" x="35" y="112">TRỤ SỞ CHÍNH · FIREWALL HQ TẠI BIÊN SITE</text>
+          <rect className="zone" x="20" y="485" width="650" height="245" /><text className="zone-label" x="35" y="507">CHI NHÁNH · FIREWALL BRANCH TẠI BIÊN SITE</text>
+          <rect className="zone" x="690" y="180" width="250" height="550" /><text className="zone-label" x="705" y="202">WAN / MPLS L3VPN</text>
+          <rect className="zone" x="960" y="90" width="340" height="640" /><text className="zone-label" x="975" y="112">DỊCH VỤ / INTERNET</text>
 
           {links.map((link) => {
             const from = positions[link.source]; const to = positions[link.target];

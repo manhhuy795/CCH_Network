@@ -99,6 +99,56 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             reason=metadata["reason"],
         )
 
+    def install_isolation_flows(self, datapath):
+        """Cài DROP chủ động để segmentation không phụ thuộc gói Packet-In đầu tiên."""
+        parser = datapath.ofproto_parser
+        switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
+        hq_pairs = (
+            ("project_a", "project_b"),
+            ("project_a", "project_c"),
+            ("project_b", "project_c"),
+        )
+        isolation_pairs = (
+            list(hq_pairs)
+            if self.policy.policies["isolate_hq_projects"]
+            else []
+        )
+        if self.policy.policies["isolate_branch_vlan_50_60"]:
+            isolation_pairs.append(("telesale", "backoffice"))
+
+        for left_group, right_group in isolation_pairs:
+            left_network = self.policy.networks[left_group]
+            right_network = self.policy.networks[right_group]
+            for source_network, destination_network in (
+                (left_network, right_network),
+                (right_network, left_network),
+            ):
+                match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=(
+                        str(source_network.network_address),
+                        str(source_network.netmask),
+                    ),
+                    ipv4_dst=(
+                        str(destination_network.network_address),
+                        str(destination_network.netmask),
+                    ),
+                )
+                self.add_flow(
+                    datapath,
+                    400,
+                    match,
+                    [],
+                    {
+                        "action": "DROP",
+                        "source": str(source_network),
+                        "destination": str(destination_network),
+                        "reason": "Cách ly VLAN chủ động tại SDN Edge.",
+                    },
+                    idle_timeout=0,
+                )
+        self.logger.info("Đã cài isolation flow chủ động priority 400 trên %s.", switch_name)
+
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
         datapath = event.msg.datapath
@@ -117,6 +167,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             {"action": "PACKET_IN", "reason": "Table-miss gửi gói đầu tiên lên controller."},
             idle_timeout=0,
         )
+        self.install_isolation_flows(datapath)
         self.logger.info("OVS %s đã kết nối, cài table-miss.", DPID_NAMES.get(datapath.id, datapath.id))
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)

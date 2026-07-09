@@ -65,6 +65,10 @@ def test_controller_is_real_osken_openflow_13_app():
     assert "EventOFPPacketIn" in controller
     assert "OFPFlowMod" in controller
     assert "installed_flows.json" in controller
+    assert "install_isolation_flows" in controller
+    assert "priority=400" in (
+        REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
+    ).read_text(encoding="utf-8")
 
 
 def test_topology_runner_auto_starts_and_waits_for_controller():
