@@ -54,6 +54,9 @@ Cách đơn giản nhất, chỉ cần một lệnh:
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
+Chỉ chạy topology ở **một terminal duy nhất**. Không chạy lại lệnh trên ở
+terminal thứ hai vì một VM không thể tạo hai bộ interface Mininet trùng tên.
+
 Script sẽ:
 
 1. Kiểm tra virtualenv và module OS-Ken.
@@ -70,6 +73,18 @@ Nếu muốn chạy controller thủ công để xem log trực tiếp:
 
 # Terminal 2
 sudo ./sdn_mpls_demo/run_topology.sh
+```
+
+Sau khi topology hiện dấu nhắc `mininet>`, mở terminal mới để chạy dashboard:
+
+```bash
+# Terminal 2: backend
+./dashboard/run_live_dashboard.sh
+
+# Terminal 3: frontend
+cd dashboard/frontend
+npm install
+npm run dev -- --host 0.0.0.0
 ```
 
 Khi thấy `mininet>`, dùng các lệnh trong

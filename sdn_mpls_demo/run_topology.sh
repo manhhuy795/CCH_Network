@@ -7,6 +7,25 @@ RUNTIME_DIR="$SCRIPT_DIR/runtime"
 CONTROLLER_LOG="$RUNTIME_DIR/controller.log"
 CONTROLLER_PID=""
 CONTROLLER_STARTED=0
+LOCK_FILE="/tmp/cch-sdn-topology.lock"
+
+# Giữ file descriptor 9 trong suốt phiên Mininet. Một terminal thứ hai sẽ
+# dừng ngay tại đây, trước khi mn -c có thể phá topology đang hoạt động.
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "Lỗi: topology CCH đang chạy ở một terminal khác."
+  echo "Không chạy run_topology.sh lần thứ hai."
+  echo "Terminal mới nên dùng để chạy dashboard:"
+  echo "  ./dashboard/run_live_dashboard.sh"
+  exit 2
+fi
+
+# Hỗ trợ phát hiện một phiên cũ được chạy trước khi project có file lock.
+if pgrep -f "[t]opology_hybrid_sdn.py" >/dev/null 2>&1; then
+  echo "Lỗi: đã tìm thấy topology_hybrid_sdn.py đang chạy."
+  echo "Hãy quay lại terminal Mininet hiện tại hoặc thoát phiên cũ trước."
+  exit 2
+fi
 
 controller_is_listening() {
   ss -H -ltn 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:)6653$'

@@ -68,7 +68,9 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "run_controller.sh" in runner
     assert "CONTROLLER_LOG" in runner
     assert "tail -n 40" in runner
-    assert "pgrep -f" not in runner
+    assert "os_ken.cmd.manager|osken-manager" not in runner
+    assert "flock -n 9" in runner
+    assert "[t]opology_hybrid_sdn.py" in runner
 
 
 def test_osken_version_keeps_controller_cli():
