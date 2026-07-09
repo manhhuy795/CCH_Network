@@ -15,15 +15,15 @@ POLICY_FILE = REPO_ROOT / "sdn_demo" / "policy.yml"
 BRIDGE = "s1"
 
 HOST_LABELS = {
-    "h20": "Project A - VLAN 20 - HQ",
-    "h30": "Project B - VLAN 30 - HQ",
-    "h40": "Project C - VLAN 40 - HQ",
-    "h50": "Telesale - VLAN 50 - Branch",
-    "h60": "Backoffice - VLAN 60 - Branch",
-    "h90": "Voice Service - VLAN 90 - HQ",
-    "hzalo": "Zalo Service - Internet",
-    "hcall": "Call App Service - Internet",
-    "hsocial": "Social Media - Blocked",
+    "h20": "Dự án A - VLAN 20 - Trụ sở",
+    "h30": "Dự án B - VLAN 30 - Trụ sở",
+    "h40": "Dự án C - VLAN 40 - Trụ sở",
+    "h50": "Telesale - VLAN 50 - Chi nhánh",
+    "h60": "Backoffice - VLAN 60 - Chi nhánh",
+    "h90": "Dịch vụ thoại - VLAN 90",
+    "hzalo": "Dịch vụ Zalo - Internet",
+    "hcall": "Ứng dụng Call Center - Internet",
+    "hsocial": "Mạng xã hội - Bị chặn",
 }
 
 LOGICAL_PATHS = {
@@ -58,9 +58,9 @@ def run_command(command: list[str], timeout: int = 20) -> tuple[bool, str]:
         output = ((result.stdout or "") + (result.stderr or "")).strip()
         return result.returncode == 0, output
     except FileNotFoundError:
-        return False, f"Khong tim thay lenh: {command[0]}"
+        return False, f"Không tìm thấy lệnh: {command[0]}"
     except subprocess.TimeoutExpired:
-        return False, "Lenh bi timeout. Kiem tra Mininet/OVS co dang chay khong."
+        return False, "Lệnh bị quá thời gian. Hãy kiểm tra Mininet/OVS có đang chạy không."
 
 
 def topology_payload() -> dict[str, Any]:
@@ -118,11 +118,13 @@ def logical_path(source: str, destination: str) -> list[str]:
         return [*left, *list(reversed(right[:-1]))]
 
     if source in {"h50", "h60"} and destination in {"h50", "h60"}:
-        return [*left, "dist_branch", "access_branch", destination]
+        return [source, "access_branch", destination]
 
     if destination == "h90" or source == "h90":
         if source == "h90":
             return list(reversed(logical_path(destination, source)))
+        if source in {"h50", "h60"}:
+            return [*left, "wan", "core_hq", "voice_mgmt", "h90"]
         return [*left, "voice_mgmt", "h90"] if "voice_mgmt" not in left else [*left, "h90"]
 
     if destination in {"hzalo", "hcall", "hsocial"}:
@@ -143,9 +145,10 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     if source not in hosts or destination not in hosts:
         return {
             "action": "deny",
-            "reason": "Khong tim thay source hoac destination trong policy.",
+            "reason": "Không tìm thấy nguồn hoặc đích trong chính sách.",
             "path": [],
             "expected_reachable": False,
+            "blocked_at": None,
         }
 
     deny_pairs = {tuple(pair) for pair in policy.get("deny_pairs", [])}
@@ -156,9 +159,10 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     if pair in deny_pairs or reverse_pair in deny_pairs:
         return {
             "action": "deny",
-            "reason": "Bi chan boi policy cach ly VLAN/project.",
+            "reason": "Bị chặn bởi chính sách cách ly giữa các VLAN/dự án.",
             "path": path,
             "expected_reachable": False,
+            "blocked_at": destination,
         }
 
     blocked_services = set(policy.get("blocked_services", []))
@@ -166,17 +170,19 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     if (destination in blocked_services and source in clients) or (source in blocked_services and destination in clients):
         return {
             "action": "deny",
-            "reason": "Bi chan boi policy Internet Security: block Social Media.",
+            "reason": "Bị chặn tại chính sách Internet Security: không cho phép mạng xã hội.",
             "path": path,
             "expected_reachable": False,
+            "blocked_at": path[-2] if len(path) > 1 else destination,
         }
 
     if policy.get("voice_enabled") and (source == policy.get("voice_service") or destination == policy.get("voice_service")):
         return {
             "action": "allow",
-            "reason": "Voice enabled: user duoc phep truy cap voice service.",
+            "reason": "Dịch vụ thoại đang bật: người dùng được phép truy cập Voice Service.",
             "path": path,
             "expected_reachable": True,
+            "blocked_at": None,
         }
 
     allowed_services = set(policy.get("allowed_services", []))
@@ -184,16 +190,18 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
         service = destination if destination in allowed_services else source
         return {
             "action": "allow",
-            "reason": f"Policy cho phep truy cap service {service}.",
+            "reason": f"Chính sách cho phép truy cập dịch vụ {service}.",
             "path": path,
             "expected_reachable": True,
+            "blocked_at": None,
         }
 
     return {
         "action": "deny",
-        "reason": "Bi chan boi default deny cua SDN policy.",
+        "reason": "Bị chặn bởi quy tắc mặc định từ chối của SDN.",
         "path": path,
         "expected_reachable": False,
+        "blocked_at": destination,
     }
 
 
@@ -207,7 +215,7 @@ def host_pid(host: str) -> str | None:
 def run_in_host(host: str, command: list[str], timeout: int = 20) -> tuple[bool, str]:
     pid = host_pid(host)
     if not pid:
-        return False, f"Khong tim thay namespace Mininet cua host {host}. Hay chay ./sdn_demo/run_demo.sh truoc."
+        return False, f"Không tìm thấy namespace Mininet của host {host}. Hãy chạy ./sdn_demo/run_demo.sh trước."
 
     base = ["mnexec", "-a", pid, *command]
     ok, output = run_command(base, timeout=timeout)
@@ -221,7 +229,7 @@ def run_in_host(host: str, command: list[str], timeout: int = 20) -> tuple[bool,
         return (
             False,
             output
-            + "\n\nBackend can quyen de attach vao namespace Mininet. Hay chay dashboard bang sudo:\n"
+            + "\n\nBackend cần quyền truy cập namespace Mininet. Hãy chạy dashboard bằng sudo:\n"
             + "sudo -E .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
         )
     return ok, output
@@ -248,15 +256,25 @@ def parse_ping(output: str) -> dict[str, Any]:
 def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
     policy = load_policy()
     if source not in policy["hosts"] or destination not in policy["hosts"]:
-        return {"ok": False, "message": "Sai source/destination.", "raw": ""}
+        return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     decision = policy_decision(source, destination)
     dst_ip = policy["hosts"][destination]["ip"]
     ok, output = run_in_host(source, ["ping", "-c", str(count), "-W", "1", dst_ip], timeout=count + 5)
     parsed = parse_ping(output)
     reachable = bool(parsed.get("reachable"))
-    message = f"{source} -> {destination}: {'PING DUOC' if reachable else 'KHONG PING DUOC'}"
+    if not reachable and decision["action"] == "allow":
+        decision = {
+            **decision,
+            "action": "deny",
+            "reason": (
+                "Chính sách gốc cho phép nhưng gói tin không nhận được phản hồi. "
+                "Hãy kiểm tra flow chặn tạm thời, trạng thái host và liên kết Mininet."
+            ),
+            "blocked_at": destination,
+        }
+    message = f"{source} → {destination}: {'PING THÀNH CÔNG' if reachable else 'PING THẤT BẠI'}"
     if not reachable:
-        message += f" | Ly do: {decision['reason']}"
+        message += f" | Lý do: {decision['reason']}"
     return {
         "ok": ok and reachable,
         "message": message,
@@ -273,24 +291,25 @@ def parse_iperf(output: str) -> dict[str, Any]:
         value, unit = values[-1]
         multiplier = {"K": 0.001, "M": 1.0, "G": 1000.0}[unit]
         result["throughput_mbps"] = round(float(value) * multiplier, 3)
-    jitter = re.findall(r"([0-9.]+)\s+ms", output)
-    if jitter:
-        result["jitter_ms"] = float(jitter[-1])
-    loss = re.findall(r"\(([0-9.]+)%\)", output)
-    if loss:
-        result["packet_loss_percent"] = float(loss[-1])
+    udp_summary = re.findall(
+        r"([0-9.]+)\s+ms\s+\d+\s*/\s*\d+\s+\(([0-9.]+)%\)",
+        output,
+    )
+    if udp_summary:
+        result["jitter_ms"] = float(udp_summary[-1][0])
+        result["packet_loss_percent"] = float(udp_summary[-1][1])
     return result
 
 
 def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
     policy = load_policy()
     if source not in policy["hosts"] or destination not in policy["hosts"]:
-        return {"ok": False, "message": "Sai source/destination.", "raw": ""}
+        return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     decision = policy_decision(source, destination)
     if decision["action"] == "deny":
-        return {"ok": False, "message": f"Khong do bandwidth duoc. {decision['reason']}", "decision": decision, "raw": ""}
+        return {"ok": False, "message": f"Không thể đo băng thông. {decision['reason']}", "decision": decision, "raw": ""}
     if not command_exists("iperf"):
-        return {"ok": False, "message": "Chua cai iperf. Chay: sudo apt install -y iperf", "raw": ""}
+        return {"ok": False, "message": "Chưa cài iperf. Chạy: sudo apt install -y iperf", "raw": ""}
 
     dst_ip = policy["hosts"][destination]["ip"]
     run_in_host(destination, ["sh", "-lc", "pkill -f 'iperf -s -p 5001' >/dev/null 2>&1 || true"], timeout=5)
@@ -299,7 +318,7 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
         server_cmd = "iperf -s -u -p 5001 >/tmp/sdn_dashboard_iperf.log 2>&1 &"
     server_ok, server_output = run_in_host(destination, ["sh", "-lc", server_cmd], timeout=5)
     if not server_ok:
-        return {"ok": False, "message": f"Khong start duoc iperf server tren {destination}.", "raw": server_output}
+        return {"ok": False, "message": f"Không khởi động được iperf server trên {destination}.", "raw": server_output}
 
     client_cmd = ["iperf", "-c", dst_ip, "-p", "5001", "-t", str(seconds), "-i", "1"]
     if protocol == "udp":
@@ -307,8 +326,105 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     ok, output = run_in_host(source, client_cmd, timeout=seconds + 10)
     run_in_host(destination, ["sh", "-lc", "pkill -f 'iperf -s -p 5001' >/dev/null 2>&1 || true"], timeout=5)
     parsed = parse_iperf(output)
-    message = f"{source} -> {destination}: da do bang thong {protocol.upper()}"
+    message = f"{source} → {destination}: đã đo băng thông {protocol.upper()}"
     return {"ok": ok, "message": message, "decision": decision, "result": parsed, "raw": output}
+
+
+def estimate_voice_quality(rtt_ms: float, jitter_ms: float, packet_loss_percent: float) -> dict[str, Any]:
+    """Ước lượng E-model đơn giản từ số đo mạng thật, phù hợp mục đích lab."""
+    effective_latency = (rtt_ms / 2) + (jitter_ms * 2) + 10
+    if effective_latency < 160:
+        r_factor = 93.2 - (effective_latency / 40)
+    else:
+        r_factor = 93.2 - ((effective_latency - 120) / 10)
+    r_factor = max(0.0, min(100.0, r_factor - (packet_loss_percent * 2.5)))
+    mos = 1 + (0.035 * r_factor) + (
+        0.000007 * r_factor * (r_factor - 60) * (100 - r_factor)
+    )
+    mos = round(max(1.0, min(4.5, mos)), 2)
+
+    checks = {
+        "latency": rtt_ms <= 150,
+        "jitter": jitter_ms <= 30,
+        "packet_loss": packet_loss_percent <= 1,
+        "mos": mos >= 4.0,
+    }
+    passed = all(checks.values())
+    if passed:
+        rating = "Tốt - phù hợp cho cuộc gọi"
+    elif mos >= 3.6 and packet_loss_percent <= 3:
+        rating = "Chấp nhận được - cần theo dõi"
+    else:
+        rating = "Kém - có nguy cơ ảnh hưởng cuộc gọi"
+    return {
+        "r_factor": round(r_factor, 1),
+        "mos": mos,
+        "rating": rating,
+        "passed": passed,
+        "checks": checks,
+        "thresholds": {
+            "rtt_ms": 150,
+            "jitter_ms": 30,
+            "packet_loss_percent": 1,
+            "mos": 4.0,
+        },
+    }
+
+
+def call_quality(source: str, destination: str, seconds: int = 5) -> dict[str, Any]:
+    decision = policy_decision(source, destination)
+    if decision["action"] == "deny":
+        return {
+            "ok": False,
+            "message": f"Không thể đo chất lượng cuộc gọi. {decision['reason']}",
+            "decision": decision,
+            "raw": "",
+        }
+
+    ping_payload = ping(source, destination, count=10)
+    if not ping_payload["ok"]:
+        return {
+            "ok": False,
+            "message": "Bài đo thất bại vì đích không phản hồi ping.",
+            "decision": decision,
+            "result": ping_payload.get("result", {}),
+            "raw": ping_payload.get("raw", ""),
+        }
+
+    udp_payload = iperf(source, destination, protocol="udp", seconds=seconds)
+    if not udp_payload["ok"]:
+        return udp_payload
+
+    ping_result = ping_payload.get("result", {})
+    udp_result = udp_payload.get("result", {})
+    rtt_ms = float(ping_result.get("rtt_avg_ms", 0))
+    jitter_ms = float(udp_result.get("jitter_ms", 0))
+    throughput_mbps = float(udp_result.get("throughput_mbps", 0))
+    loss = max(
+        float(ping_result.get("packet_loss_percent", 0)),
+        float(udp_result.get("packet_loss_percent", 0)),
+    )
+    quality = estimate_voice_quality(rtt_ms, jitter_ms, loss)
+    quality["checks"]["throughput"] = throughput_mbps >= 0.1
+    quality["thresholds"]["throughput_mbps"] = 0.1
+    quality["passed"] = all(quality["checks"].values())
+    if not quality["checks"]["throughput"]:
+        quality["rating"] = "Kém - thông lượng không đủ cho luồng thoại"
+    result = {
+        "rtt_avg_ms": rtt_ms,
+        "jitter_ms": jitter_ms,
+        "packet_loss_percent": loss,
+        "throughput_mbps": throughput_mbps,
+        **quality,
+    }
+    return {
+        "ok": quality["passed"],
+        "measurement_completed": True,
+        "message": f"Đã đo chất lượng cuộc gọi {source} → {destination}: {quality['rating']}.",
+        "decision": decision,
+        "result": result,
+        "raw": f"=== PING ===\n{ping_payload['raw']}\n\n=== IPERF UDP ===\n{udp_payload['raw']}",
+    }
 
 
 def parse_flow_line(line: str, host_by_ip: dict[str, str]) -> dict[str, Any] | None:
@@ -327,11 +443,11 @@ def parse_flow_line(line: str, host_by_ip: dict[str, str]) -> dict[str, Any] | N
     dst = host_by_ip.get(dst_ip.group(1), dst_ip.group(1)) if dst_ip else "*"
     output_port = output.group(1) if output else "DROP"
     if action == "DROP":
-        explanation = f"Chan traffic {src} -> {dst}"
+        explanation = f"Chặn lưu lượng {src} → {dst}"
     elif src == "*" and dst == "*":
-        explanation = "Table-miss: gui packet dau tien len controller"
+        explanation = "Table-miss: gửi gói đầu tiên lên controller"
     else:
-        explanation = f"Cho phep {src} -> {dst}, day ra port {output_port}"
+        explanation = f"Cho phép {src} → {dst}, chuyển ra cổng {output_port}"
 
     return {
         "switch": BRIDGE,
@@ -391,7 +507,7 @@ def current_metrics() -> dict[str, Any]:
 def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any]:
     policy = load_policy()
     if source not in policy["hosts"] or destination not in policy["hosts"]:
-        return {"ok": False, "message": "Sai source/destination.", "raw": ""}
+        return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     pairs = [
         (policy["hosts"][source]["ip"], policy["hosts"][destination]["ip"]),
         (policy["hosts"][destination]["ip"], policy["hosts"][source]["ip"]),
@@ -406,8 +522,8 @@ def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any
             ok, output = run_command(["ovs-ofctl", "-O", "OpenFlow13", "del-flows", BRIDGE, match], timeout=10)
         ok_all = ok_all and ok
         outputs.append(output)
-    action = "chan" if block else "go chan"
-    return {"ok": ok_all, "message": f"Da {action} tam thoi {source} <-> {destination} bang OpenFlow.", "raw": "\n".join(outputs)}
+    action = "chặn" if block else "gỡ chặn"
+    return {"ok": ok_all, "message": f"Đã {action} tạm thời {source} ↔ {destination} bằng OpenFlow.", "raw": "\n".join(outputs)}
 
 
 def live_status() -> dict[str, Any]:

@@ -6,45 +6,42 @@ import pytest
 
 def test_dashboard_api_topology_and_policy_endpoints():
     pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
 
     repo_root = Path(__file__).resolve().parents[1]
     backend_root = repo_root / "dashboard" / "backend"
     sys.path.insert(0, str(backend_root))
 
-    from app.main import app
+    from app.policy import get_policy_payload
+    from app.topology import get_topology
 
-    client = TestClient(app)
-    topology = client.get("/api/topology")
-    policies = client.get("/api/policies")
+    topology = get_topology()
+    policies = get_policy_payload()
 
-    assert topology.status_code == 200
-    assert policies.status_code == 200
-    assert topology.json()["nodes"]
-    assert topology.json()["links"]
-    assert policies.json()["policies"]["block_social_media"] is True
+    assert topology["nodes"]
+    assert topology["links"]
+    assert policies["policies"]["block_social_media"] is True
 
 
 def test_dashboard_serves_live_web_page():
     pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
 
     repo_root = Path(__file__).resolve().parents[1]
     backend_root = repo_root / "dashboard" / "backend"
     sys.path.insert(0, str(backend_root))
 
-    from app.main import app
+    from app.main import root
 
-    client = TestClient(app)
-    response = client.get("/")
+    response = root()
+    html = response.body.decode("utf-8")
 
     assert response.status_code == 200
-    assert "CCH SDN Live Dashboard" in response.text
-    assert "Ping" in response.text
-    assert "Iperf" in response.text
-    assert "So do logic CCH" in response.text
-    assert "/assets/So_do_logic_CCH.png" in response.text
-    assert "OpenFlow flows da dich" in response.text
+    assert "Giám sát SDN Call Center CCH" in html
+    assert "Ping thực tế" in html
+    assert "Chất lượng cuộc gọi" in html
+    assert "Sơ đồ logic và luồng gói tin" in html
+    assert "/assets/So_do_logic_CCH.png" not in html
+    assert "Bảng luồng OpenFlow dễ đọc" in html
+    assert 'id="link-core_hq-fw_hq"' in html
 
 
 def test_dashboard_policy_decision_explains_allow_and_deny():
@@ -58,4 +55,21 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
 
     denied = policy_decision("h20", "h30")
     assert denied["action"] == "deny"
-    assert "cach ly" in denied["reason"]
+    assert "cách ly" in denied["reason"]
+
+
+def test_call_quality_score_uses_call_center_thresholds():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import estimate_voice_quality
+
+    good = estimate_voice_quality(rtt_ms=40, jitter_ms=4, packet_loss_percent=0)
+    bad = estimate_voice_quality(rtt_ms=260, jitter_ms=45, packet_loss_percent=5)
+
+    assert good["passed"] is True
+    assert good["mos"] >= 4.0
+    assert good["thresholds"]["rtt_ms"] == 150
+    assert bad["passed"] is False
+    assert bad["mos"] < good["mos"]

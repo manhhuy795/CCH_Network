@@ -95,15 +95,14 @@ Neu mo tu Windows host vao Ubuntu VM:
 http://<ubuntu-vm-ip>:8000
 ```
 
-Dashboard co:
+Dashboard có:
 
-- So do mang SDN voi cac duong thang/ngang/cheo.
-- Nut Ping that, lay output tu namespace Mininet.
-- Nut do bandwidth TCP/UDP bang iperf that.
-- Hien duong di mau xanh neu ping pass, dau X mau do neu fail.
-- Ly do fail theo policy SDN.
-- Bang OpenFlow flows da dich de de doc hon raw `ovs-ofctl`.
-- Nut Block/Unblock bang OpenFlow rule priority cao.
+- Sơ đồ mạng dựng bằng SVG với các node và liên kết độc lập.
+- Gói tin chạy tuần tự qua từng node, dừng đúng điểm policy khi bị chặn.
+- Ping và đo băng thông TCP/UDP trực tiếp trong namespace Mininet.
+- Đo KPI Call Center: RTT, jitter, mất gói, thông lượng, R-factor và MOS.
+- Bảng OpenFlow đã diễn giải để dễ đọc hơn kết quả thô từ `ovs-ofctl`.
+- Nút chặn/gỡ chặn bằng OpenFlow rule ưu tiên cao.
 
 ## Policy SDN demo
 

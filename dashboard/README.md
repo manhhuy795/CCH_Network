@@ -1,11 +1,11 @@
-# SDN Live Web Dashboard
+# Dashboard SDN trực tiếp
 
-Dashboard nay dung FastAPI de thao tac truc tiep voi Mininet + Open vSwitch.
-Ket qua ping, iperf, flow va counter duoc lay tu lab dang chay, khong doc ket qua gia tu file JSON.
+Dashboard FastAPI thao tác trực tiếp với Mininet và Open vSwitch. Kết quả ping,
+iperf, OpenFlow và KPI thoại được lấy từ lab đang chạy, không dùng dữ liệu giả.
 
-## Cach chay nhanh tren Ubuntu VM
+## Khởi chạy trên Ubuntu VM
 
-Terminal 1: chay SDN lab Mininet:
+Terminal 1, chạy Mininet:
 
 ```bash
 cd ~/Downloads/CCH_Network
@@ -13,7 +13,9 @@ sudo mn -c
 ./sdn_demo/run_demo.sh
 ```
 
-Terminal 2: chay web dashboard:
+Giữ nguyên cửa sổ có dấu nhắc `mininet>`.
+
+Terminal 2, chạy dashboard:
 
 ```bash
 cd ~/Downloads/CCH_Network
@@ -21,56 +23,43 @@ chmod +x dashboard/run_live_dashboard.sh
 ./dashboard/run_live_dashboard.sh
 ```
 
-Mo trinh duyet:
+Mở `http://127.0.0.1:8000`. Khi truy cập từ máy Windows, dùng
+`http://<IP-của-Ubuntu-VM>:8000`.
+
+## Chức năng
+
+- Sơ đồ mạng được dựng bằng SVG, không dùng ảnh nền.
+- Animation gói tin chạy qua từng node/link thật trên sơ đồ.
+- Ping và đo băng thông TCP/UDP trong namespace Mininet.
+- Đo chất lượng Call Center bằng RTT, jitter, mất gói, thông lượng và MOS.
+- Chặn hoặc gỡ chặn cặp host bằng flow OpenFlow ưu tiên 500.
+- Đọc và diễn giải bảng flow trực tiếp từ `ovs-ofctl`.
+
+Ngưỡng chất lượng thoại dùng trong lab:
+
+| Chỉ số | Ngưỡng đạt |
+|---|---:|
+| RTT trung bình | ≤ 150 ms |
+| Jitter UDP | ≤ 30 ms |
+| Mất gói | ≤ 1% |
+| MOS ước lượng | ≥ 4.0 |
+| Thông lượng UDP | ≥ 0.1 Mbps |
+
+MOS là giá trị ước lượng bằng E-model đơn giản từ các số đo mạng thật, phù hợp
+cho demo học tập; đây không phải thiết bị đo kiểm VoIP chuyên dụng.
+
+## API chính
 
 ```text
-http://127.0.0.1:8000
-```
-
-Neu mo tu Windows host vao Ubuntu VM, dung IP cua VM:
-
-```text
-http://<ubuntu-vm-ip>:8000
-```
-
-## Backend API
-
-```bash
-cd dashboard/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-sudo -E .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-API chinh:
-
-```text
-GET  /
-GET  /live
 GET  /api/topology
-GET  /api/policies
 GET  /api/flows
-GET  /api/metrics/current
 GET  /api/live/status
 POST /api/test/ping
 POST /api/test/iperf
+POST /api/test/call-quality
 POST /api/live/block
 POST /api/live/unblock
-WS   /ws/metrics
 ```
 
-## Cac nut tren web
-
-- Ping that: chay `ping` trong namespace Mininet cua source host.
-- Do bandwidth TCP/UDP: start `iperf` server tren destination va client tren source.
-- Xem flow OVS: chay `ovs-ofctl -O OpenFlow13 dump-flows s1`.
-- Block bang OpenFlow: them drop flow priority 500.
-- Unblock: xoa drop flow tam thoi.
-- So do mang SDN: ve h20/h30/h40/h50/h60, switch s1 va cac service h90/hzalo/hcall/hsocial bang duong thang/ngang/cheo.
-- Gia lap goi tin: khi bam Ping, duong di se chuyen xanh neu pass hoac do/dau X neu fail, kem ly do policy.
-- Bang OpenFlow da dich: hien y nghia rule, match host, action allow/drop, priority va counter packet/byte.
-
-So do tren web duoc ve theo logic tham chieu trong `docs/assets/So_do_logic_CCH.png`, nhung ket qua ping/iperf/flow van lay tu Mininet + OVS dang chay.
-
-Neu web bao khong tim thay namespace host, hay kiem tra terminal Mininet van dang o prompt `mininet>`.
+Nếu web không tìm thấy namespace host, hãy kiểm tra terminal Mininet vẫn đang
+ở dấu nhắc `mininet>` và chạy dashboard bằng script được cung cấp.
