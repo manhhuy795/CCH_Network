@@ -32,9 +32,9 @@ def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
     if hq_core.exists():
         text = hq_core.read_text(encoding="utf-8")
         for acl_name, denied in {
-            "ACL_VLAN20_IN": ("172.10.30.0 0.0.0.255", "172.10.40.0 0.0.0.255"),
-            "ACL_VLAN30_IN": ("172.10.20.0 0.0.0.255", "172.10.40.0 0.0.0.255"),
-            "ACL_VLAN40_IN": ("172.10.20.0 0.0.0.255", "172.10.30.0 0.0.0.255"),
+            "ACL_VLAN20_IN": ("172.16.30.0 0.0.0.255", "172.16.40.0 0.0.0.255"),
+            "ACL_VLAN30_IN": ("172.16.20.0 0.0.0.255", "172.16.40.0 0.0.0.255"),
+            "ACL_VLAN40_IN": ("172.16.20.0 0.0.0.255", "172.16.30.0 0.0.0.255"),
         }.items():
             if acl_name not in text:
                 errors.append(f"{acl_name} missing from HQ core config")

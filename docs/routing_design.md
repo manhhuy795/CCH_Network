@@ -3,13 +3,13 @@
 ## HQ Core
 
 - Default route points to HQ firewall inside IP `10.10.254.2`.
-- Branch prefixes `172.10.50.0/24` and `172.10.60.0/24` point to HQ CE LAN IP
+- Branch prefixes `172.16.50.0/24` and `172.16.60.0/24` point to HQ CE LAN IP
   `10.10.255.2`.
 
 ## Branch Distribution
 
 - Default route points to Branch firewall inside IP `10.20.254.2`.
-- HQ summarized route `172.10.0.0/16` points to Branch CE LAN IP
+- HQ summarized route `172.16.0.0/16` points to Branch CE LAN IP
   `10.20.255.2`.
 
 ## CE Routers

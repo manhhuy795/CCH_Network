@@ -1,6 +1,6 @@
 admin_allowed_sources:
-  - 172.10.0.10/32
-  - 172.10.0.11/32
+  - 172.16.0.10/32
+  - 172.16.0.11/32
 
 hq_project_isolation:
   - name: ACL_VLAN20_IN

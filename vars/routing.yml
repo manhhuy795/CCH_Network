@@ -33,10 +33,10 @@ routes:
       next_hop: 10.10.254.2
       description: "Internet default route to HQ firewall"
     intersite_routes:
-      - prefix: 172.10.50.0/24
+      - prefix: 172.16.50.0/24
         next_hop: 10.10.255.2
         description: "Branch Telesale via HQ CE"
-      - prefix: 172.10.60.0/24
+      - prefix: 172.16.60.0/24
         next_hop: 10.10.255.2
         description: "Branch Admin via HQ CE"
   br-dist-l3:
@@ -44,36 +44,36 @@ routes:
       next_hop: 10.20.254.2
       description: "Internet default route to Branch firewall"
     intersite_routes:
-      - prefix: 172.10.0.0/16
+      - prefix: 172.16.0.0/16
         next_hop: 10.20.255.2
         description: "HQ networks summarized via Branch CE"
   hq-ce-router:
     provider_next_hop: 203.0.113.1
     internal_routes:
-      - prefix: 172.10.0.0/24
+      - prefix: 172.16.0.0/24
         next_hop: 10.10.255.1
-      - prefix: 172.10.20.0/24
+      - prefix: 172.16.20.0/24
         next_hop: 10.10.255.1
-      - prefix: 172.10.30.0/24
+      - prefix: 172.16.30.0/24
         next_hop: 10.10.255.1
-      - prefix: 172.10.40.0/24
+      - prefix: 172.16.40.0/24
         next_hop: 10.10.255.1
-      - prefix: 172.10.90.0/24
+      - prefix: 172.16.90.0/24
         next_hop: 10.10.255.1
     mpls_routes:
-      - prefix: 172.10.50.0/24
+      - prefix: 172.16.50.0/24
         next_hop: 203.0.113.1
-      - prefix: 172.10.60.0/24
+      - prefix: 172.16.60.0/24
         next_hop: 203.0.113.1
   br-ce-router:
     provider_next_hop: 198.51.100.1
     internal_routes:
-      - prefix: 172.10.50.0/24
+      - prefix: 172.16.50.0/24
         next_hop: 10.20.255.1
-      - prefix: 172.10.60.0/24
+      - prefix: 172.16.60.0/24
         next_hop: 10.20.255.1
     mpls_routes:
-      - prefix: 172.10.0.0/16
+      - prefix: 172.16.0.0/16
         next_hop: 198.51.100.1
 ce_router_ips:
   hq-ce-router:

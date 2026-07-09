@@ -14,81 +14,81 @@ hosts:
   h20:
     role: project_a
     site: hq
-    ip: 172.10.20.10
-    cidr: 172.10.20.10/24
-    gateway: 172.10.20.1
+    ip: 172.16.20.10
+    cidr: 172.16.20.10/24
+    gateway: 172.16.20.1
     mac: "00:00:00:00:20:10"
     switch_port: 1
   h30:
     role: project_b
     site: hq
-    ip: 172.10.30.10
-    cidr: 172.10.30.10/24
-    gateway: 172.10.30.1
+    ip: 172.16.30.10
+    cidr: 172.16.30.10/24
+    gateway: 172.16.30.1
     mac: "00:00:00:00:30:10"
     switch_port: 2
   h40:
     role: project_c
     site: hq
-    ip: 172.10.40.10
-    cidr: 172.10.40.10/24
-    gateway: 172.10.40.1
+    ip: 172.16.40.10
+    cidr: 172.16.40.10/24
+    gateway: 172.16.40.1
     mac: "00:00:00:00:40:10"
     switch_port: 3
   h50:
     role: telesale
     site: branch
-    ip: 172.10.50.10
-    cidr: 172.10.50.10/24
-    gateway: 172.10.50.1
+    ip: 172.16.50.10
+    cidr: 172.16.50.10/24
+    gateway: 172.16.50.1
     mac: "00:00:00:00:50:10"
     switch_port: 4
   h60:
     role: branch_admin
     site: branch
-    ip: 172.10.60.10
-    cidr: 172.10.60.10/24
-    gateway: 172.10.60.1
+    ip: 172.16.60.10
+    cidr: 172.16.60.10/24
+    gateway: 172.16.60.1
     mac: "00:00:00:00:60:10"
     switch_port: 5
   h90:
     role: voice_service
     site: shared_services
-    ip: 172.10.90.10
-    cidr: 172.10.90.10/24
-    gateway: 172.10.90.1
+    ip: 172.16.90.10
+    cidr: 172.16.90.10/24
+    gateway: 172.16.90.1
     mac: "00:00:00:00:90:10"
     switch_port: 6
   hzalo:
     role: zalo_service
     site: internet_services
-    ip: 172.10.200.10
-    cidr: 172.10.200.10/24
-    gateway: 172.10.200.1
+    ip: 172.16.200.10
+    cidr: 172.16.200.10/24
+    gateway: 172.16.200.1
     mac: "00:00:00:00:20:00"
     switch_port: 7
   hcall:
     role: call_app_service
     site: internet_services
-    ip: 172.10.201.10
-    cidr: 172.10.201.10/24
-    gateway: 172.10.201.1
+    ip: 172.16.201.10
+    cidr: 172.16.201.10/24
+    gateway: 172.16.201.1
     mac: "00:00:00:00:20:01"
     switch_port: 8
   hsocial:
     role: social_media_service
     site: internet_services
-    ip: 172.10.202.10
-    cidr: 172.10.202.10/24
-    gateway: 172.10.202.1
+    ip: 172.16.202.10
+    cidr: 172.16.202.10/24
+    gateway: 172.16.202.1
     mac: "00:00:00:00:20:02"
     switch_port: 9
   hinternet:
     role: internet_test_service
     site: internet_services
-    ip: 172.10.203.10
-    cidr: 172.10.203.10/24
-    gateway: 172.10.203.1
+    ip: 172.16.203.10
+    cidr: 172.16.203.10/24
+    gateway: 172.16.203.1
     mac: "00:00:00:00:20:03"
     switch_port: 10
 

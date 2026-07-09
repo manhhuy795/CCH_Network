@@ -15,9 +15,9 @@ def test_render_config_outputs_expected_files_and_logic(tmp_path: Path):
     hq_core = (tmp_path / "hq-core-l3.cfg").read_text(encoding="utf-8")
     assert "interface Vlan20" in hq_core
     assert "ip access-list extended ACL_VLAN20_IN" in hq_core
-    assert "deny ip 172.10.20.0 0.0.0.255 172.10.30.0 0.0.0.255 log" in hq_core
+    assert "deny ip 172.16.20.0 0.0.0.255 172.16.30.0 0.0.0.255 log" in hq_core
     assert "ip route 0.0.0.0 0.0.0.0 10.10.254.2" in hq_core
 
     hq_ce = (tmp_path / "hq-ce-router.cfg").read_text(encoding="utf-8")
-    assert "ip route 172.10.50.0 255.255.255.0 203.0.113.1" in hq_ce
+    assert "ip route 172.16.50.0 255.255.255.0 203.0.113.1" in hq_ce
     assert "198.51.100.2" not in hq_ce

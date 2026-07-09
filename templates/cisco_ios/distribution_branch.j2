@@ -51,7 +51,7 @@ ip access-list extended {{ policy.name }}
  remark TODO: add explicit permits for {{ policy.allowed_service_objects | join(', ') }} after service IPs are known
  permit udp {{ src.subnet | prefix_to_acl }} any eq domain
  permit udp {{ src.subnet | prefix_to_acl }} any eq ntp
- deny ip {{ src.subnet | prefix_to_acl }} 172.10.0.0 0.0.255.255 log
+ deny ip {{ src.subnet | prefix_to_acl }} 172.16.0.0 0.0.255.255 log
  permit ip {{ src.subnet | prefix_to_acl }} any
 !
 {% endfor %}

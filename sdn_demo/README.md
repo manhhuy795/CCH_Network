@@ -7,16 +7,16 @@ Demo khong can thiet bi that, khong can GNS3/EVE-NG, khong can Ryu/OS-Ken. Contr
 ## Mo hinh
 
 ```text
-h20      Project A              172.10.20.10/24
-h30      Project B              172.10.30.10/24
-h40      Project C              172.10.40.10/24
-h50      Telesale               172.10.50.10/24
-h60      Branch Admin           172.10.60.10/24
-h90      Voice service          172.10.90.10/24
-hzalo    Zalo simulator         172.10.200.10/24
-hcall    Call App simulator     172.10.201.10/24
-hsocial  Social Media simulator 172.10.202.10/24
-hinternet Internet test         172.10.203.10/24
+h20      Project A              172.16.20.10/24
+h30      Project B              172.16.30.10/24
+h40      Project C              172.16.40.10/24
+h50      Telesale               172.16.50.10/24
+h60      Branch Admin           172.16.60.10/24
+h90      Voice service          172.16.90.10/24
+hzalo    Zalo simulator         172.16.200.10/24
+hcall    Call App simulator     172.16.201.10/24
+hsocial  Social Media simulator 172.16.202.10/24
+hinternet Internet test         172.16.203.10/24
 ```
 
 Policy chinh:
@@ -149,8 +149,8 @@ tail -f sdn_demo/controller.log
 Log controller se co dang:
 
 ```text
-ALLOW policy: h20(172.10.20.10) -> h90(172.10.90.10)
-DENY policy: h20(172.10.20.10) -> h30(172.10.30.10)
+ALLOW policy: h20(172.16.20.10) -> h90(172.16.90.10)
+DENY policy: h20(172.16.20.10) -> h30(172.16.30.10)
 DENY default: ...
 ```
 

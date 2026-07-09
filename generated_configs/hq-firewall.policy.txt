@@ -10,16 +10,16 @@ interfaces:
 nat:
   outbound:
     - source_vlan: 20
-      source_subnet: 172.10.20.0/24
+      source_subnet: 172.16.20.0/24
       translated_to: outside_interface
     - source_vlan: 30
-      source_subnet: 172.10.30.0/24
+      source_subnet: 172.16.30.0/24
       translated_to: outside_interface
     - source_vlan: 40
-      source_subnet: 172.10.40.0/24
+      source_subnet: 172.16.40.0/24
       translated_to: outside_interface
     - source_vlan: 90
-      source_subnet: 172.10.90.0/24
+      source_subnet: 172.16.90.0/24
       translated_to: outside_interface
 
 objects:
