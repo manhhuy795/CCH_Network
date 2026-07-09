@@ -172,8 +172,20 @@ def build_topology():
         )
         for name, dpid in DPIDS.items()
     }
-    mpls_cloud = net.addSwitch("mpls_cloud", cls=OVSBridge, failMode="standalone")
-    internet = net.addSwitch("internet", cls=OVSBridge, failMode="standalone")
+    # Mininet chỉ tự sinh DPID cho tên canonical như s1/s23. Hai bridge
+    # standalone vẫn cần DPID tường minh dù không kết nối SDN Controller.
+    mpls_cloud = net.addSwitch(
+        "mpls_cloud",
+        cls=OVSBridge,
+        dpid="00000000000000f1",
+        failMode="standalone",
+    )
+    internet = net.addSwitch(
+        "internet",
+        cls=OVSBridge,
+        dpid="00000000000000f2",
+        failMode="standalone",
+    )
 
     user_hosts = add_group_hosts(net, policy, switches)
     h90 = net.addHost("h90", ip="172.16.90.10/24", defaultRoute="via 172.16.90.1")

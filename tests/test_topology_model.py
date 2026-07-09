@@ -42,7 +42,10 @@ def test_only_expected_ovs_are_controller_managed():
         "core_hq", "access_branch", "dist_branch",
     ):
         assert f'"{switch}"' in topology
-    assert 'net.addSwitch("mpls_cloud", cls=OVSBridge' in topology
+    assert '"mpls_cloud",' in topology
+    assert 'dpid="00000000000000f1"' in topology
+    assert '"internet",' in topology
+    assert 'dpid="00000000000000f2"' in topology
 
 
 def test_controller_is_real_osken_openflow_13_app():
