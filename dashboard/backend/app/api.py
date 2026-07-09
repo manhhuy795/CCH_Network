@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from .live_mininet import current_metrics, live_status, ovs_flows, temporary_block
+from .live_mininet import current_metrics, live_status, ovs_flows, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
@@ -84,12 +84,13 @@ def api_policy_toggle(payload: PolicyToggleRequest):
 
 @router.post("/simulate/path")
 def api_simulate_path(payload: HostPair, request: Request):
+    decision = policy_decision(payload.source, payload.destination)
     return {
         "src": payload.source,
         "dst": payload.destination,
-        "action": "live",
-        "reason": "Dashboard dang dung ket qua that tu Mininet. Hay bam Ping hoac Iperf de xem output that.",
-        "path": [payload.source, "s1", payload.destination],
+        **decision,
+        "mode": "logical_architecture",
+        "note": "Đường logic phục vụ minh họa; kết quả ping/iperf vẫn lấy trực tiếp từ Mininet/OVS.",
     }
 
 

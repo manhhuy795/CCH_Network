@@ -24,6 +24,7 @@ HOST_LABELS = {
     "hzalo": "Dịch vụ Zalo - Internet",
     "hcall": "Ứng dụng Call Center - Internet",
     "hsocial": "Mạng xã hội - Bị chặn",
+    "hinternet": "Internet chung - Kiểm thử",
 }
 
 LOGICAL_PATHS = {
@@ -36,7 +37,13 @@ LOGICAL_PATHS = {
     "hzalo": ["internet", "hzalo"],
     "hcall": ["internet", "hcall"],
     "hsocial": ["internet", "hsocial"],
+    "hinternet": ["internet", "hinternet"],
 }
+
+HQ_USERS = {"h20", "h30", "h40"}
+BRANCH_USERS = {"h50", "h60"}
+CLIENTS = HQ_USERS | BRANCH_USERS
+SERVICES = {"hzalo", "hcall", "hsocial", "hinternet"}
 
 
 def now_iso() -> str:
@@ -112,31 +119,49 @@ def policy_payload() -> dict[str, Any]:
 def logical_path(source: str, destination: str) -> list[str]:
     left = LOGICAL_PATHS.get(source, [source])
     right = LOGICAL_PATHS.get(destination, [destination])
-    src_site = "branch" if source in {"h50", "h60"} else "hq"
 
-    if source in {"h20", "h30", "h40"} and destination in {"h20", "h30", "h40"}:
-        return [*left, *list(reversed(right[:-1]))]
+    if source in HQ_USERS and destination in HQ_USERS:
+        return left
 
-    if source in {"h50", "h60"} and destination in {"h50", "h60"}:
-        return [source, "access_branch", destination]
+    if source in BRANCH_USERS and destination in BRANCH_USERS:
+        return [source, "access_branch", "dist_branch"]
 
     if destination == "h90" or source == "h90":
         if source == "h90":
             return list(reversed(logical_path(destination, source)))
-        if source in {"h50", "h60"}:
-            return [*left, "wan", "core_hq", "voice_mgmt", "h90"]
+        if source in BRANCH_USERS:
+            return [
+                *left,
+                "ce_branch",
+                "mpls_cloud",
+                "ce_hq",
+                "core_hq",
+                "voice_mgmt",
+                "h90",
+            ]
         return [*left, "voice_mgmt", "h90"] if "voice_mgmt" not in left else [*left, "h90"]
 
-    if destination in {"hzalo", "hcall", "hsocial"}:
-        edge = ["fw_branch", "policy_branch"] if src_site == "branch" else ["fw_hq", "policy_hq"]
-        return [*left, *edge, "internet", destination]
+    if destination in SERVICES:
+        firewall = "fw_branch" if source in BRANCH_USERS else "fw_hq"
+        return [*left, firewall, "internet", destination]
 
-    if source in {"hzalo", "hcall", "hsocial"}:
+    if source in SERVICES:
         return list(reversed(logical_path(destination, source)))
 
-    if src_site == "branch":
-        return [*left, "dist_branch"]
-    return [*left, "core_hq"]
+    if source in BRANCH_USERS and destination in HQ_USERS:
+        return [
+            *left,
+            "ce_branch",
+            "mpls_cloud",
+            "ce_hq",
+            "core_hq",
+            *list(reversed(right[:-1])),
+        ]
+
+    if source in HQ_USERS and destination in BRANCH_USERS:
+        return list(reversed(logical_path(destination, source)))
+
+    return left
 
 
 def policy_decision(source: str, destination: str) -> dict[str, Any]:
@@ -157,29 +182,48 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     path = logical_path(source, destination)
 
     if pair in deny_pairs or reverse_pair in deny_pairs:
+        if source in HQ_USERS and destination in HQ_USERS:
+            src_vlan = source.removeprefix("h")
+            dst_vlan = destination.removeprefix("h")
+            reason = (
+                f"Bị chặn bởi chính sách cách ly Project/VLAN {src_vlan} "
+                f"và VLAN {dst_vlan}."
+            )
+            blocked_at = "core_hq"
+        elif source in BRANCH_USERS and destination in BRANCH_USERS:
+            reason = "Bị chặn bởi chính sách cách ly VLAN 50 và VLAN 60."
+            blocked_at = "dist_branch"
+        else:
+            reason = "Bị chặn bởi chính sách cách ly giữa các VLAN/dự án."
+            blocked_at = path[-1] if path else destination
         return {
             "action": "deny",
-            "reason": "Bị chặn bởi chính sách cách ly giữa các VLAN/dự án.",
+            "reason": reason,
             "path": path,
             "expected_reachable": False,
-            "blocked_at": destination,
+            "blocked_at": blocked_at,
         }
 
     blocked_services = set(policy.get("blocked_services", []))
     clients = set(policy.get("client_hosts", []))
     if (destination in blocked_services and source in clients) or (source in blocked_services and destination in clients):
+        client = source if source in clients else destination
+        firewall = "fw_branch" if client in BRANCH_USERS else "fw_hq"
+        blocked_path = logical_path(source, destination)
+        if firewall in blocked_path:
+            blocked_path = blocked_path[: blocked_path.index(firewall) + 1]
         return {
             "action": "deny",
-            "reason": "Bị chặn tại chính sách Internet Security: không cho phép mạng xã hội.",
-            "path": path,
+            "reason": "Bị chặn bởi chính sách Internet Security: Block Social Media.",
+            "path": blocked_path,
             "expected_reachable": False,
-            "blocked_at": path[-2] if len(path) > 1 else destination,
+            "blocked_at": firewall,
         }
 
     if policy.get("voice_enabled") and (source == policy.get("voice_service") or destination == policy.get("voice_service")):
         return {
             "action": "allow",
-            "reason": "Dịch vụ thoại đang bật: người dùng được phép truy cập Voice Service.",
+            "reason": "Traffic Voice được cho phép và ưu tiên.",
             "path": path,
             "expected_reachable": True,
             "blocked_at": None,
@@ -188,9 +232,27 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     allowed_services = set(policy.get("allowed_services", []))
     if (destination in allowed_services and source in clients) or (source in allowed_services and destination in clients):
         service = destination if destination in allowed_services else source
+        client = source if source in clients else destination
+        site = "Branch" if client in BRANCH_USERS else "HQ"
+        firewall = "Firewall Branch" if site == "Branch" else "Firewall HQ"
+        service_label = {
+            "hcall": "Call App",
+            "hzalo": "Zalo",
+            "hinternet": "Internet chung",
+        }.get(service, service)
         return {
             "action": "allow",
-            "reason": f"Chính sách cho phép truy cập dịch vụ {service}.",
+            "reason": f"{service_label} được cho phép. Traffic từ {site} đi qua {firewall}.",
+            "path": path,
+            "expected_reachable": True,
+            "blocked_at": None,
+        }
+
+    allowed_pairs = {tuple(item) for item in policy.get("allowed_pairs", [])}
+    if pair in allowed_pairs or reverse_pair in allowed_pairs:
+        return {
+            "action": "allow",
+            "reason": "Traffic liên site được kiểm soát và đi qua MPLS L3VPN Cloud.",
             "path": path,
             "expected_reachable": True,
             "blocked_at": None,
@@ -442,15 +504,36 @@ def parse_flow_line(line: str, host_by_ip: dict[str, str]) -> dict[str, Any] | N
     src = host_by_ip.get(src_ip.group(1), src_ip.group(1)) if src_ip else "*"
     dst = host_by_ip.get(dst_ip.group(1), dst_ip.group(1)) if dst_ip else "*"
     output_port = output.group(1) if output else "DROP"
+    logical_device = BRIDGE
     if action == "DROP":
-        explanation = f"Chặn lưu lượng {src} → {dst}"
+        if src != "*" and dst != "*":
+            decision = policy_decision(src, dst)
+            if decision["action"] == "deny":
+                logical_device = decision.get("blocked_at") or BRIDGE
+                explanation = decision["reason"]
+            else:
+                logical_device = BRIDGE
+                explanation = "DROP tạm thời do người vận hành cài bằng OpenFlow."
+        else:
+            explanation = f"Chặn lưu lượng {src} → {dst}"
     elif src == "*" and dst == "*":
         explanation = "Table-miss: gửi gói đầu tiên lên controller"
+        logical_device = "SDN Controller"
     else:
-        explanation = f"Cho phép {src} → {dst}, chuyển ra cổng {output_port}"
+        decision = policy_decision(src, dst)
+        path = decision.get("path", [])
+        firewall = next((node for node in path if node.startswith("fw_")), None)
+        if firewall:
+            logical_device = f"{firewall} / s1"
+        elif "mpls_cloud" in path:
+            logical_device = "dist_branch / core_hq"
+        elif "h90" in {src, dst}:
+            logical_device = "core_hq"
+        explanation = decision.get("reason") or f"Cho phép {src} → {dst}, chuyển ra cổng {output_port}"
 
     return {
         "switch": BRIDGE,
+        "logical_device": logical_device,
         "src": src,
         "dst": dst,
         "action": action,

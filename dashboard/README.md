@@ -2,6 +2,8 @@
 
 Dashboard FastAPI thao tác trực tiếp với Mininet và Open vSwitch. Kết quả ping,
 iperf, OpenFlow và KPI thoại được lấy từ lab đang chạy, không dùng dữ liệu giả.
+Sơ đồ CE/MPLS biểu diễn kiến trúc logic; Mininet hiện dùng một OVS trung tâm và
+không mô phỏng control-plane/data-plane MPLS của nhà cung cấp.
 
 ## Khởi chạy trên Ubuntu VM
 
@@ -28,8 +30,11 @@ Mở `http://127.0.0.1:8000`. Khi truy cập từ máy Windows, dùng
 
 ## Chức năng
 
-- Sơ đồ mạng được dựng bằng SVG, không dùng ảnh nền.
+- Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy được dựng bằng SVG.
 - Animation gói tin chạy qua từng node/link thật trên sơ đồ.
+- Liên site đi qua CE Branch → MPLS Cloud → CE HQ; Internet đi qua firewall
+  riêng của từng site.
+- Controller chỉ có control-plane tới các OVS, không điều khiển CE/MPLS Cloud.
 - Ping và đo băng thông TCP/UDP trong namespace Mininet.
 - Đo chất lượng Call Center bằng RTT, jitter, mất gói, thông lượng và MOS.
 - Chặn hoặc gỡ chặn cặp host bằng flow OpenFlow ưu tiên 500.

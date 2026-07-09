@@ -16,6 +16,7 @@ h90      Voice service          172.10.90.10/24
 hzalo    Zalo simulator         172.10.200.10/24
 hcall    Call App simulator     172.10.201.10/24
 hsocial  Social Media simulator 172.10.202.10/24
+hinternet Internet test         172.10.203.10/24
 ```
 
 Policy chinh:
@@ -23,10 +24,13 @@ Policy chinh:
 - h20/h30/h40 bi cach ly voi nhau.
 - h20/h30/h40/h50/h60 duoc di Voice neu `voice_enabled=true`.
 - h20/h30/h40/h50/h60 duoc di Zalo va Call App.
+- h20/h30/h40/h50/h60 duoc truy cap Internet test.
 - h20/h30/h40/h50/h60 bi chan Social Media.
 - h50 va h60 khong co full access hai chieu.
+- h50 duoc truy cap h20 co kiem soat de demo path lien site.
 
-Day la SDN policy simulation, khong mo phong MPLS L3VPN that va khong program ISP PE/P core.
+Day la SDN edge-policy simulation. MPLS L3VPN tren dashboard la WAN transport
+logic do ISP quan ly; lab khong program ISP PE/P core.
 
 ## Cai dat nhanh tren Ubuntu 22.04
 

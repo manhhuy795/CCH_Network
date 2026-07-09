@@ -35,13 +35,17 @@ def test_dashboard_serves_live_web_page():
     html = response.body.decode("utf-8")
 
     assert response.status_code == 200
-    assert "Giám sát SDN Call Center CCH" in html
+    assert "Giám sát Hybrid MPLS L3VPN + SDN Call Center CCH" in html
     assert "Ping thực tế" in html
     assert "Chất lượng cuộc gọi" in html
     assert "Sơ đồ logic và luồng gói tin" in html
     assert "/assets/So_do_logic_CCH.png" not in html
     assert "Bảng luồng OpenFlow dễ đọc" in html
     assert 'id="link-core_hq-fw_hq"' in html
+    assert 'id="link-ce_hq-mpls_cloud"' in html
+    assert 'id="link-mpls_cloud-ce_branch"' in html
+    assert 'id="link-dist_branch-wan"' not in html
+    assert 'id="wan"' not in html
 
 
 def test_dashboard_policy_decision_explains_allow_and_deny():
@@ -56,6 +60,26 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     denied = policy_decision("h20", "h30")
     assert denied["action"] == "deny"
     assert "cách ly" in denied["reason"]
+    assert denied["path"] == ["h20", "access_hq_a", "core_hq"]
+    assert denied["blocked_at"] == "core_hq"
+
+    social = policy_decision("h50", "hsocial")
+    assert social["path"] == ["h50", "access_branch", "dist_branch", "fw_branch"]
+    assert social["blocked_at"] == "fw_branch"
+
+    intersite = policy_decision("h50", "h20")
+    assert intersite["action"] == "allow"
+    assert intersite["path"] == [
+        "h50",
+        "access_branch",
+        "dist_branch",
+        "ce_branch",
+        "mpls_cloud",
+        "ce_hq",
+        "core_hq",
+        "access_hq_a",
+        "h20",
+    ]
 
 
 def test_call_quality_score_uses_call_center_thresholds():

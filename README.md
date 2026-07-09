@@ -116,6 +116,7 @@ h90      Voice service          172.10.90.10/24
 hzalo    Zalo simulator         172.10.200.10/24
 hcall    Call App simulator     172.10.201.10/24
 hsocial  Social Media simulator 172.10.202.10/24
+hinternet Internet test          172.10.203.10/24
 ```
 
 Policy:
@@ -124,9 +125,13 @@ Policy:
 - h50 va h60 khong mo full access hai chieu.
 - h20/h30/h40/h50/h60 duoc truy cap h90 khi `voice_enabled=true`.
 - h20/h30/h40/h50/h60 duoc truy cap hzalo va hcall.
+- h20/h30/h40/h50/h60 được truy cập Internet chung (`hinternet`).
 - h20/h30/h40/h50/h60 bi chan hsocial.
+- h50 được truy cập h20 có kiểm soát; đường logic liên site đi qua CE Branch,
+  MPLS L3VPN Cloud và CE HQ.
 
-Day la SDN policy simulation tren Mininet/OVS, khong mo phong MPLS L3VPN that va khong program ISP PE/P core.
+Đây là SDN edge-policy simulation trên Mininet/OVS. MPLS L3VPN được thể hiện
+như WAN transport logic do ISP quản lý; demo không lập trình PE/P core.
 
 ## Cleanup
 

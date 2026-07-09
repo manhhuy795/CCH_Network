@@ -28,6 +28,7 @@ def test_sdn_demo_hosts_have_required_ips_and_unique_ports():
         "hzalo": "172.10.200.10",
         "hcall": "172.10.201.10",
         "hsocial": "172.10.202.10",
+        "hinternet": "172.10.203.10",
     }
 
     ports = []
@@ -46,8 +47,9 @@ def test_sdn_demo_policy_matches_required_allow_deny_model():
     assert policy["voice_enabled"] is True
     assert set(policy["client_hosts"]) == {"h20", "h30", "h40", "h50", "h60"}
     assert policy["voice_service"] == "h90"
-    assert set(policy["allowed_services"]) == {"hzalo", "hcall"}
+    assert set(policy["allowed_services"]) == {"hzalo", "hcall", "hinternet"}
     assert set(policy["blocked_services"]) == {"hsocial"}
+    assert ["h50", "h20"] in policy["allowed_pairs"]
 
     deny_pairs = {tuple(pair) for pair in policy["deny_pairs"]}
     assert ("h20", "h30") in deny_pairs
@@ -69,6 +71,18 @@ def test_standalone_controller_set_field_action_lengths_are_padded():
 
     assert len(action) == 16
     assert struct.unpack("!H", action[2:4])[0] == 16
+
+
+def test_standalone_controller_allows_controlled_intersite_pair():
+    spec = importlib.util.spec_from_file_location("controller_standalone_policy", CONTROLLER_PATH)
+    controller = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(controller)
+
+    policy = controller.Policy(POLICY_PATH)
+
+    assert ("h50", "h20") in policy.allow_pairs
+    assert ("h20", "h50") in policy.allow_pairs
 
 
 def test_sdn_demo_exposes_operational_commands_and_bandwidth_tooling():

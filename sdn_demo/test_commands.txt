@@ -13,3 +13,5 @@ h20 ping -c 2 hsocial  # expected fail
 h50 ping -c 2 h60      # expected fail/limited
 h50 ping -c 2 hcall    # expected pass
 h50 ping -c 2 hsocial  # expected fail
+h50 ping -c 2 h20      # expected pass, controlled inter-site policy
+h20 ping -c 2 hinternet # expected pass

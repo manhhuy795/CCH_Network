@@ -172,6 +172,9 @@ class Policy:
             for client in clients:
                 self._add_bidirectional(deny_pairs, client, service)
 
+        for left, right in self.data.get("allowed_pairs", []):
+            self._add_bidirectional(allow_pairs, left, right)
+
         for left, right in self.data.get("deny_pairs", []):
             self._add_bidirectional(deny_pairs, left, right)
 

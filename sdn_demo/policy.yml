@@ -83,6 +83,14 @@ hosts:
     gateway: 172.10.202.1
     mac: "00:00:00:00:20:02"
     switch_port: 9
+  hinternet:
+    role: internet_test_service
+    site: internet_services
+    ip: 172.10.203.10
+    cidr: 172.10.203.10/24
+    gateway: 172.10.203.1
+    mac: "00:00:00:00:20:03"
+    switch_port: 10
 
 client_hosts:
   - h20
@@ -96,6 +104,10 @@ voice_service: h90
 allowed_services:
   - hzalo
   - hcall
+  - hinternet
+
+allowed_pairs:
+  - [h50, h20]
 
 blocked_services:
   - hsocial

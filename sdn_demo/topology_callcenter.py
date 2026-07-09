@@ -27,6 +27,7 @@ POLICY_TESTS = [
     ("h50", "h60", False, "Telesale and Branch Admin are limited"),
     ("h50", "hcall", True, "Telesale can reach Call App simulator"),
     ("h50", "hsocial", False, "Telesale must not reach Social Media"),
+    ("h50", "h20", True, "Controlled inter-site traffic crosses the logical MPLS L3VPN path"),
 ]
 
 
@@ -49,6 +50,7 @@ def start_service_simulators(net):
         "hzalo": "Zalo service simulator",
         "hcall": "Call App service simulator",
         "hsocial": "Social Media service simulator",
+        "hinternet": "General Internet test simulator",
     }
     for host_name, label in services.items():
         host = net.get(host_name)
