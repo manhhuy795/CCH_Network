@@ -53,3 +53,13 @@ def test_controller_is_real_osken_openflow_13_app():
     assert "EventOFPPacketIn" in controller
     assert "OFPFlowMod" in controller
     assert "installed_flows.json" in controller
+
+
+def test_topology_runner_auto_starts_and_waits_for_controller():
+    runner = (REPO_ROOT / "sdn_mpls_demo" / "run_topology.sh").read_text(encoding="utf-8")
+
+    assert "controller_is_listening" in runner
+    assert "run_controller.sh" in runner
+    assert "CONTROLLER_LOG" in runner
+    assert "tail -n 40" in runner
+    assert "pgrep -f" not in runner

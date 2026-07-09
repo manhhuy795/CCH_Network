@@ -10,6 +10,14 @@ if [[ ! -x "$VENV_DIR/bin/python" ]]; then
 fi
 
 mkdir -p "$SCRIPT_DIR/runtime"
+export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
+if ss -H -ltn 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:)6653$'; then
+  echo "Lỗi: cổng 6653 đang được một controller khác sử dụng."
+  echo "Kiểm tra bằng: sudo ss -ltnp | grep :6653"
+  exit 1
+fi
+
 echo "Khởi động OS-Ken Controller tại 127.0.0.1:6653"
 echo "Nhấn Ctrl+C để dừng controller."
 

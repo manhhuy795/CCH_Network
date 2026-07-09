@@ -63,15 +63,20 @@ chmod +x sdn_mpls_demo/*.sh
 ./sdn_mpls_demo/setup_ubuntu_24_04.sh
 ```
 
-Terminal 1:
+Cách chạy gọn nhất:
 
 ```bash
-./sdn_mpls_demo/run_controller.sh
+sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
-Terminal 2:
+Script tự khởi động OS-Ken và chờ cổng `6653` trước khi tạo Mininet. Có thể
+chạy thủ công ở hai terminal khi cần xem log controller trực tiếp:
 
 ```bash
+# Terminal 1
+./sdn_mpls_demo/run_controller.sh
+
+# Terminal 2
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
 

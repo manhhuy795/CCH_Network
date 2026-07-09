@@ -48,15 +48,27 @@ Script chỉ cài package và tạo virtualenv riêng tại
 
 ## Chạy lab
 
-Terminal 1:
+Cách đơn giản nhất, chỉ cần một lệnh:
 
 ```bash
-./sdn_mpls_demo/run_controller.sh
+sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
-Terminal 2:
+Script sẽ:
+
+1. Kiểm tra virtualenv và module OS-Ken.
+2. Kiểm tra cổng OpenFlow `6653`.
+3. Tự chạy controller nếu cổng chưa có listener.
+4. Chờ controller sẵn sàng rồi mới tạo topology.
+5. In `runtime/controller.log` nếu controller không khởi động được.
+
+Nếu muốn chạy controller thủ công để xem log trực tiếp:
 
 ```bash
+# Terminal 1
+./sdn_mpls_demo/run_controller.sh
+
+# Terminal 2
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
@@ -98,3 +110,16 @@ Thoát Mininet bằng `exit`, sau đó:
 - Hai file này được sinh khi chạy và không phải source-of-truth.
 
 Source-of-truth nằm tại `sdn_mpls_demo/policy.yml`.
+
+## Phiên bản Ubuntu
+
+Không cần hạ xuống Ubuntu cũ hơn. Module này dành cho Ubuntu 24.04 LTS và
+Python 3.12. Module `sdn_demo/` cũ mới là lựa chọn tương thích Ubuntu 22.04.
+
+Nếu controller không lên:
+
+```bash
+tail -n 80 sdn_mpls_demo/runtime/controller.log
+sudo ss -ltnp | grep :6653
+sdn_mpls_demo/.venv/bin/python -c "import os_ken; print('OS-Ken OK')"
+```

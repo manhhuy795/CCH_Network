@@ -20,7 +20,7 @@ sudo apt update
 sudo apt install -y \
   git mininet openvswitch-switch iperf3 \
   python3 python3-venv python3-pip python3-dev \
-  build-essential curl jq
+  build-essential curl jq iproute2 procps
 
 echo "[2/4] Bật Open vSwitch"
 sudo systemctl enable --now openvswitch-switch
@@ -38,4 +38,6 @@ iperf3 --version | head -n 1
 "$VENV_DIR/bin/python" -c "import os_ken; print('OS-Ken: OK')"
 
 echo
-echo "Cài đặt hoàn tất. Chạy controller và topology ở hai terminal riêng."
+echo "Cài đặt hoàn tất."
+echo "Cách đơn giản nhất: sudo ./sdn_mpls_demo/run_topology.sh"
+echo "Script topology sẽ tự khởi động OS-Ken nếu cổng 6653 chưa có controller."
