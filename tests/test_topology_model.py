@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import yaml
@@ -31,8 +32,13 @@ def test_topology_forces_intersite_path_through_ce_and_mpls():
     assert 'switches["dist_branch"], ce_branch,' in source
     assert 'net.addLink(switches["dist_branch"], switches["core_hq"]' not in source
     assert 'intfName2=f"{group[\'prefix\']}-u{index:02d}"' in source
-    assert 'intfName1="br-dist"' in source
-    assert 'intfName2="dist-access"' in source
+    assert 'intfName1="br-eth99"' in source
+    assert 'intfName2="dist-eth01"' in source
+
+    explicit_interfaces = re.findall(r'intfName[12]="([^"]+)"', source)
+    assert explicit_interfaces
+    assert all(len(name) <= 15 for name in explicit_interfaces)
+    assert all("-eth" in name for name in explicit_interfaces)
 
 
 def test_only_expected_ovs_are_controller_managed():
@@ -71,6 +77,9 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "os_ken.cmd.manager|osken-manager" not in runner
     assert "flock -n 9" in runner
     assert "[t]opology_hybrid_sdn.py" in runner
+    assert "cleanup_stale_network" in runner
+    assert "hqa-core" in runner
+    assert "hqa-eth99" in runner
 
 
 def test_osken_version_keeps_controller_cli():

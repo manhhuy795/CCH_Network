@@ -193,7 +193,7 @@ def build_topology():
     net.addLink(
         h90,
         switches["voice_mgmt"],
-        intfName2="voice-h90",
+        intfName2="voice-eth01",
         cls=TCLink,
         bw=50,
         delay="2ms",
@@ -212,8 +212,8 @@ def build_topology():
     net.addLink(
         switches["access_hq_a"],
         switches["core_hq"],
-        intfName1="hqa-core",
-        intfName2="core-hqa",
+        intfName1="hqa-eth99",
+        intfName2="core-eth01",
         cls=TCLink,
         bw=1000,
         delay="1ms",
@@ -221,8 +221,8 @@ def build_topology():
     net.addLink(
         switches["access_hq_b"],
         switches["core_hq"],
-        intfName1="hqb-core",
-        intfName2="core-hqb",
+        intfName1="hqb-eth99",
+        intfName2="core-eth02",
         cls=TCLink,
         bw=1000,
         delay="1ms",
@@ -230,8 +230,8 @@ def build_topology():
     net.addLink(
         switches["access_hq_c"],
         switches["core_hq"],
-        intfName1="hqc-core",
-        intfName2="core-hqc",
+        intfName1="hqc-eth99",
+        intfName2="core-eth03",
         cls=TCLink,
         bw=1000,
         delay="1ms",
@@ -239,8 +239,8 @@ def build_topology():
     net.addLink(
         switches["voice_mgmt"],
         switches["core_hq"],
-        intfName1="voice-core",
-        intfName2="core-voice",
+        intfName1="voice-eth99",
+        intfName2="core-eth04",
         cls=TCLink,
         bw=500,
         delay="1ms",
@@ -248,8 +248,8 @@ def build_topology():
     net.addLink(
         switches["access_branch"],
         switches["dist_branch"],
-        intfName1="br-dist",
-        intfName2="dist-access",
+        intfName1="br-eth99",
+        intfName2="dist-eth01",
         cls=TCLink,
         bw=1000,
         delay="1ms",
@@ -257,43 +257,43 @@ def build_topology():
 
     net.addLink(
         switches["core_hq"], ce_hq,
-        intfName1="core-ce", intfName2="ce_hq-eth0",
+        intfName1="core-eth05", intfName2="ce_hq-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
         ce_hq, mpls_cloud,
-        intfName1="ce_hq-eth1", intfName2="mpls-hq",
+        intfName1="ce_hq-eth1", intfName2="mpls-eth01",
         cls=TCLink, bw=100, delay="10ms",
     )
     net.addLink(
         ce_branch, mpls_cloud,
-        intfName1="ce_branch-eth1", intfName2="mpls-br",
+        intfName1="ce_branch-eth1", intfName2="mpls-eth02",
         cls=TCLink, bw=100, delay="10ms",
     )
     net.addLink(
         switches["dist_branch"], ce_branch,
-        intfName1="dist-ce", intfName2="ce_branch-eth0",
+        intfName1="dist-eth02", intfName2="ce_branch-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
 
     net.addLink(
         switches["core_hq"], fw_hq,
-        intfName1="core-fw", intfName2="fw_hq-eth0",
+        intfName1="core-eth06", intfName2="fw_hq-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
         fw_hq, internet,
-        intfName1="fw_hq-eth1", intfName2="inet-hq",
+        intfName1="fw_hq-eth1", intfName2="inet-eth01",
         cls=TCLink, bw=100, delay="5ms",
     )
     net.addLink(
         switches["dist_branch"], fw_branch,
-        intfName1="dist-fw", intfName2="fw_branch-eth0",
+        intfName1="dist-eth03", intfName2="fw_branch-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
         fw_branch, internet,
-        intfName1="fw_branch-eth1", intfName2="inet-br",
+        intfName1="fw_branch-eth1", intfName2="inet-eth02",
         cls=TCLink, bw=100, delay="5ms",
     )
 

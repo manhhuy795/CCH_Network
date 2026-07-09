@@ -7,6 +7,7 @@ RUNTIME_DIR="$SCRIPT_DIR/runtime"
 CONTROLLER_LOG="$RUNTIME_DIR/controller.log"
 CONTROLLER_PID=""
 CONTROLLER_STARTED=0
+MININET_ATTEMPTED=0
 LOCK_FILE="/tmp/cch-sdn-topology.lock"
 
 # Giữ file descriptor 9 trong suốt phiên Mininet. Một terminal thứ hai sẽ
@@ -40,7 +41,48 @@ stop_auto_controller() {
   fi
 }
 
-trap stop_auto_controller EXIT INT TERM
+cleanup_stale_network() {
+  local interfaces=(
+    hqa-core core-hqa hqb-core core-hqb hqc-core core-hqc
+    voice-core core-voice br-dist dist-access core-ce mpls-hq mpls-br
+    dist-ce core-fw inet-hq dist-fw inet-br
+    hqa-eth99 core-eth01 hqb-eth99 core-eth02 hqc-eth99 core-eth03
+    voice-eth99 core-eth04 br-eth99 dist-eth01 core-eth05
+    mpls-eth01 mpls-eth02 dist-eth02 core-eth06 inet-eth01
+    dist-eth03 inet-eth02
+  )
+  local bridges=(
+    access_hq_a access_hq_b access_hq_c voice_mgmt core_hq
+    access_branch dist_branch mpls_cloud internet
+  )
+
+  for interface in "${interfaces[@]}"; do
+    sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
+    sudo ip link delete "$interface" >/dev/null 2>&1 || true
+  done
+  for prefix in h20 h30 h40 h50 h60; do
+    for index in $(seq -w 1 20); do
+      interface="${prefix}-u${index}"
+      sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
+      sudo ip link delete "$interface" >/dev/null 2>&1 || true
+    done
+  done
+  sudo ip link delete voice-h90 >/dev/null 2>&1 || true
+  sudo ip link delete voice-eth01 >/dev/null 2>&1 || true
+  for bridge in "${bridges[@]}"; do
+    sudo ovs-vsctl --if-exists del-br "$bridge" >/dev/null 2>&1 || true
+  done
+}
+
+cleanup_on_exit() {
+  if [[ "$MININET_ATTEMPTED" -eq 1 ]]; then
+    sudo mn -c >/dev/null 2>&1 || true
+    cleanup_stale_network
+  fi
+  stop_auto_controller
+}
+
+trap cleanup_on_exit EXIT INT TERM
 
 if [[ ! -x "$VENV_DIR/bin/python" ]]; then
   echo "Lỗi: chưa có virtualenv OS-Ken tại $VENV_DIR"
@@ -106,6 +148,8 @@ fi
 
 echo "Dọn trạng thái Mininet cũ..."
 sudo mn -c >/dev/null 2>&1 || true
+cleanup_stale_network
 
 echo "Khởi động topology 100 user + 5 service..."
+MININET_ATTEMPTED=1
 sudo python3 "$SCRIPT_DIR/topology_hybrid_sdn.py"
