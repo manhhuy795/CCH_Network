@@ -25,11 +25,14 @@ def test_hybrid_topology_has_one_hundred_users_and_five_services():
 def test_topology_forces_intersite_path_through_ce_and_mpls():
     source = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
-    assert 'net.addLink(switches["core_hq"], ce_hq' in source
-    assert "net.addLink(ce_hq, mpls_cloud" in source
-    assert "net.addLink(ce_branch, mpls_cloud" in source
-    assert 'net.addLink(switches["dist_branch"], ce_branch' in source
+    assert 'switches["core_hq"], ce_hq,' in source
+    assert "ce_hq, mpls_cloud," in source
+    assert "ce_branch, mpls_cloud," in source
+    assert 'switches["dist_branch"], ce_branch,' in source
     assert 'net.addLink(switches["dist_branch"], switches["core_hq"]' not in source
+    assert 'intfName2=f"{group[\'prefix\']}-u{index:02d}"' in source
+    assert 'intfName1="br-dist"' in source
+    assert 'intfName2="dist-access"' in source
 
 
 def test_only_expected_ovs_are_controller_managed():

@@ -61,6 +61,7 @@ def add_group_hosts(net, policy, switches):
             net.addLink(
                 host,
                 switches[group["switch"]],
+                intfName2=f"{group['prefix']}-u{index:02d}",
                 cls=TCLink,
                 bw=100,
                 delay="1ms",
@@ -189,7 +190,14 @@ def build_topology():
 
     user_hosts = add_group_hosts(net, policy, switches)
     h90 = net.addHost("h90", ip="172.16.90.10/24", defaultRoute="via 172.16.90.1")
-    net.addLink(h90, switches["voice_mgmt"], cls=TCLink, bw=50, delay="2ms")
+    net.addLink(
+        h90,
+        switches["voice_mgmt"],
+        intfName2="voice-h90",
+        cls=TCLink,
+        bw=50,
+        delay="2ms",
+    )
 
     services = {}
     for service_name in ("hzalo", "hcall", "hsocial", "hinternet"):
@@ -201,21 +209,93 @@ def build_topology():
     fw_hq = net.addHost("fw_hq", cls=LinuxRouter, ip=None)
     fw_branch = net.addHost("fw_branch", cls=LinuxRouter, ip=None)
 
-    net.addLink(switches["access_hq_a"], switches["core_hq"], cls=TCLink, bw=1000, delay="1ms")
-    net.addLink(switches["access_hq_b"], switches["core_hq"], cls=TCLink, bw=1000, delay="1ms")
-    net.addLink(switches["access_hq_c"], switches["core_hq"], cls=TCLink, bw=1000, delay="1ms")
-    net.addLink(switches["voice_mgmt"], switches["core_hq"], cls=TCLink, bw=500, delay="1ms")
-    net.addLink(switches["access_branch"], switches["dist_branch"], cls=TCLink, bw=1000, delay="1ms")
+    net.addLink(
+        switches["access_hq_a"],
+        switches["core_hq"],
+        intfName1="hqa-core",
+        intfName2="core-hqa",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["access_hq_b"],
+        switches["core_hq"],
+        intfName1="hqb-core",
+        intfName2="core-hqb",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["access_hq_c"],
+        switches["core_hq"],
+        intfName1="hqc-core",
+        intfName2="core-hqc",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["voice_mgmt"],
+        switches["core_hq"],
+        intfName1="voice-core",
+        intfName2="core-voice",
+        cls=TCLink,
+        bw=500,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["access_branch"],
+        switches["dist_branch"],
+        intfName1="br-dist",
+        intfName2="dist-access",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
 
-    net.addLink(switches["core_hq"], ce_hq, intfName2="ce_hq-eth0", cls=TCLink, bw=200, delay="2ms")
-    net.addLink(ce_hq, mpls_cloud, intfName1="ce_hq-eth1", cls=TCLink, bw=100, delay="10ms")
-    net.addLink(ce_branch, mpls_cloud, intfName1="ce_branch-eth1", cls=TCLink, bw=100, delay="10ms")
-    net.addLink(switches["dist_branch"], ce_branch, intfName2="ce_branch-eth0", cls=TCLink, bw=200, delay="2ms")
+    net.addLink(
+        switches["core_hq"], ce_hq,
+        intfName1="core-ce", intfName2="ce_hq-eth0",
+        cls=TCLink, bw=200, delay="2ms",
+    )
+    net.addLink(
+        ce_hq, mpls_cloud,
+        intfName1="ce_hq-eth1", intfName2="mpls-hq",
+        cls=TCLink, bw=100, delay="10ms",
+    )
+    net.addLink(
+        ce_branch, mpls_cloud,
+        intfName1="ce_branch-eth1", intfName2="mpls-br",
+        cls=TCLink, bw=100, delay="10ms",
+    )
+    net.addLink(
+        switches["dist_branch"], ce_branch,
+        intfName1="dist-ce", intfName2="ce_branch-eth0",
+        cls=TCLink, bw=200, delay="2ms",
+    )
 
-    net.addLink(switches["core_hq"], fw_hq, intfName2="fw_hq-eth0", cls=TCLink, bw=200, delay="2ms")
-    net.addLink(fw_hq, internet, intfName1="fw_hq-eth1", cls=TCLink, bw=100, delay="5ms")
-    net.addLink(switches["dist_branch"], fw_branch, intfName2="fw_branch-eth0", cls=TCLink, bw=200, delay="2ms")
-    net.addLink(fw_branch, internet, intfName1="fw_branch-eth1", cls=TCLink, bw=100, delay="5ms")
+    net.addLink(
+        switches["core_hq"], fw_hq,
+        intfName1="core-fw", intfName2="fw_hq-eth0",
+        cls=TCLink, bw=200, delay="2ms",
+    )
+    net.addLink(
+        fw_hq, internet,
+        intfName1="fw_hq-eth1", intfName2="inet-hq",
+        cls=TCLink, bw=100, delay="5ms",
+    )
+    net.addLink(
+        switches["dist_branch"], fw_branch,
+        intfName1="dist-fw", intfName2="fw_branch-eth0",
+        cls=TCLink, bw=200, delay="2ms",
+    )
+    net.addLink(
+        fw_branch, internet,
+        intfName1="fw_branch-eth1", intfName2="inet-br",
+        cls=TCLink, bw=100, delay="5ms",
+    )
 
     info("*** Khởi động topology Hybrid MPLS L3VPN + SDN Edge Policy\n")
     net.build()
