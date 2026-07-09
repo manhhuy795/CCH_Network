@@ -1,0 +1,23 @@
+# Chạy các lệnh này tại dấu nhắc mininet>
+nodes
+net
+
+h20_01 ping -c 2 h30_01     # mong đợi: fail
+h20_01 ping -c 2 h90        # mong đợi: pass
+h20_01 ping -c 2 hzalo      # mong đợi: pass qua Firewall HQ
+h20_01 ping -c 2 hcall      # mong đợi: pass qua Firewall HQ
+h20_01 ping -c 2 hsocial    # mong đợi: fail tại Firewall HQ/SDN policy
+h50_01 ping -c 2 hcall      # mong đợi: pass qua Firewall Branch
+h50_01 ping -c 2 hsocial    # mong đợi: fail
+h50_01 ping -c 2 h20_01     # mong đợi: pass qua CE/MPLS/CE
+h50_01 ping -c 2 h60_01     # mong đợi: fail
+
+# Kiểm tra flow thật
+sh ovs-ofctl -O OpenFlow13 dump-flows access_hq_a
+sh ovs-ofctl -O OpenFlow13 dump-flows core_hq
+sh ovs-ofctl -O OpenFlow13 dump-flows dist_branch
+
+# Đo từ terminal Ubuntu ngoài Mininet
+# sudo python3 sdn_mpls_demo/metrics_collector.py ping --source h20_01 --destination h90
+# sudo python3 sdn_mpls_demo/metrics_collector.py tcp --source h20_01 --destination hcall --seconds 5
+# sudo python3 sdn_mpls_demo/metrics_collector.py udp --source h50_01 --destination hcall --seconds 5

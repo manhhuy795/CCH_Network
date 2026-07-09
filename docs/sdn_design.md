@@ -1,55 +1,38 @@
-# SDN Design
+# Thiết kế SDN trong repository
 
-This repository includes an optional SDN intent layer. It does not replace the
-existing VLAN, ACL, routing, CE, MPLS, or firewall design.
+Repository có hai lớp SDN khác nhau và không nên gọi lẫn nhau.
 
-## Scope
+## Lớp SDN intent của Network Automation
 
-The SDN layer is intended for an enterprise LAN fabric or lab controller such as
-OpenDaylight, ONOS, Cisco Catalyst Center/DNAC-style intent APIs, or a custom
-controller API.
+Các file `vars/sdn.yml`, template intent và
+`scripts/generate_sdn_policies.py` sinh policy JSON cho quy trình automation.
+Chế độ `generic_rest` chỉ là điểm tích hợp API mẫu; tự nó không phải OpenFlow
+Controller và không chứng minh dataplane đã được lập trình.
 
-In scope:
+## Lab SDN runtime
 
-- VLAN/group segmentation intent.
-- Project isolation intent for VLAN 20/30/40.
-- Branch segmentation intent for VLAN 50/60.
-- Service insertion intent that keeps internet policy anchored on the firewall.
-- Offline rendering to `generated_configs/sdn_intents.json`.
+`sdn_mpls_demo/` là demo SDN chạy thật:
 
-Out of scope:
+- OS-Ken Controller.
+- OpenFlow 1.3.
+- 7 Open vSwitch.
+- 100 user + 5 service trong Mininet.
+- Flow allow/drop được cài và đọc lại bằng `ovs-ofctl`.
 
-- Programming ISP MPLS PE/P routers.
-- Replacing ISP MP-BGP.
-- Creating IPSec/GRE tunnels.
-- Static CE-to-CE routing.
+## Quan hệ với MPLS
 
-## Safety Model
+SDN không thay thế và không điều khiển MPLS Core. MPLS L3VPN đóng vai trò WAN
+transport giữa HQ và Branch:
 
-`scripts/generate_sdn_policies.py` renders JSON locally by default. It only posts
-to a controller when all of these are true:
-
-- `--apply` is used.
-- `CONFIRM_DEPLOY=true` is set.
-- `SDN_CONTROLLER_URL` is set.
-
-The default controller type is `generic_rest`; adapt `vars/sdn.yml` and the API
-path to your actual SDN platform.
-
-## Commands
-
-Render SDN intent policy:
-
-```bash
-python scripts/generate_sdn_policies.py
+```text
+HQ Core → CE HQ → MPLS L3VPN Cloud → CE Branch → Branch Distribution
 ```
 
-Apply to a controller only after lab testing:
+Trong lab, CE/MPLS là namespace/bridge mô phỏng đường vận chuyển, không phải
+provider-grade MPLS hoặc MP-BGP.
 
-```bash
-export CONFIRM_DEPLOY=true
-export SDN_CONTROLLER_URL="https://controller.example.com"
-export SDN_USERNAME="admin"
-export SDN_PASSWORD="secret"
-python scripts/generate_sdn_policies.py --apply
-```
+Xem hướng dẫn đầy đủ tại:
+
+- `sdn_mpls_demo/README.md`
+- `sdn_mpls_demo/docs/sdn_design_vi.md`
+- `sdn_mpls_demo/docs/demo_script_vi.md`

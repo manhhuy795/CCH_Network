@@ -1,29 +1,50 @@
-# CCH Network Automation - Call Center BPO
+# CCH Network - Hybrid MPLS L3VPN + SDN Edge Policy
 
-Repo nay demo Network Automation va SDN cho he thong Call Center BPO hai site.
+Repository mô phỏng hệ thống mạng Call Center BPO hai site với hai phần:
 
-## Thanh phan chinh
+1. **Network Automation**: source-of-truth YAML, Jinja2, validation, render,
+   Ansible workflow, backup/deploy/rollback.
+2. **SDN runtime demo**: 100 user trong Mininet, Open vSwitch, OS-Ken
+   Controller, OpenFlow 1.3 và dashboard đo kiểm trực tiếp.
+
+SDN không thay thế MPLS. MPLS L3VPN là WAN transport giữa HQ và Branch; SDN
+Controller chỉ điều khiển OVS tại access/core/distribution ở hai đầu mạng.
+
+## Cấu trúc
 
 ```text
-vars/                    Source-of-truth YAML
-templates/               Jinja2 templates sinh cau hinh
-scripts/                 Script validate/render/verify/deploy/backup
-playbooks/               Ansible workflow mau
-generated_configs/       Cau hinh da render
-sdn_demo/                Mininet + Open vSwitch + standalone OpenFlow controller
-dashboard/               SDN live web dashboard thao tac voi Mininet that
-tests/                   Unit tests
-docs/                    Tai lieu thiet ke
+vars/                 Source-of-truth Network Automation
+templates/            Template cấu hình
+scripts/              Validate, generate, verify, deploy, backup
+generated_configs/    Cấu hình đã render
+sdn_demo/             Lab SDN nhỏ tương thích Ubuntu 22.04 (legacy)
+sdn_mpls_demo/        Lab OS-Ken + 100 user cho Ubuntu 24.04
+dashboard/backend/    FastAPI, WebSocket, Mininet/OVS client
+dashboard/frontend/   React + TypeScript
+tests/                Acceptance và unit test
+docs/                 Tài liệu kiến trúc
 ```
 
-## Automation offline
+## IP plan
+
+| Nhóm | VLAN | Subnet | User |
+|---|---:|---|---:|
+| Dự án A | 20 | 172.16.20.0/24 | 20 |
+| Dự án B | 30 | 172.16.30.0/24 | 20 |
+| Dự án C | 40 | 172.16.40.0/24 | 20 |
+| Telesale | 50 | 172.16.50.0/24 | 20 |
+| BackOffice | 60 | 172.16.60.0/24 | 20 |
+| Voice | 90 | 172.16.90.0/24 | Service |
+
+Service Zalo/Call App/Social/Internet dùng `172.16.200.10` đến
+`172.16.203.10`.
+
+## Kiểm tra Network Automation
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate        # Linux
-# .venv\\Scripts\\activate       # Windows PowerShell
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 
 python scripts/validate_vars.py
 python scripts/generate_configs.py
@@ -32,118 +53,85 @@ python scripts/generate_sdn_policies.py
 pytest
 ```
 
-## SDN Mininet demo tren Ubuntu VM
+`vars/sdn.yml` và `generate_sdn_policies.py` là lớp sinh intent ở mức
+automation. Generic REST intent không được xem là controller OpenFlow thật.
 
-Khong can thiet bi that, khong can Ryu/OS-Ken, khong can Python 3.12.
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-pip python3-yaml iperf mininet openvswitch-switch
-sudo systemctl enable --now openvswitch-switch
-
-git clone https://github.com/manhhuy795/CCH_Network.git
-cd CCH_Network
-
-sudo mn -c
-./sdn_demo/run_demo.sh
-```
-
-Khi thay prompt:
-
-```text
-mininet>
-```
-
-co the chay:
-
-```text
-testsdn
-sdninfo
-sdnstats
-sdnbw h20 h90 5
-h20 ping -c 2 h90
-h20 ping -c 2 h30
-```
-
-## SDN live web dashboard
-
-Terminal 1: giu Mininet dang chay:
+## Chạy SDN runtime demo trên Ubuntu 24.04
 
 ```bash
-cd ~/Downloads/CCH_Network
-sudo mn -c
-./sdn_demo/run_demo.sh
+chmod +x sdn_mpls_demo/*.sh
+./sdn_mpls_demo/setup_ubuntu_24_04.sh
 ```
 
-Terminal 2: chay web dashboard:
+Terminal 1:
 
 ```bash
-cd ~/Downloads/CCH_Network
-chmod +x dashboard/run_live_dashboard.sh
-./dashboard/run_live_dashboard.sh
+./sdn_mpls_demo/run_controller.sh
 ```
 
-Mo trinh duyet:
+Terminal 2:
+
+```bash
+sudo ./sdn_mpls_demo/run_topology.sh
+```
+
+Topology tạo:
+
+- `h20_01` đến `h60_20`: 100 user thật.
+- `h90`, `hzalo`, `hcall`, `hsocial`, `hinternet`: 5 service.
+- 7 OVS do OS-Ken điều khiển.
+- CE, Firewall, MPLS Cloud không chịu sự điều khiển của controller.
+
+Đường liên site bắt buộc:
 
 ```text
-http://127.0.0.1:8000
+Branch Distribution → CE Router Branch → MPLS L3VPN Cloud
+→ CE Router HQ → HQ Core SDN
 ```
 
-Neu mo tu Windows host vao Ubuntu VM:
+## Chạy dashboard
 
-```text
-http://<ubuntu-vm-ip>:8000
+Terminal 3:
+
+```bash
+cd dashboard/backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo -E .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Dashboard có:
+Terminal 4:
 
-- Sơ đồ mạng dựng bằng SVG với các node và liên kết độc lập.
-- Gói tin chạy tuần tự qua từng node, dừng đúng điểm policy khi bị chặn.
-- Ping và đo băng thông TCP/UDP trực tiếp trong namespace Mininet.
-- Đo KPI Call Center: RTT, jitter, mất gói, thông lượng, R-factor và MOS.
-- Bảng OpenFlow đã diễn giải để dễ đọc hơn kết quả thô từ `ovs-ofctl`.
-- Nút chặn/gỡ chặn bằng OpenFlow rule ưu tiên cao.
-
-## Policy SDN demo
-
-```text
-h20      Project A              172.16.20.10/24
-h30      Project B              172.16.30.10/24
-h40      Project C              172.16.40.10/24
-h50      Telesale               172.16.50.10/24
-h60      Branch Admin           172.16.60.10/24
-h90      Voice service          172.16.90.10/24
-hzalo    Zalo simulator         172.16.200.10/24
-hcall    Call App simulator     172.16.201.10/24
-hsocial  Social Media simulator 172.16.202.10/24
-hinternet Internet test          172.16.203.10/24
+```bash
+cd dashboard/frontend
+npm install
+npm run dev -- --host 0.0.0.0
 ```
 
-Policy:
+Mở `http://<IP-Ubuntu-VM>:5173`.
 
-- h20/h30/h40 bi cach ly voi nhau.
-- h50 va h60 khong mo full access hai chieu.
-- h20/h30/h40/h50/h60 duoc truy cap h90 khi `voice_enabled=true`.
-- h20/h30/h40/h50/h60 duoc truy cap hzalo va hcall.
-- h20/h30/h40/h50/h60 được truy cập Internet chung (`hinternet`).
-- h20/h30/h40/h50/h60 bi chan hsocial.
-- h50 được truy cập h20 có kiểm soát; đường logic liên site đi qua CE Branch,
-  MPLS L3VPN Cloud và CE HQ.
+Dashboard hiển thị 5 nhóm user nhưng dropdown cho chọn từng user. Chức năng:
 
-Đây là SDN edge-policy simulation trên Mininet/OVS. MPLS L3VPN được thể hiện
-như WAN transport logic do ISP quản lý; demo không lập trình PE/P core.
+- Ping thật và mô phỏng packet path.
+- Throughput TCP bằng iperf3.
+- Jitter/loss bằng iperf3 UDP.
+- RTT và packet loss bằng ping.
+- MOS/R-factor cho chất lượng Call Center.
+- Flow table từ 7 OVS.
+- Block/unblock OpenFlow tạm thời.
+- Link failure/reroute logic phục vụ demo.
 
 ## Cleanup
 
 ```bash
-sudo mn -c
+./sdn_mpls_demo/cleanup.sh
 ```
 
-## Tai lieu
+## Tài liệu
 
-- `sdn_demo/README.md`
+- `docs/sdn_design.md`
+- `sdn_mpls_demo/README.md`
+- `sdn_mpls_demo/docs/sdn_design_vi.md`
+- `sdn_mpls_demo/docs/demo_script_vi.md`
 - `dashboard/README.md`
-- `docs/sdn_mininet_demo.md`
-- `docs/topology.md`
-- `docs/routing_design.md`
-- `docs/firewall_policy.md`
