@@ -116,10 +116,15 @@ Source-of-truth nằm tại `sdn_mpls_demo/policy.yml`.
 Không cần hạ xuống Ubuntu cũ hơn. Module này dành cho Ubuntu 24.04 LTS và
 Python 3.12. Module `sdn_demo/` cũ mới là lựa chọn tương thích Ubuntu 22.04.
 
+Project pin `os-ken==3.1.1`. Không nâng lên OS-Ken 4.x vì upstream đã xóa
+`osken-manager` và module `os_ken.cmd`; hai thành phần này cần để chạy
+OpenFlow Controller độc lập trong lab.
+
 Nếu controller không lên:
 
 ```bash
 tail -n 80 sdn_mpls_demo/runtime/controller.log
 sudo ss -ltnp | grep :6653
-sdn_mpls_demo/.venv/bin/python -c "import os_ken; print('OS-Ken OK')"
+sdn_mpls_demo/.venv/bin/python -c "import os_ken.cmd.manager; print('OS-Ken CLI OK')"
+sdn_mpls_demo/.venv/bin/pip show os-ken | grep Version
 ```

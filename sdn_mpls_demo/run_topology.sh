@@ -29,8 +29,10 @@ if [[ ! -x "$VENV_DIR/bin/python" ]]; then
   exit 1
 fi
 
-if ! "$VENV_DIR/bin/python" -c "import os_ken" >/dev/null 2>&1; then
-  echo "Lỗi: virtualenv chưa có OS-Ken."
+if [[ ! -x "$VENV_DIR/bin/osken-manager" ]] || \
+   ! "$VENV_DIR/bin/python" -c "import os_ken.cmd.manager" >/dev/null 2>&1; then
+  echo "Lỗi: virtualenv không có OS-Ken Controller CLI tương thích."
+  echo "OS-Ken 4.x đã xóa osken-manager; project sử dụng OS-Ken 3.1.1."
   echo "Hãy chạy lại: ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
   exit 1
 fi

@@ -28,14 +28,17 @@ sudo systemctl enable --now openvswitch-switch
 echo "[3/4] Tạo virtualenv riêng cho OS-Ken"
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel setuptools
-"$VENV_DIR/bin/python" -m pip install -r "$ROOT_DIR/sdn_mpls_demo/requirements.txt"
+"$VENV_DIR/bin/python" -m pip install --upgrade --force-reinstall \
+  -r "$ROOT_DIR/sdn_mpls_demo/requirements.txt"
 
 echo "[4/4] Kiểm tra công cụ"
 python3 --version
 mn --version
 ovs-vsctl --version | head -n 1
 iperf3 --version | head -n 1
-"$VENV_DIR/bin/python" -c "import os_ken; print('OS-Ken: OK')"
+"$VENV_DIR/bin/python" -c \
+  "import os_ken, os_ken.cmd.manager; print('OS-Ken 3.1.1 + controller CLI: OK')"
+test -x "$VENV_DIR/bin/osken-manager"
 
 echo
 echo "Cài đặt hoàn tất."

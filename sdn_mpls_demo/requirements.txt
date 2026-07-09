@@ -1,2 +1,4 @@
-os-ken>=4.2,<5
+# OS-Ken 4.x đã xóa osken-manager và os_ken.cmd.
+# Bản 3.1.1 còn CLI OpenFlow Controller và phát hành dạng wheel py3.
+os-ken==3.1.1
 PyYAML>=6.0,<7

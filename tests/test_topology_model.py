@@ -63,3 +63,12 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "CONTROLLER_LOG" in runner
     assert "tail -n 40" in runner
     assert "pgrep -f" not in runner
+
+
+def test_osken_version_keeps_controller_cli():
+    requirements = (REPO_ROOT / "sdn_mpls_demo" / "requirements.txt").read_text(encoding="utf-8")
+    setup = (REPO_ROOT / "sdn_mpls_demo" / "setup_ubuntu_24_04.sh").read_text(encoding="utf-8")
+
+    assert "os-ken==3.1.1" in requirements
+    assert "os_ken.cmd.manager" in setup
+    assert "osken-manager" in setup
