@@ -56,16 +56,22 @@ pytest
 `vars/sdn.yml` và `generate_sdn_policies.py` là lớp sinh intent ở mức
 automation. Generic REST intent không được xem là controller OpenFlow thật.
 
-## Chạy SDN runtime demo trên Ubuntu 24.04
+## Terminal 1 - cài thư viện và chạy SDN runtime demo
 
 ```bash
+cd ~/Downloads/CCH_Network
+git pull
+
+sudo apt update
+sudo apt install -y \
+  git mininet openvswitch-switch iperf3 \
+  python3 python3-venv python3-pip python3-dev \
+  build-essential curl jq iproute2 procps util-linux \
+  nodejs npm
+sudo systemctl enable --now openvswitch-switch
+
 chmod +x sdn_mpls_demo/*.sh
 ./sdn_mpls_demo/setup_ubuntu_24_04.sh
-```
-
-Cách chạy gọn nhất:
-
-```bash
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
 

@@ -35,18 +35,40 @@ HQ user     → HQ Core → Firewall HQ → Internet Zone
 Branch user → Branch Distribution → Firewall Branch → Internet Zone
 ```
 
-## Cài đặt
+## Terminal 1 - cài thư viện và chạy topology
+
+Chạy block này trên Ubuntu VM. Đây là terminal giữ phiên Mininet, không đóng
+terminal này khi đang demo.
 
 ```bash
 cd ~/Downloads/CCH_Network
+git pull
+
+# Các thư viện/package cần cho SDN lab, Mininet, Open vSwitch và dashboard.
+sudo apt update
+sudo apt install -y \
+  git mininet openvswitch-switch iperf3 \
+  python3 python3-venv python3-pip python3-dev \
+  build-essential curl jq iproute2 procps util-linux \
+  nodejs npm
+sudo systemctl enable --now openvswitch-switch
+
 chmod +x sdn_mpls_demo/*.sh
 ./sdn_mpls_demo/setup_ubuntu_24_04.sh
+sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
 Script chỉ cài package và tạo virtualenv riêng tại
 `sdn_mpls_demo/.venv`; không thay đổi Python hệ thống.
 
-## Chạy lab
+Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
+
+```text
+testpolicy       # chạy 8 ca ALLOW/DENY bằng ping thật
+isolationflows   # xem DROP flow priority 400 trên 7 OVS
+```
+
+## Chạy lab lại sau khi đã cài xong
 
 Cách đơn giản nhất, chỉ cần một lệnh:
 
@@ -65,7 +87,7 @@ Script sẽ:
 4. Chờ controller sẵn sàng rồi mới tạo topology.
 5. In `runtime/controller.log` nếu controller không khởi động được.
 
-Nếu muốn chạy controller thủ công để xem log trực tiếp:
+Nếu muốn chạy controller thủ công để xem log trực tiếp thì dùng cách nâng cao:
 
 ```bash
 # Terminal 1
