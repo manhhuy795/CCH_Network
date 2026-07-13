@@ -54,7 +54,12 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
     .net-link.control { stroke: #8b5cf6; stroke-dasharray: 7 7; }
     .net-link.active { stroke: #10a36f; stroke-width: 7; }
     .net-link.blocked { stroke: #dc2626; stroke-dasharray: 12 8; stroke-width: 7; }
+    .policy-map { pointer-events: none; stroke-linecap: round; stroke-width: 5; }
+    .policy-map.allow { stroke: #10a36f; stroke-opacity: .58; }
+    .policy-map.deny { stroke: #dc2626; stroke-dasharray: 10 8; stroke-opacity: .72; }
     .node rect, .node polygon, .node ellipse { fill: #fff; stroke: #8da0b4; stroke-width: 2; }
+    .node.selectable { cursor: pointer; }
+    .node.selected rect, .node.selected polygon, .node.selected ellipse { stroke: #111827; stroke-width: 4; }
     .node text { fill: var(--ink); font-size: 12px; font-weight: 650; pointer-events: none; text-anchor: middle; }
     .node .sub { fill: #68788a; font-size: 10px; font-weight: 500; }
     .node.user rect { fill: #eef6ff; stroke: #4b86c5; }
@@ -75,6 +80,12 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
     .deny-x line { stroke: #dc2626; stroke-linecap: round; stroke-width: 10; }
     .legend { align-items: center; color: #66768a; display: flex; flex-wrap: wrap; font-size: 11px; gap: 14px; padding: 8px 2px 0; }
     .legend i { display: inline-block; height: 4px; margin-right: 5px; vertical-align: middle; width: 24px; }
+    .cluster-policy { border-top: 1px solid #e1e7ed; display: grid; gap: 5px; margin-top: 8px; padding: 10px 2px 0; }
+    .cluster-policy strong { font-size: 13px; }
+    .cluster-policy p, .cluster-policy div { color: #607084; font-size: 12px; line-height: 1.4; margin: 0; }
+    .cluster-policy span { font-weight: 750; }
+    .cluster-policy .ok { color: var(--green); }
+    .cluster-policy .bad { color: var(--red); }
     .form { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
     label { color: #58687a; display: grid; font-size: 12px; gap: 5px; }
     select, input { background: #fff; border: 1px solid #c9d4df; border-radius: 7px; min-height: 38px; padding: 7px 8px; width: 100%; }
@@ -237,6 +248,10 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
             <span><i style="background:#7765a8"></i>MPLS L3VPN / WAN transport</span>
             <span><i style="background:#d97706"></i>Firewall Internet Edge</span>
           </div>
+          <div id="clusterPolicy" class="cluster-policy">
+            <strong>Bấm vào từng cụm trên sơ đồ</strong>
+            <p>Dashboard sẽ tô xanh các cụm được ping và tô đỏ các cụm bị chặn theo policy.</p>
+          </div>
         </div>
       </section>
 
@@ -311,6 +326,24 @@ const positions = {
   hzalo:[1470,210], hcall:[1470,350], hsocial:[1470,570], hinternet:[1470,790],
   c0:[930,137],
 };
+const nodeNames = {
+  project_a:'Dự án A', project_b:'Dự án B', project_c:'Dự án C', it_support:'Phòng IT',
+  telesale:'Telesale', backoffice:'BackOffice', h90:'Voice/PBX', hzalo:'Zalo',
+  hcall:'Call App', hsocial:'Mạng xã hội', hinternet:'Internet ngoài'
+};
+const pingPolicies = {
+  project_a:{ title:'Dự án A / VLAN 20', allow:['h90','hzalo','hcall','hinternet','telesale'], deny:['project_b','project_c','backoffice','hsocial'], note:'Softphone chỉ cần tới Voice/PBX, không mở ngang sang dự án khác.' },
+  project_b:{ title:'Dự án B / VLAN 30', allow:['h90','hzalo','hcall','hinternet'], deny:['project_a','project_c','telesale','backoffice','hsocial'], note:'Cách ly Project A/C; voice đi về PBX/SIP-RTP service.' },
+  project_c:{ title:'Dự án C / VLAN 40', allow:['h90','hzalo','hcall','hinternet'], deny:['project_a','project_b','telesale','backoffice','hsocial'], note:'Không cho agent ping ngang nhau giữa dự án.' },
+  telesale:{ title:'Telesale / VLAN 50', allow:['h90','hzalo','hcall','hinternet','project_a'], deny:['backoffice','project_b','project_c','hsocial'], note:'Chỉ có rule liên site được kiểm soát tới Project A.' },
+  backoffice:{ title:'BackOffice / VLAN 60', allow:['h90','hzalo','hcall','hinternet'], deny:['telesale','project_a','project_b','project_c','hsocial'], note:'Không có full access sang HQ hoặc Telesale.' },
+  it_support:{ title:'IT Support / VLAN 70', allow:['project_a','project_b','project_c','telesale','backoffice','h90','hzalo','hcall','hsocial','hinternet'], deny:[], note:'IT được full access để hỗ trợ/remote, Internet ngoài vẫn không được chủ động ping vào IT.' },
+  h90:{ title:'Voice/PBX cho Cfono/Gphone', allow:['project_a','project_b','project_c','telesale','backoffice','it_support'], deny:['hzalo','hcall','hsocial','hinternet'], note:'PBX/SIP/RTP mô phỏng, không phải mở peer-to-peer giữa agent.' },
+  hzalo:{ title:'Zalo Simulator', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'Service ngoài chỉ phản hồi phiên do user khởi tạo.' },
+  hcall:{ title:'Call App / CRM', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'Ứng dụng ngoài không được chủ động mở kết nối vào máy agent.' },
+  hsocial:{ title:'Mạng xã hội', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'User thường bị chặn Social; Social không được ping vào trong.' },
+  hinternet:{ title:'Internet bên ngoài', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'Mặc định deny inbound từ Internet vào hệ thống nội bộ.' },
+};
 let animationToken = 0;
 
 function linkElement(a, b) {
@@ -321,6 +354,34 @@ function clearPath() {
   document.querySelectorAll('.net-link').forEach((line) => line.classList.remove('active', 'blocked'));
   document.getElementById('packet').classList.remove('show');
   document.getElementById('denyX').classList.remove('show');
+}
+function clearPolicyMap() {
+  document.querySelectorAll('.policy-map').forEach((line) => line.remove());
+  document.querySelectorAll('.node.selected').forEach((node) => node.classList.remove('selected'));
+}
+function addPolicyLine(svg, sourceId, targetId, className) {
+  if (!positions[sourceId] || !positions[targetId]) return;
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', positions[sourceId][0]);
+  line.setAttribute('y1', positions[sourceId][1]);
+  line.setAttribute('x2', positions[targetId][0]);
+  line.setAttribute('y2', positions[targetId][1]);
+  line.setAttribute('class', `policy-map ${className}`);
+  svg.insertBefore(line, svg.querySelector('.node') || document.getElementById('packet'));
+}
+function selectPolicyNode(nodeId) {
+  const policy = pingPolicies[nodeId];
+  if (!policy) return;
+  clearPolicyMap();
+  const svg = document.querySelector('.topology svg');
+  document.getElementById(nodeId)?.classList.add('selected');
+  policy.allow.forEach((target) => addPolicyLine(svg, nodeId, target, 'allow'));
+  policy.deny.forEach((target) => addPolicyLine(svg, nodeId, target, 'deny'));
+  document.getElementById('clusterPolicy').innerHTML = `
+    <strong>${policy.title}</strong>
+    <p>${policy.note}</p>
+    <div><span class="ok">Được ping:</span> ${policy.allow.length ? policy.allow.map((id) => nodeNames[id]).join(', ') : 'Không chủ động ping vào nội bộ'}</div>
+    <div><span class="bad">Không được ping:</span> ${policy.deny.length ? policy.deny.map((id) => nodeNames[id]).join(', ') : 'Không có mục chặn trong demo'}</div>`;
 }
 function movePacket(from, to, duration, token) {
   return new Promise((resolve) => {
@@ -456,7 +517,16 @@ async function blockPair() {
 async function unblockPair() {
   const payload = await post('/api/live/unblock', pair()); show('Gỡ chặn OpenFlow', payload); await loadFlows();
 }
-async function refreshAll() { clearPath(); await loadTopology(); await loadStatus(); await loadFlows(); }
+function initPolicyMap() {
+  Object.keys(pingPolicies).forEach((nodeId) => {
+    const node = document.getElementById(nodeId);
+    if (!node) return;
+    node.classList.add('selectable');
+    node.addEventListener('click', () => selectPolicyNode(nodeId));
+  });
+  selectPolicyNode('project_a');
+}
+async function refreshAll() { clearPath(); await loadTopology(); await loadStatus(); await loadFlows(); initPolicyMap(); }
 refreshAll().catch((error) => show('Lỗi dashboard', { ok: false, raw: error.message }));
 </script>
 </body>

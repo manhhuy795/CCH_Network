@@ -6,6 +6,7 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
+import unicodedata
 from pathlib import Path
 
 import yaml
@@ -103,21 +104,28 @@ def emit(message=""):
     print(message, flush=True)
 
 
+def ascii_text(value):
+    text = unicodedata.normalize("NFKD", str(value))
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return " ".join(text.split())
+
+
 def short_text(value, width):
+    value = ascii_text(value)
     value = str(value)
     return value if len(value) <= width else value[: width - 3] + "..."
 
 
 def run_policy_tests(net, policy, title="Kiểm tra policy bằng ping thật"):
-    width = 124
+    width = 112
     emit()
     emit("=" * width)
-    emit(f"{title}")
-    emit("PASS = ping thật khớp policy. FAIL = cần xem controller.log / dump-flows.")
+    emit(short_text(title, width))
+    emit("PASS = real ping matches policy. FAIL = check controller.log / dump-flows.")
     emit("=" * width)
     emit(
-        f"{'STT':<4} {'NHOM POLICY':<21} {'SOURCE':<10} {'DEST':<10} "
-        f"{'POLICY':<7} {'PING':<7} {'KQ':<6} GHI CHU"
+        f"{'NO':<3} {'POLICY GROUP':<19} {'SOURCE':<10} {'DEST':<10} "
+        f"{'EXPECT':<6} {'PING':<6} {'RESULT':<6} NOTE"
     )
     emit("-" * width)
     passed = 0
@@ -126,9 +134,9 @@ def run_policy_tests(net, policy, title="Kiểm tra policy bằng ping thật"):
         matched = reachable == expected
         passed += int(matched)
         emit(
-            f"{index:<4} {short_text(category, 21):<21} {source_name:<10} {destination_name:<10} "
-            f"{'ALLOW' if expected else 'DENY':<7} {'ALLOW' if reachable else 'DENY':<7} "
-            f"{'PASS' if matched else 'FAIL':<6} {short_text(reason, 52)}"
+            f"{index:<3} {short_text(category, 19):<19} {source_name:<10} {destination_name:<10} "
+            f"{'ALLOW' if expected else 'DENY':<6} {'ALLOW' if reachable else 'DENY':<6} "
+            f"{'PASS' if matched else 'FAIL':<6} {short_text(reason, 42)}"
         )
     emit("-" * width)
     emit(f"KET QUA: {passed}/{len(POLICY_TESTS)} policy test dat")

@@ -68,8 +68,11 @@ def test_controller_is_real_osken_openflow_13_app():
     assert "OFPFlowMod" in controller
     assert "installed_flows.json" in controller
     assert "install_isolation_flows" in controller
+    assert "install_service_policy_flows" in controller
     assert "install_it_support_flows" in controller
     assert "IT Support full access" in controller
+    assert "Block Social Media cho user thuong" in controller
+    assert "Chan ping chu dong tu Internet/service vao user noi bo" in controller
     assert "eth_type=ether_types.ETH_TYPE_ARP" in controller
     assert "không bypass IP policy" in controller
     assert "priority=400" in (

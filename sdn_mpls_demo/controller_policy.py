@@ -18,9 +18,9 @@ from os_ken.lib.packet import ethernet, ether_types, icmp, ipv4, packet
 from os_ken.ofproto import ofproto_v1_3
 
 try:
-    from .policy_engine import PolicyEngine
+    from .policy_engine import ICMP_ECHO_REQUEST, PolicyEngine
 except ImportError:
-    from policy_engine import PolicyEngine
+    from policy_engine import ICMP_ECHO_REQUEST, PolicyEngine
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -259,6 +259,100 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     idle_timeout=0,
                 )
 
+    def install_service_policy_flows(self, datapath):
+        """Cài flow chủ động cho Internet services để kết quả ping khớp policy ổn định."""
+        parser = datapath.ofproto_parser
+        normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
+        normal_actions = [parser.OFPActionOutput(normal_port)]
+        user_networks = [
+            (name, network)
+            for name, network in self.policy.networks.items()
+            if name != "it_support"
+        ]
+        allowed_service_names = []
+        if self.policy.policies.get("allow_zalo", False):
+            allowed_service_names.append("hzalo")
+        if self.policy.policies.get("allow_call_app", False):
+            allowed_service_names.append("hcall")
+        if self.policy.policies.get("allow_general_internet", False):
+            allowed_service_names.append("hinternet")
+
+        for service_name in allowed_service_names:
+            service = self.policy.services.get(service_name, {})
+            if "ip" not in service:
+                continue
+            service_network = ipaddress.ip_network(f"{service['ip']}/32")
+            for group_name, user_network in user_networks:
+                for source_network, target_network, source_label, target_label in (
+                    (user_network, service_network, group_name, service_name),
+                    (service_network, user_network, service_name, group_name),
+                ):
+                    match = parser.OFPMatch(
+                        eth_type=ether_types.ETH_TYPE_IP,
+                        ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
+                        ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                    )
+                    self.add_flow(
+                        datapath,
+                        330,
+                        match,
+                        normal_actions,
+                        {
+                            "action": "ALLOW",
+                            "source": source_label,
+                            "destination": target_label,
+                            "reason": "Service duoc policy cho phep; return traffic duoc chap nhan.",
+                        },
+                        idle_timeout=0,
+                    )
+                echo_request_match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=1,
+                    icmpv4_type=ICMP_ECHO_REQUEST,
+                    ipv4_src=(str(service_network.network_address), str(service_network.netmask)),
+                    ipv4_dst=(str(user_network.network_address), str(user_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    385,
+                    echo_request_match,
+                    [],
+                    {
+                        "action": "DROP",
+                        "source": service_name,
+                        "destination": group_name,
+                        "reason": "Chan ping chu dong tu Internet/service vao user noi bo.",
+                    },
+                    idle_timeout=0,
+                )
+
+        social = self.policy.services.get("hsocial", {})
+        if self.policy.policies.get("block_social_media", False) and "ip" in social:
+            social_network = ipaddress.ip_network(f"{social['ip']}/32")
+            for group_name, user_network in user_networks:
+                for source_network, target_network, source_label, target_label in (
+                    (user_network, social_network, group_name, "hsocial"),
+                    (social_network, user_network, "hsocial", group_name),
+                ):
+                    match = parser.OFPMatch(
+                        eth_type=ether_types.ETH_TYPE_IP,
+                        ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
+                        ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                    )
+                    self.add_flow(
+                        datapath,
+                        390,
+                        match,
+                        [],
+                        {
+                            "action": "DROP",
+                            "source": source_label,
+                            "destination": target_label,
+                            "reason": "Block Social Media cho user thuong.",
+                        },
+                        idle_timeout=0,
+                    )
+
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
         datapath = event.msg.datapath
@@ -278,6 +372,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             idle_timeout=0,
         )
         self.install_isolation_flows(datapath)
+        self.install_service_policy_flows(datapath)
         self.install_voice_flows(datapath)
         self.install_it_support_flows(datapath)
         self.logger.info("OVS %s đã kết nối, cài table-miss.", DPID_NAMES.get(datapath.id, datapath.id))

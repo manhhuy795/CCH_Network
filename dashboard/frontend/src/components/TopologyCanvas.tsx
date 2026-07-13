@@ -136,7 +136,7 @@ export default function TopologyCanvas({ links, decision, activeIndex, failedLin
   return (
     <section>
       <div className="section-title">
-        <div><h2>Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>104 user được gom thành 6 nhóm, có phòng IT Support</span></div>
+        <div><h2>Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>Bấm vào từng cụm để xem được ping / không được ping tới đâu</span></div>
         <div className="link-controls">
           <select id="link-select" aria-label="Chọn liên kết">
             {links.filter((link) => link.type !== "control").map((link) => (
