@@ -12,15 +12,16 @@ TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
 CONTROLLER_PATH = REPO_ROOT / "sdn_mpls_demo" / "controller_policy.py"
 
 
-def test_hybrid_topology_has_one_hundred_ten_users_and_five_services():
+def test_hybrid_topology_has_one_hundred_four_users_and_five_services():
     engine = PolicyEngine(POLICY_PATH)
     users = [host for host in engine.hosts.values() if host["kind"] == "user"]
     services = [host for host in engine.hosts.values() if host["kind"] == "service"]
 
-    assert len(users) == 110
+    assert len(users) == 104
     assert len(services) == 5
     assert engine.hosts["h20_01"]["ip"] == "172.16.20.11"
-    assert engine.hosts["h70_10"]["ip"] == "172.16.70.20"
+    assert engine.hosts["h70_04"]["ip"] == "172.16.70.14"
+    assert "h70_05" not in engine.hosts
     assert engine.hosts["h60_20"]["ip"] == "172.16.60.30"
 
 

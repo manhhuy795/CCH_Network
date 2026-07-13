@@ -36,7 +36,7 @@ host_groups:
     label: "Phòng IT Support"
     vlan: 70
     site: "HQ"
-    count: 10
+    count: 4
     prefix: "h70"
     subnet: "172.16.70.0/24"
     first_host: 11

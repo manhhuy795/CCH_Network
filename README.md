@@ -4,7 +4,7 @@ Repository mô phỏng hệ thống mạng Call Center BPO hai site với hai ph
 
 1. **Network Automation**: source-of-truth YAML, Jinja2, validation, render,
    Ansible workflow, backup/deploy/rollback.
-2. **SDN runtime demo**: 110 user trong Mininet, Open vSwitch, OS-Ken
+2. **SDN runtime demo**: 104 user trong Mininet, Open vSwitch, OS-Ken
    Controller, OpenFlow 1.3 và dashboard đo kiểm trực tiếp.
 
 SDN không thay thế MPLS. MPLS L3VPN là WAN transport giữa HQ và Branch; SDN
@@ -18,7 +18,7 @@ templates/            Template cấu hình
 scripts/              Validate, generate, verify, deploy, backup
 generated_configs/    Cấu hình đã render
 sdn_demo/             Lab SDN nhỏ tương thích Ubuntu 22.04 (legacy)
-sdn_mpls_demo/        Lab OS-Ken + 110 user cho Ubuntu 24.04
+sdn_mpls_demo/        Lab OS-Ken + 104 user cho Ubuntu 24.04
 dashboard/backend/    FastAPI, WebSocket, Mininet/OVS client
 dashboard/frontend/   React + TypeScript
 tests/                Acceptance và unit test
@@ -32,7 +32,7 @@ docs/                 Tài liệu kiến trúc
 | Dự án A | 20 | 172.16.20.0/24 | 20 |
 | Dự án B | 30 | 172.16.30.0/24 | 20 |
 | Dự án C | 40 | 172.16.40.0/24 | 20 |
-| Phòng IT Support | 70 | 172.16.70.0/24 | 10 |
+| Phòng IT Support | 70 | 172.16.70.0/24 | 4 |
 | Telesale | 50 | 172.16.50.0/24 | 20 |
 | BackOffice | 60 | 172.16.60.0/24 | 20 |
 | Voice | 90 | 172.16.90.0/24 | Service |
@@ -102,7 +102,7 @@ sudo ./sdn_mpls_demo/run_topology.sh
 
 Topology tạo:
 
-- `h20_01` đến `h60_20` và `h70_01` đến `h70_10`: 110 user thật.
+- `h20_01` đến `h60_20` và `h70_01` đến `h70_04`: 104 user thật.
 - `h90`, `hzalo`, `hcall`, `hsocial`, `hinternet`: 5 service.
 - 8 OVS do OS-Ken điều khiển.
 - CE, Firewall, MPLS Cloud không chịu sự điều khiển của controller.
@@ -119,11 +119,20 @@ Branch Distribution → CE Router Branch → MPLS L3VPN Cloud
 Terminal 3:
 
 ```bash
-cd dashboard/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-sudo -E .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+./dashboard/run_live_dashboard.sh
+```
+
+Dashboard mặc định chỉ cho IT Support vào bằng token:
+
+```text
+it-support-demo
+```
+
+Muốn đổi token trước khi chạy dashboard:
+
+```bash
+export CCH_DASHBOARD_TOKEN='token-it-cua-ban'
+./dashboard/run_live_dashboard.sh
 ```
 
 Terminal 4:
@@ -134,7 +143,8 @@ npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-Mở `http://<IP-Ubuntu-VM>:5173`.
+Mở nhanh trang tích hợp tại `http://<IP-Ubuntu-VM>:8000`. Nếu chạy React thì
+mở `http://<IP-Ubuntu-VM>:5173`.
 
 Dashboard hiển thị 6 nhóm user, gồm phòng IT Support có quyền remote/support
 tới các user và service. Dropdown vẫn cho chọn từng user thật. Chức năng:
@@ -147,6 +157,8 @@ tới các user và service. Dropdown vẫn cho chọn từng user thật. Chứ
 - Flow table từ 8 OVS.
 - Block/unblock OpenFlow tạm thời.
 - Link failure/reroute logic phục vụ demo.
+- Demo bảo mật trực quan: cách ly Project, chặn Social Media, IT remote
+  support, chặn/gỡ chặn OpenFlow khẩn cấp.
 
 ## Cleanup
 

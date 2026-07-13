@@ -19,23 +19,41 @@ def test_dashboard_api_topology_and_policy_endpoints():
 
     assert topology["nodes"]
     assert topology["links"]
-    assert len(topology["hosts"]) == 115
-    assert topology["summary"]["user_count"] == 110
+    assert len(topology["hosts"]) == 109
+    assert topology["summary"]["user_count"] == 104
     assert topology["summary"]["controlled_ovs_count"] == 8
     assert policies["policies"]["block_social_media"] is True
 
 
 def test_dashboard_serves_live_web_page():
     pytest.importorskip("fastapi")
+    pytest.importorskip("fastapi.testclient")
 
     repo_root = Path(__file__).resolve().parents[1]
     backend_root = repo_root / "dashboard" / "backend"
     sys.path.insert(0, str(backend_root))
 
-    from app.main import root
+    from fastapi.testclient import TestClient
+    from app.main import app
 
-    response = root()
-    html = response.body.decode("utf-8")
+    client = TestClient(app)
+
+    login_page = client.get("/")
+    assert login_page.status_code == 200
+    assert "Dashboard chỉ dành cho IT Support" in login_page.text
+
+    blocked = client.get("/api/topology")
+    assert blocked.status_code == 401
+
+    bad_login = client.post("/auth/login", json={"token": "wrong-token"})
+    assert bad_login.status_code == 401
+
+    login = client.post("/auth/login", json={"token": "it-support-demo"})
+    assert login.status_code == 200
+    assert login.json()["ok"] is True
+
+    response = client.get("/")
+    html = response.text
 
     assert response.status_code == 200
     assert "Giám sát Hybrid MPLS L3VPN + SDN Call Center CCH" in html

@@ -20,14 +20,22 @@ Chạy trước:
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
+Dashboard chỉ dành cho IT Support. Token lab mặc định:
+
+```text
+it-support-demo
+```
+
+Đổi token khi cần:
+
+```bash
+export CCH_DASHBOARD_TOKEN='token-it-cua-ban'
+```
+
 ## Backend
 
 ```bash
-cd dashboard/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-sudo -E .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+./dashboard/run_live_dashboard.sh
 ```
 
 Backend không crash khi Mininet chưa chạy; API trả trạng thái và thông báo lỗi
@@ -63,7 +71,7 @@ WS   /ws/metrics
 
 ## Giới hạn
 
-- Mininet có 110 user thật nhưng sơ đồ gom thành 6 nhóm, gồm phòng IT Support.
+- Mininet có 104 user thật nhưng sơ đồ gom thành 6 nhóm, gồm phòng IT Support.
 - MPLS Cloud là WAN transport mô phỏng, không phải MPLS provider-grade.
 - Controller không điều khiển CE, Firewall hoặc MPLS Cloud.
 - Link failure/reroute hiện là mô phỏng logic trên dashboard.

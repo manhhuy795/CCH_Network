@@ -1,7 +1,7 @@
 # SDN MPLS Demo - Call Center BPO
 
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 8 Open vSwitch
+24.04 LTS. Lab tạo 104 user thật trong Mininet, 5 service và 8 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
 
 ## Phạm vi đúng
@@ -18,7 +18,7 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 |---|---:|
 | User Dự án A/B/C | 60 |
 | User Telesale/BackOffice | 40 |
-| User Phòng IT Support | 10 |
+| User Phòng IT Support | 4 |
 | Voice/Zalo/Call App/Social/Internet | 5 |
 | OVS được OS-Ken điều khiển | 8 |
 

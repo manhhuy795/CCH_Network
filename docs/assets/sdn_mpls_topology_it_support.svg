@@ -29,7 +29,7 @@
 
   <rect class="bg" x="0" y="0" width="1360" height="820"/>
   <text class="title" x="30" y="36">Hybrid MPLS L3VPN + SDN Edge Policy - Call Center CCH</text>
-  <text class="subtitle" x="30" y="60">110 user thật trong Mininet, 8 Open vSwitch do OS-Ken điều khiển, phòng IT Support có quyền remote/support.</text>
+  <text class="subtitle" x="30" y="60">104 user thật trong Mininet, 8 Open vSwitch do OS-Ken điều khiển, phòng IT Support có quyền remote/support.</text>
 
   <rect class="zone" x="20" y="95" width="700" height="430" rx="8"/>
   <text class="zone-label" x="35" y="117">TRỤ SỞ CHÍNH · PROJECT / IT / VOICE · FIREWALL HQ TẠI BIÊN INTERNET</text>
@@ -81,7 +81,7 @@
   <g class="node user" transform="translate(30 120)"><rect width="120" height="50"/><text x="60" y="20">Dự án A</text><text class="sub" x="60" y="36">20 user · VLAN 20</text></g>
   <g class="node user" transform="translate(30 200)"><rect width="120" height="50"/><text x="60" y="20">Dự án B</text><text class="sub" x="60" y="36">20 user · VLAN 30</text></g>
   <g class="node user" transform="translate(30 280)"><rect width="120" height="50"/><text x="60" y="20">Dự án C</text><text class="sub" x="60" y="36">20 user · VLAN 40</text></g>
-  <g class="node it" transform="translate(30 360)"><rect width="120" height="50"/><text x="60" y="20">Phòng IT</text><text class="sub" x="60" y="36">10 user · VLAN 70</text></g>
+  <g class="node it" transform="translate(30 360)"><rect width="120" height="50"/><text x="60" y="20">Phòng IT</text><text class="sub" x="60" y="36">4 user · VLAN 70</text></g>
   <g class="node service" transform="translate(30 440)"><rect width="120" height="50"/><text x="60" y="20">Voice Service</text><text class="sub" x="60" y="36">h90 · VLAN 90</text></g>
 
   <g class="node switch" transform="translate(210 120)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-A</text><text class="sub" x="60" y="36">Open vSwitch</text></g>

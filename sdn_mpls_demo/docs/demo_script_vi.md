@@ -5,7 +5,7 @@
 “Đây là mô hình Hybrid MPLS L3VPN + SDN Edge Policy. MPLS vận chuyển traffic
 giữa hai site; OS-Ken chỉ điều khiển các Open vSwitch ở hai đầu mạng.”
 
-## 2. Kiểm tra 110 user
+## 2. Kiểm tra 104 user
 
 Tại Mininet:
 
@@ -13,7 +13,7 @@ Tại Mininet:
 nodes
 ```
 
-Chỉ ra các host từ `h20_01` đến `h60_20` và `h70_01` đến `h70_10`.
+Chỉ ra các host từ `h20_01` đến `h60_20` và `h70_01` đến `h70_04`.
 Dashboard gom chúng thành 6 nhóm để
 sơ đồ không bị rối nhưng dropdown vẫn chọn được từng user.
 

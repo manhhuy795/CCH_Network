@@ -68,8 +68,8 @@ cleanup_stale_network() {
       sudo ip link delete "$interface" >/dev/null 2>&1 || true
     done
   done
-  for index in $(seq -w 1 10); do
-    interface="h70-u${index}"
+  for index in $(seq -w 1 4); do
+    interface="$(printf 'h70-u%02d' "$index")"
     sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
     sudo ip link delete "$interface" >/dev/null 2>&1 || true
   done
@@ -156,6 +156,6 @@ echo "Dọn trạng thái Mininet cũ..."
 sudo mn -c >/dev/null 2>&1 || true
 cleanup_stale_network
 
-echo "Khởi động topology 110 user + 5 service..."
+echo "Khởi động topology 104 user + 5 service..."
 MININET_ATTEMPTED=1
 sudo python3 "$SCRIPT_DIR/topology_hybrid_sdn.py"

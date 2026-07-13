@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from .live_mininet import current_metrics, live_status, ovs_flows, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
+from .security import require_it_dashboard
 from .topology import get_topology
 
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(require_it_dashboard)])
 
 
 def failed_links(request: Request) -> set[str]:

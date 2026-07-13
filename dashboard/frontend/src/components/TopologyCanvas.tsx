@@ -14,7 +14,7 @@ const positions: Record<string, [number, number]> = {
 
 const labels: Record<string, [string, string]> = {
   project_a: ["Dự án A", "20 user · VLAN 20"], project_b: ["Dự án B", "20 user · VLAN 30"],
-  project_c: ["Dự án C", "20 user · VLAN 40"], it_support: ["Phòng IT", "10 user · VLAN 70"],
+  project_c: ["Dự án C", "20 user · VLAN 40"], it_support: ["Phòng IT", "4 user · VLAN 70"],
   h90: ["Voice Service", "VLAN 90"],
   access_hq_a: ["Access HQ-A", "Open vSwitch"], access_hq_b: ["Access HQ-B", "Open vSwitch"],
   access_hq_c: ["Access HQ-C", "Open vSwitch"], access_hq_it: ["Access HQ-IT", "Open vSwitch"],
@@ -52,7 +52,7 @@ export default function TopologyCanvas({ links, decision, activeIndex, failedLin
   return (
     <section>
       <div className="section-title">
-        <div><h2>Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>110 user được gom thành 6 nhóm, có phòng IT Support</span></div>
+        <div><h2>Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>104 user được gom thành 6 nhóm, có phòng IT Support</span></div>
         <div className="link-controls">
           <select id="link-select" aria-label="Chọn liên kết">
             {links.filter((link) => link.type !== "control").map((link) => (
