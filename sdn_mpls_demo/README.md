@@ -35,10 +35,39 @@ HQ user     → HQ Core → Firewall HQ → Internet Zone
 Branch user → Branch Distribution → Firewall Branch → Internet Zone
 ```
 
+## Ubuntu VM mới - copy/paste từ đầu
+
+Dùng Ubuntu 24.04 LTS. Nếu vừa tạo máy ảo mới, mở Terminal 1 và chạy nguyên
+block này:
+
+```bash
+cd ~/Downloads
+
+sudo apt update
+sudo apt install -y \
+  git mininet openvswitch-switch iperf3 \
+  python3 python3-venv python3-pip python3-dev \
+  build-essential curl jq iproute2 procps util-linux \
+  nodejs npm
+sudo systemctl enable --now openvswitch-switch
+
+if [ ! -d CCH_Network ]; then
+  git clone https://github.com/manhhuy795/CCH_Network.git
+fi
+
+cd ~/Downloads/CCH_Network
+git pull
+chmod +x sdn_mpls_demo/*.sh
+./sdn_mpls_demo/setup_ubuntu_24_04.sh
+sudo ./sdn_mpls_demo/run_topology.sh
+```
+
+Giữ Terminal 1 ở màn hình `mininet>`. Không chạy `run_topology.sh` lần thứ hai
+ở terminal khác.
+
 ## Terminal 1 - cài thư viện và chạy topology
 
-Chạy block này trên Ubuntu VM. Đây là terminal giữ phiên Mininet, không đóng
-terminal này khi đang demo.
+Nếu repo đã có sẵn trên máy, chạy block ngắn này:
 
 ```bash
 cd ~/Downloads/CCH_Network

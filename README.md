@@ -56,11 +56,13 @@ pytest
 `vars/sdn.yml` và `generate_sdn_policies.py` là lớp sinh intent ở mức
 automation. Generic REST intent không được xem là controller OpenFlow thật.
 
-## Terminal 1 - cài thư viện và chạy SDN runtime demo
+## Ubuntu VM mới - copy/paste từ đầu
+
+Dùng Ubuntu 24.04 LTS. Nếu vừa tạo máy ảo mới, mở Terminal 1 và chạy nguyên
+block này:
 
 ```bash
-cd ~/Downloads/CCH_Network
-git pull
+cd ~/Downloads
 
 sudo apt update
 sudo apt install -y \
@@ -70,10 +72,21 @@ sudo apt install -y \
   nodejs npm
 sudo systemctl enable --now openvswitch-switch
 
+if [ ! -d CCH_Network ]; then
+  git clone https://github.com/manhhuy795/CCH_Network.git
+fi
+
+cd ~/Downloads/CCH_Network
+git pull
 chmod +x sdn_mpls_demo/*.sh
 ./sdn_mpls_demo/setup_ubuntu_24_04.sh
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
+
+Giữ Terminal 1 ở màn hình `mininet>`. Không chạy `run_topology.sh` lần thứ hai
+ở terminal khác.
+
+## Terminal 1 - chạy lại SDN runtime demo
 
 Script tự khởi động OS-Ken và chờ cổng `6653` trước khi tạo Mininet. Có thể
 chạy thủ công ở hai terminal khi cần xem log controller trực tiếp:
