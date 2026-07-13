@@ -197,24 +197,28 @@ class CallCenterPolicyController(app_manager.OSKenApp):
 
         for destination_name, destination_prefix in service_destinations:
             destination_network = ipaddress.ip_network(destination_prefix)
-            match = parser.OFPMatch(
-                eth_type=ether_types.ETH_TYPE_IP,
-                ipv4_src=(str(it_network.network_address), str(it_network.netmask)),
-                ipv4_dst=(str(destination_network.network_address), str(destination_network.netmask)),
-            )
-            self.add_flow(
-                datapath,
-                450,
-                match,
-                normal_actions,
-                {
-                    "action": "ALLOW",
-                    "source": "it_support",
-                    "destination": destination_name,
-                    "reason": "IT Support co quyen kiem tra dich vu quan tri duoc khai bao.",
-                },
-                idle_timeout=0,
-            )
+            for source_network, target_network, source_label, target_label in (
+                (it_network, destination_network, "it_support", destination_name),
+                (destination_network, it_network, destination_name, "it_support"),
+            ):
+                match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
+                    ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    450,
+                    match,
+                    normal_actions,
+                    {
+                        "action": "ALLOW",
+                        "source": source_label,
+                        "destination": target_label,
+                        "reason": "IT Support co quyen kiem tra dich vu quan tri duoc khai bao.",
+                    },
+                    idle_timeout=0,
+                )
 
     def install_voice_flows(self, datapath):
         """Cài ALLOW chủ động hai chiều cho Voice VLAN để ping/call ổn định."""

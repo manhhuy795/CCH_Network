@@ -117,7 +117,7 @@ else
   echo "Khoi dong FastAPI backend..."
   (
     cd "$BACKEND_DIR"
-    "$BACKEND_VENV/bin/python" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    sudo -E "$BACKEND_VENV/bin/python" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
   ) > "$LOG_DIR/backend.log" 2>&1 &
   echo "backend:$!" >> "$PID_FILE"
 fi

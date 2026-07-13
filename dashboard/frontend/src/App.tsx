@@ -160,6 +160,9 @@ export default function App() {
       {tab === "test" && (
         <div className="dashboard-grid">
           <div className="main-column">
+            <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
+              failedLinks={failedLinks} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
+              onSource={setSource} onDestination={setDestination} />
             <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
               busy={busy} result={result} onSource={setSource} onDestination={setDestination}
               onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
