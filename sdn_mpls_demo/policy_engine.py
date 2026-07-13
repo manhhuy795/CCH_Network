@@ -12,6 +12,8 @@ import yaml
 HQ_PROJECTS = {"project_a", "project_b", "project_c"}
 BRANCH_GROUPS = {"telesale", "backoffice"}
 IT_SUPPORT_GROUP = "it_support"
+ICMP_ECHO_REPLY = 0
+ICMP_ECHO_REQUEST = 8
 
 GROUP_PATHS = {
     "project_a": ["project_a", "access_hq_a", "core_hq"],
@@ -77,12 +79,34 @@ class PolicyEngine:
     def endpoint(self, name: str) -> dict[str, Any] | None:
         return self.hosts.get(name)
 
-    def decide_ip(self, source_ip: str, destination_ip: str) -> dict[str, Any]:
+    def decide_ip(self, source_ip: str, destination_ip: str, icmp_type: int | None = None) -> dict[str, Any]:
         source = self.endpoint_by_ip(source_ip)
         destination = self.endpoint_by_ip(destination_ip)
         if not source or not destination:
             return {"action": "deny", "reason": "Mặc định từ chối: endpoint không thuộc policy."}
+        if icmp_type is not None:
+            return self.decide_packet(source["name"], destination["name"], icmp_type=icmp_type)
         return self.decide(source["name"], destination["name"])
+
+    def decide_packet(self, source_name: str, destination_name: str, icmp_type: int | None = None) -> dict[str, Any]:
+        source = self.endpoint(source_name)
+        destination = self.endpoint(destination_name)
+        if source and destination and source["kind"] == "service" and destination["kind"] == "user":
+            if icmp_type == ICMP_ECHO_REPLY:
+                reverse = self.decide(destination_name, source_name)
+                if reverse["action"] == "allow":
+                    return {
+                        **reverse,
+                        "path": list(reversed(reverse["path"])),
+                        "reason": f"Cho phép ICMP echo-reply cho phiên do user nội bộ khởi tạo. {reverse['reason']}",
+                    }
+            return self._result(
+                "deny",
+                "Chặn truy cập chủ động từ Internet/service vào user nội bộ. Chỉ cho phép gói phản hồi hợp lệ.",
+                [source_name, "internet"],
+                "internet",
+            )
+        return self.decide(source_name, destination_name)
 
     def decide(self, source_name: str, destination_name: str) -> dict[str, Any]:
         source = self.endpoint(source_name)
@@ -96,12 +120,12 @@ class PolicyEngine:
             }
 
         if source["kind"] == "service" and destination["kind"] == "user":
-            reverse = self.decide(destination_name, source_name)
-            return {
-                **reverse,
-                "path": list(reversed(reverse["path"])),
-                "reason": f"Luồng phản hồi hợp lệ. {reverse['reason']}",
-            }
+            return self._result(
+                "deny",
+                "Chặn truy cập chủ động từ Internet/service vào user nội bộ.",
+                [source_name, "internet"],
+                "internet",
+            )
         if source["kind"] != "user":
             return self._result("deny", "Mặc định từ chối giữa các dịch vụ.", [], None)
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import re
 from pathlib import Path
 
@@ -43,18 +44,82 @@ class LinuxRouter(Node):
 
 
 POLICY_TESTS = (
-    ("h20_01", "h30_01", False, "Cách ly VLAN 20 và VLAN 30"),
-    ("h20_01", "h40_01", False, "Cách ly VLAN 20 và VLAN 40"),
-    ("h50_01", "h60_01", False, "Cách ly VLAN 50 và VLAN 60"),
-    ("h20_01", "h90", True, "Cho phép Voice"),
-    ("h20_01", "hcall", True, "Cho phép Call App qua Firewall HQ"),
-    ("h50_01", "hcall", True, "Cho phép Call App qua Firewall Branch"),
-    ("h20_01", "hsocial", False, "Chặn Social Media"),
-    ("h50_01", "h20_01", True, "Cho phép liên site có kiểm soát"),
-    ("h70_01", "h20_01", True, "IT Support được remote user Project A"),
-    ("h70_01", "h50_01", True, "IT Support được remote user Branch qua MPLS"),
-    ("h70_01", "hsocial", True, "IT Support có quyền kiểm tra dịch vụ bị chặn với user thường"),
+    ("Project isolation", "h20_01", "h30_01", False, "Project A không được ping Project B"),
+    ("Project isolation", "h20_01", "h40_01", False, "Project A không được ping Project C"),
+    ("Project isolation", "h30_01", "h20_01", False, "Project B không được ping Project A"),
+    ("Project isolation", "h30_01", "h40_01", False, "Project B không được ping Project C"),
+    ("Project isolation", "h40_01", "h20_01", False, "Project C không được ping Project A"),
+    ("Project isolation", "h40_01", "h30_01", False, "Project C không được ping Project B"),
+    ("Branch isolation", "h50_01", "h60_01", False, "Telesale không được ping BackOffice"),
+    ("Branch isolation", "h60_01", "h50_01", False, "BackOffice không được ping Telesale"),
+    ("Voice", "h20_01", "h90", True, "Project A được ping Voice"),
+    ("Voice", "h30_01", "h90", True, "Project B được ping Voice"),
+    ("Voice", "h40_01", "h90", True, "Project C được ping Voice"),
+    ("Voice", "h50_01", "h90", True, "Telesale được ping Voice qua MPLS"),
+    ("Voice", "h60_01", "h90", True, "BackOffice được ping Voice qua MPLS"),
+    ("Voice", "h70_01", "h90", True, "IT Support được ping Voice"),
+    ("Internet services", "h20_01", "hzalo", True, "Project A được dùng Zalo qua Firewall HQ"),
+    ("Internet services", "h20_01", "hcall", True, "Project A được dùng Call App qua Firewall HQ"),
+    ("Internet services", "h20_01", "hinternet", True, "Project A được dùng Internet test qua Firewall HQ"),
+    ("Internet services", "h50_01", "hzalo", True, "Telesale được dùng Zalo qua Firewall Branch"),
+    ("Internet services", "h50_01", "hcall", True, "Telesale được dùng Call App qua Firewall Branch"),
+    ("Internet services", "h60_01", "hinternet", True, "BackOffice được dùng Internet test qua Firewall Branch"),
+    ("Social block", "h20_01", "hsocial", False, "Project A bị chặn Social Media tại Firewall HQ"),
+    ("Social block", "h30_01", "hsocial", False, "Project B bị chặn Social Media tại Firewall HQ"),
+    ("Social block", "h40_01", "hsocial", False, "Project C bị chặn Social Media tại Firewall HQ"),
+    ("Social block", "h50_01", "hsocial", False, "Telesale bị chặn Social Media tại Firewall Branch"),
+    ("Social block", "h60_01", "hsocial", False, "BackOffice bị chặn Social Media tại Firewall Branch"),
+    ("Controlled intersite", "h50_01", "h20_01", True, "Telesale được ping Project A theo rule liên site"),
+    ("Controlled intersite", "h20_01", "h50_01", True, "Project A được ping Telesale theo rule liên site"),
+    ("Controlled intersite", "h60_01", "h20_01", False, "BackOffice không có full access vào Project A"),
+    ("Controlled intersite", "h20_01", "h60_01", False, "Project A không có full access vào BackOffice"),
+    ("IT support", "h70_01", "h20_01", True, "IT Support được remote Project A"),
+    ("IT support", "h70_01", "h30_01", True, "IT Support được remote Project B"),
+    ("IT support", "h70_01", "h50_01", True, "IT Support được remote Telesale qua MPLS"),
+    ("IT support", "h70_01", "hsocial", True, "IT Support được kiểm tra dịch vụ social"),
+    ("Internet inbound", "hinternet", "h20_01", False, "Internet ngoài không được chủ động ping Project A"),
+    ("Internet inbound", "hzalo", "h30_01", False, "Zalo simulator không được chủ động ping Project B"),
+    ("Internet inbound", "hcall", "h50_01", False, "Call App simulator không được chủ động ping Telesale"),
+    ("Internet inbound", "hsocial", "h60_01", False, "Social simulator không được chủ động ping BackOffice"),
+    ("Internet inbound", "hinternet", "h70_01", False, "Internet ngoài không được chủ động ping IT"),
 )
+
+
+def endpoint_ip(net, policy, host_name):
+    service = policy.get("services", {}).get(host_name)
+    return service["ip"] if service else net.get(host_name).IP()
+
+
+def ping_reachable(net, policy, source_name, destination_name, count=2, timeout=1):
+    source = net.get(source_name)
+    destination_ip = endpoint_ip(net, policy, destination_name)
+    output = source.cmd(f"ping -c {count} -i 0.2 -W {timeout} {destination_ip}")
+    loss = re.search(r"([0-9.]+)% packet loss", output)
+    reachable = bool(loss and float(loss.group(1)) < 100)
+    return reachable, output
+
+
+def run_policy_tests(net, policy, title="Kiểm tra policy bằng ping thật"):
+    info(f"\n*** {title}\n")
+    info("*** Ý nghĩa: PASS = kết quả ping thật khớp policy ALLOW/DENY.\n")
+    passed = 0
+    current_category = None
+    for category, source_name, destination_name, expected, reason in POLICY_TESTS:
+        if category != current_category:
+            current_category = category
+            info(f"\n### {category}\n")
+        reachable, _output = ping_reachable(net, policy, source_name, destination_name)
+        matched = reachable == expected
+        passed += int(matched)
+        info(
+            f"{'PASS' if matched else 'FAIL':4} "
+            f"{source_name:>9} -> {destination_name:<9} "
+            f"policy={'ALLOW' if expected else 'DENY':<5} "
+            f"ping={'ALLOW' if reachable else 'DENY':<5} | {reason}\n"
+        )
+    info(f"\n*** Kết quả: {passed}/{len(POLICY_TESTS)} policy test đạt\n")
+    if passed != len(POLICY_TESTS):
+        info("*** Có test FAIL. Hãy xem controller.log và dump flow để debug.\n")
 
 
 class CallCenterCLI(CLI):
@@ -63,28 +128,11 @@ class CallCenterCLI(CLI):
         super().__init__(net)
 
     def service_ip(self, host_name):
-        service = self.policy.get("services", {}).get(host_name)
-        return service["ip"] if service else self.mn.get(host_name).IP()
+        return endpoint_ip(self.mn, self.policy, host_name)
 
     def do_testpolicy(self, _line):
-        "Chạy bộ ping kiểm tra allow/drop bắt buộc."
-        info("\n*** Kiểm tra policy bằng traffic thật\n")
-        passed = 0
-        for source_name, destination_name, expected, reason in POLICY_TESTS:
-            source = self.mn.get(source_name)
-            destination_ip = self.service_ip(destination_name)
-            output = source.cmd(f"ping -c 2 -W 1 {destination_ip}")
-            loss = re.search(r"([0-9.]+)% packet loss", output)
-            reachable = bool(loss and float(loss.group(1)) < 100)
-            matched = reachable == expected
-            passed += int(matched)
-            info(
-                f"{'PASS' if matched else 'FAIL':4} "
-                f"{source_name:>7} -> {destination_name:<8} "
-                f"expected={'ALLOW' if expected else 'DENY':<5} "
-                f"actual={'ALLOW' if reachable else 'DENY':<5} | {reason}\n"
-            )
-        info(f"\n*** Kết quả: {passed}/{len(POLICY_TESTS)} policy test đạt\n")
+        "Chạy ma trận ping chi tiết theo policy ALLOW/DENY."
+        run_policy_tests(self.mn, self.policy, title="Kiểm tra policy thủ công bằng ping thật")
 
     def do_isolationflows(self, _line):
         "Hiển thị các flow DROP priority 400 trên OVS."
@@ -388,8 +436,12 @@ def build_topology():
     info("*** Thử: h20_01 ping -c 2 h90 (cho phép)\n")
     info("*** Thử: h50_01 ping -c 2 h20_01 (liên site qua MPLS logic)\n")
     info("*** Thử: h70_01 ping -c 2 h20_01 (IT remote support được phép)\n")
-    info("*** Chạy toàn bộ kiểm tra policy: testpolicy\n")
+    info("*** Chạy lại toàn bộ kiểm tra policy trong CLI: testpolicy\n")
     info("*** Xem DROP flow chủ động: isolationflows\n")
+    if os.environ.get("CCH_AUTO_TEST_POLICY", "1") != "0":
+        run_policy_tests(net, policy, title="Kiểm tra tự động sau khi khởi động topology")
+    else:
+        info("*** Bỏ qua auto-test vì CCH_AUTO_TEST_POLICY=0. Có thể chạy tay: testpolicy\n")
     CallCenterCLI(net, policy)
     net.stop()
 

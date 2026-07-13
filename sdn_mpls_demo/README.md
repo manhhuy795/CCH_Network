@@ -94,7 +94,7 @@ Script chỉ cài package và tạo virtualenv riêng tại
 Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
 
 ```text
-testpolicy       # chạy 8 ca ALLOW/DENY bằng ping thật
+testpolicy       # chạy ma trận ALLOW/DENY chi tiết bằng ping thật
 isolationflows   # xem DROP flow priority 400 trên 8 OVS
 ```
 
@@ -115,7 +115,14 @@ Script sẽ:
 2. Kiểm tra cổng OpenFlow `6653`.
 3. Tự chạy controller nếu cổng chưa có listener.
 4. Chờ controller sẵn sàng rồi mới tạo topology.
-5. In `runtime/controller.log` nếu controller không khởi động được.
+5. Tự chạy ma trận ping policy chi tiết sau khi topology lên.
+6. In `runtime/controller.log` nếu controller không khởi động được.
+
+Auto-test có thể tắt khi cần khởi động nhanh:
+
+```bash
+sudo CCH_AUTO_TEST_POLICY=0 ./sdn_mpls_demo/run_topology.sh
+```
 
 Nếu muốn chạy controller thủ công để xem log trực tiếp thì dùng cách nâng cao:
 
@@ -145,9 +152,20 @@ Khi thấy `mininet>`, dùng các lệnh trong
 Kiểm tra nhanh segmentation bằng traffic thật:
 
 ```text
-testpolicy       # chạy 8 ca ALLOW/DENY
+testpolicy       # chạy ma trận ALLOW/DENY chi tiết
 isolationflows   # xem DROP flow priority 400 trên 8 OVS
 ```
+
+`testpolicy` sẽ kiểm tra các nhóm chính:
+
+- Project A/B/C không ping chéo nhau.
+- VLAN 50 và VLAN 60 không ping nhau.
+- Project/Telesale/BackOffice/IT ping được Voice `h90`.
+- User thường dùng được Zalo, Call App, Internet test.
+- User thường bị chặn Social Media.
+- Chỉ một số luồng liên site được cho phép theo policy.
+- IT Support được remote/support user và kiểm tra dịch vụ.
+- Internet/service bên ngoài không được chủ động ping vào user nội bộ.
 
 Terminal 3, chạy backend:
 

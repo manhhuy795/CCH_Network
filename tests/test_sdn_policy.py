@@ -3,7 +3,7 @@ from pathlib import Path
 
 from scripts.generate_sdn_policies import render_sdn_policy, validate_sdn
 from scripts.common import load_vars
-from sdn_mpls_demo.policy_engine import PolicyEngine
+from sdn_mpls_demo.policy_engine import ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, PolicyEngine
 
 
 def test_sdn_intents_reference_known_vlans_and_devices():
@@ -43,3 +43,22 @@ def test_all_user_groups_can_reach_voice_service():
         assert decision["action"] == "allow"
         assert decision["voice_priority"] is True
         assert decision["path"][-2:] == ["voice_mgmt", "h90"]
+
+
+def test_internet_cannot_initiate_ping_to_inside_users():
+    policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
+    engine = PolicyEngine(policy_path)
+
+    assert engine.decide("hinternet", "h20_01")["action"] == "deny"
+    assert engine.decide_packet("hinternet", "h20_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+    assert engine.decide_packet("hcall", "h50_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+    assert engine.decide_packet("hinternet", "h70_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+
+
+def test_icmp_replies_from_allowed_services_are_permitted():
+    policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
+    engine = PolicyEngine(policy_path)
+
+    assert engine.decide_packet("hinternet", "h20_01", icmp_type=ICMP_ECHO_REPLY)["action"] == "allow"
+    assert engine.decide_packet("hcall", "h50_01", icmp_type=ICMP_ECHO_REPLY)["action"] == "allow"
+    assert engine.decide_packet("hsocial", "h20_01", icmp_type=ICMP_ECHO_REPLY)["action"] == "deny"

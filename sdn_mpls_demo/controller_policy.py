@@ -14,7 +14,7 @@ from typing import Any
 from os_ken.base import app_manager
 from os_ken.controller import ofp_event
 from os_ken.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
-from os_ken.lib.packet import ethernet, ether_types, ipv4, packet
+from os_ken.lib.packet import ethernet, ether_types, icmp, ipv4, packet
 from os_ken.ofproto import ofproto_v1_3
 
 try:
@@ -163,18 +163,18 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         if not it_network:
             return
 
-        destinations: list[tuple[str, str]] = [
+        internal_destinations: list[tuple[str, str]] = [
             (name, str(network))
             for name, network in self.policy.networks.items()
             if name != "it_support"
         ]
-        destinations.extend(
+        service_destinations: list[tuple[str, str]] = [
             (name, f"{service['ip']}/32")
             for name, service in self.policy.services.items()
             if "ip" in service
-        )
+        ]
 
-        for destination_name, destination_prefix in destinations:
+        for destination_name, destination_prefix in internal_destinations:
             destination_network = ipaddress.ip_network(destination_prefix)
             for source_network, target_network, source_label, target_label in (
                 (it_network, destination_network, "it_support", destination_name),
@@ -198,6 +198,27 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     },
                     idle_timeout=0,
                 )
+
+        for destination_name, destination_prefix in service_destinations:
+            destination_network = ipaddress.ip_network(destination_prefix)
+            match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_IP,
+                ipv4_src=(str(it_network.network_address), str(it_network.netmask)),
+                ipv4_dst=(str(destination_network.network_address), str(destination_network.netmask)),
+            )
+            self.add_flow(
+                datapath,
+                450,
+                match,
+                normal_actions,
+                {
+                    "action": "ALLOW",
+                    "source": "it_support",
+                    "destination": destination_name,
+                    "reason": "IT Support full access: IT được chủ động kiểm tra dịch vụ.",
+                },
+                idle_timeout=0,
+            )
 
     def install_voice_flows(self, datapath):
         """Cài ALLOW chủ động hai chiều cho Voice VLAN để ping/call ổn định."""
@@ -278,14 +299,20 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         out_port = self.mac_to_port[dpid].get(eth.dst, ofproto.OFPP_FLOOD)
         actions = [parser.OFPActionOutput(out_port)]
         ip_packet = pkt.get_protocol(ipv4.ipv4)
+        icmp_packet = pkt.get_protocol(icmp.icmp)
+        icmp_type = icmp_packet.type if icmp_packet else None
 
         if ip_packet:
-            decision = self.policy.decide_ip(ip_packet.src, ip_packet.dst)
-            match = parser.OFPMatch(
-                eth_type=ether_types.ETH_TYPE_IP,
-                ipv4_src=ip_packet.src,
-                ipv4_dst=ip_packet.dst,
-            )
+            decision = self.policy.decide_ip(ip_packet.src, ip_packet.dst, icmp_type=icmp_type)
+            match_fields = {
+                "eth_type": ether_types.ETH_TYPE_IP,
+                "ipv4_src": ip_packet.src,
+                "ipv4_dst": ip_packet.dst,
+            }
+            if icmp_type is not None:
+                match_fields["ip_proto"] = 1
+                match_fields["icmpv4_type"] = icmp_type
+            match = parser.OFPMatch(**match_fields)
             metadata = {
                 "action": decision["action"].upper(),
                 "source": ip_packet.src,
