@@ -85,18 +85,8 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     assert social["blocked_at"] == "fw_branch"
 
     intersite = policy_decision("h50_01", "h20_01")
-    assert intersite["action"] == "allow"
-    assert intersite["path"] == [
-        "telesale",
-        "access_branch",
-        "dist_branch",
-        "ce_branch",
-        "mpls_cloud",
-        "ce_hq",
-        "core_hq",
-        "access_hq_a",
-        "project_a",
-    ]
+    assert intersite["action"] == "deny"
+    assert intersite["blocked_at"] == "dist_branch"
 
     support = policy_decision("h70_01", "h20_01")
     assert support["action"] == "allow"
@@ -139,5 +129,9 @@ def test_cluster_detail_configuration_covers_main_groups():
     assert CLUSTER_SOURCES["telesale"][0] == "h50_01"
     assert "h90" in CLUSTER_ALLOW_TARGETS["project_a"]
     assert "hcall" in CLUSTER_ALLOW_TARGETS["telesale"]
+    assert "h50_01" not in CLUSTER_ALLOW_TARGETS["project_a"]
+    assert "h20_01" not in CLUSTER_ALLOW_TARGETS["telesale"]
     assert "h30_01" in CLUSTER_DENY_TARGETS["project_a"]
+    assert "h50_01" in CLUSTER_DENY_TARGETS["project_a"]
+    assert "h20_01" in CLUSTER_DENY_TARGETS["telesale"]
     assert CLUSTER_DENY_TARGETS["it_support"] == ()

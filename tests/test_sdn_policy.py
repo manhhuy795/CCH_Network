@@ -31,7 +31,9 @@ def test_real_sdn_policy_required_allow_deny_paths():
     assert engine.decide("h50_01", "hcall")["path"][-3:] == ["fw_branch", "internet", "hcall"]
     assert engine.decide("h20_01", "hsocial")["blocked_at"] == "fw_hq"
     assert engine.decide("h50_01", "hsocial")["blocked_at"] == "fw_branch"
-    assert "mpls_cloud" in engine.decide("h50_01", "h20_01")["path"]
+    intersite_user = engine.decide("h50_01", "h20_01")
+    assert intersite_user["action"] == "deny"
+    assert intersite_user["blocked_at"] == "dist_branch"
 
 
 def test_all_user_groups_can_reach_voice_service():

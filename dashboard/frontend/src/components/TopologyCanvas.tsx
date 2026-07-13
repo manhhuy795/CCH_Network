@@ -16,7 +16,7 @@ const positions: Record<string, [number, number]> = {
 const labels: Record<string, [string, string]> = {
   project_a: ["Dự án A", "20 user · VLAN 20"], project_b: ["Dự án B", "20 user · VLAN 30"],
   project_c: ["Dự án C", "20 user · VLAN 40"], it_support: ["Phòng IT", "4 user · VLAN 70"],
-  h90: ["Voice/PBX", "Cfono/Gphone"],
+  h90: ["Voice Cluster", "PBX/SBC/SIP-RTP"],
   access_hq_a: ["Access HQ-A", "Open vSwitch"], access_hq_b: ["Access HQ-B", "Open vSwitch"],
   access_hq_c: ["Access HQ-C", "Open vSwitch"], access_hq_it: ["Access HQ-IT", "Open vSwitch"],
   voice_mgmt: ["Voice Access", "Open vSwitch"],
@@ -37,9 +37,9 @@ const selectableNodes = ["project_a", "project_b", "project_c", "telesale", "bac
 const pingPolicy: Record<string, { title: string; allow: string[]; deny: string[]; note: string }> = {
   project_a: {
     title: "Dự án A / VLAN 20",
-    allow: ["h90", "hzalo", "hcall", "hinternet", "telesale"],
-    deny: ["project_b", "project_c", "backoffice", "hsocial"],
-    note: "Máy agent chạy Cfono/Gphone chỉ cần tới Voice/PBX, không mở ngang sang dự án khác.",
+    allow: ["h90", "hzalo", "hcall", "hinternet"],
+    deny: ["project_b", "project_c", "telesale", "backoffice", "hsocial"],
+    note: "Máy agent chạy Cfono/Gphone chỉ đi tới cụm PBX/SBC/SIP-RTP và Call App cần thiết, không mở ngang sang dự án khác.",
   },
   project_b: {
     title: "Dự án B / VLAN 30",
@@ -55,9 +55,9 @@ const pingPolicy: Record<string, { title: string; allow: string[]; deny: string[
   },
   telesale: {
     title: "Telesale / VLAN 50",
-    allow: ["h90", "hzalo", "hcall", "hinternet", "project_a"],
-    deny: ["backoffice", "project_b", "project_c", "hsocial"],
-    note: "Chỉ có rule liên site được kiểm soát tới Project A.",
+    allow: ["h90", "hzalo", "hcall", "hinternet"],
+    deny: ["project_a", "project_b", "project_c", "backoffice", "hsocial"],
+    note: "Không mở full access qua MPLS sang các project HQ; chỉ IT Support có quyền hỗ trợ user.",
   },
   backoffice: {
     title: "BackOffice / VLAN 60",
@@ -72,10 +72,10 @@ const pingPolicy: Record<string, { title: string; allow: string[]; deny: string[
     note: "IT được full access để hỗ trợ/remote, nhưng Internet bên ngoài vẫn không được chủ động ping vào IT.",
   },
   h90: {
-    title: "Voice/PBX cho Cfono/Gphone",
+    title: "Voice Cluster cho Cfono/Gphone",
     allow: ["project_a", "project_b", "project_c", "telesale", "backoffice", "it_support"],
     deny: ["hzalo", "hcall", "hsocial", "hinternet"],
-    note: "Đây là cụm PBX/SIP/RTP mô phỏng; không phải mở peer-to-peer giữa agent.",
+    note: "Đây là cụm PBX/SBC/SIP-RTP mô phỏng; không phải mở peer-to-peer giữa agent.",
   },
   hzalo: {
     title: "Zalo Simulator",

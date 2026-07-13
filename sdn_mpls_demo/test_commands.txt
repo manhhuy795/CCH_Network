@@ -21,7 +21,7 @@ h20_01 ping -c 2 hcall      # mong đợi: pass qua Firewall HQ
 h20_01 ping -c 2 hsocial    # mong đợi: fail tại Firewall HQ/SDN policy
 h50_01 ping -c 2 hcall      # mong đợi: pass qua Firewall Branch
 h50_01 ping -c 2 hsocial    # mong đợi: fail
-h50_01 ping -c 2 h20_01     # mong đợi: pass qua CE/MPLS/CE
+h50_01 ping -c 2 h20_01     # mong đợi: fail, chỉ IT được hỗ trợ user liên site
 h50_01 ping -c 2 h60_01     # mong đợi: fail
 h70_01 ping -c 2 h20_01     # mong đợi: pass, IT remote support Project A
 h70_01 ping -c 2 h50_01     # mong đợi: pass, IT remote support Branch qua MPLS

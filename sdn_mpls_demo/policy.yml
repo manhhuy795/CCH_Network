@@ -97,9 +97,12 @@ policies:
   steer_hq_internet_to: "fw_hq"
   steer_branch_internet_to: "fw_branch"
   intersite_via_mpls_l3vpn: true
-  intersite_allow:
-    - source_group: "telesale"
-      destination_group: "project_a"
+  intersite_allow: []
+  softphone_model:
+    note: "Cfono/Gphone/softphone la ung dung cai tren may agent; user VLAN chi duoc di toi cum PBX/SBC/SIP-RTP va Call App can thiet, khong mo ping ngang giua cac du an."
+    signaling_examples: ["SIP UDP/TCP 5060", "SIP TLS 5061"]
+    media_examples: ["RTP/RTCP UDP range theo PBX/SBC thuc te"]
+    production_warning: "Lab nay mo phong network policy, khong thay the kiem thu SIP registration, call setup, one-way audio, NAT/SBC va QoS tren he thong that."
 
 runtime:
   controller: "127.0.0.1:6653"

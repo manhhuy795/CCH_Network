@@ -207,7 +207,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <g id="project_b" class="node user" transform="translate(45 215)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án B</text><text class="sub" x="60" y="35">20 user · VLAN 30</text></g>
               <g id="project_c" class="node user" transform="translate(45 295)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án C</text><text class="sub" x="60" y="35">20 user · VLAN 40</text></g>
               <g id="it_support" class="node user" transform="translate(45 365)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Phòng IT</text><text class="sub" x="60" y="35">4 user · VLAN 70</text></g>
-              <g id="h90" class="node service" transform="translate(45 440)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice/PBX</text><text class="sub" x="60" y="35">Cfono/Gphone · h90</text></g>
+              <g id="h90" class="node service" transform="translate(45 440)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice Cluster</text><text class="sub" x="60" y="35">PBX/SBC/SIP-RTP</text></g>
               <g id="access_hq_a" class="node switch" transform="translate(225 137)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-A</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_b" class="node switch" transform="translate(225 217)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-B</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_c" class="node switch" transform="translate(225 297)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-C</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
@@ -286,7 +286,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
           <div id="result" class="result"><strong>Sẵn sàng đo kiểm</strong><p>Chọn nguồn, đích và một phép đo.</p></div>
           <div class="result">
             <strong>Test chi tiết theo cụm</strong>
-            <p>Chạy Voice/PBX, Call App, Internet và các case segmentation cho từng nhóm.</p>
+            <p>Chạy Voice Cluster, Call App, Internet và các case segmentation cho từng nhóm.</p>
             <div class="form" style="margin-top:8px">
               <label>Cụm<select id="cluster">
                 <option value="project_a">Dự án A</option>
@@ -345,17 +345,17 @@ const positions = {
 };
 const nodeNames = {
   project_a:'Dự án A', project_b:'Dự án B', project_c:'Dự án C', it_support:'Phòng IT',
-  telesale:'Telesale', backoffice:'BackOffice', h90:'Voice/PBX', hzalo:'Zalo',
+  telesale:'Telesale', backoffice:'BackOffice', h90:'Voice Cluster', hzalo:'Zalo',
   hcall:'Call App', hsocial:'Mạng xã hội', hinternet:'Internet ngoài'
 };
 const pingPolicies = {
-  project_a:{ title:'Dự án A / VLAN 20', allow:['h90','hzalo','hcall','hinternet','telesale'], deny:['project_b','project_c','backoffice','hsocial'], note:'Softphone chỉ cần tới Voice/PBX, không mở ngang sang dự án khác.' },
+  project_a:{ title:'Dự án A / VLAN 20', allow:['h90','hzalo','hcall','hinternet'], deny:['project_b','project_c','telesale','backoffice','hsocial'], note:'Softphone chỉ đi tới PBX/SBC/SIP-RTP và Call App cần thiết, không mở ngang sang dự án khác.' },
   project_b:{ title:'Dự án B / VLAN 30', allow:['h90','hzalo','hcall','hinternet'], deny:['project_a','project_c','telesale','backoffice','hsocial'], note:'Cách ly Project A/C; voice đi về PBX/SIP-RTP service.' },
   project_c:{ title:'Dự án C / VLAN 40', allow:['h90','hzalo','hcall','hinternet'], deny:['project_a','project_b','telesale','backoffice','hsocial'], note:'Không cho agent ping ngang nhau giữa dự án.' },
-  telesale:{ title:'Telesale / VLAN 50', allow:['h90','hzalo','hcall','hinternet','project_a'], deny:['backoffice','project_b','project_c','hsocial'], note:'Chỉ có rule liên site được kiểm soát tới Project A.' },
+  telesale:{ title:'Telesale / VLAN 50', allow:['h90','hzalo','hcall','hinternet'], deny:['project_a','project_b','project_c','backoffice','hsocial'], note:'Không mở full access qua MPLS sang các project HQ; chỉ IT Support có quyền hỗ trợ user.' },
   backoffice:{ title:'BackOffice / VLAN 60', allow:['h90','hzalo','hcall','hinternet'], deny:['telesale','project_a','project_b','project_c','hsocial'], note:'Không có full access sang HQ hoặc Telesale.' },
   it_support:{ title:'IT Support / VLAN 70', allow:['project_a','project_b','project_c','telesale','backoffice','h90','hzalo','hcall','hsocial','hinternet'], deny:[], note:'IT được full access để hỗ trợ/remote, Internet ngoài vẫn không được chủ động ping vào IT.' },
-  h90:{ title:'Voice/PBX cho Cfono/Gphone', allow:['project_a','project_b','project_c','telesale','backoffice','it_support'], deny:['hzalo','hcall','hsocial','hinternet'], note:'PBX/SIP/RTP mô phỏng, không phải mở peer-to-peer giữa agent.' },
+  h90:{ title:'Voice Cluster cho Cfono/Gphone', allow:['project_a','project_b','project_c','telesale','backoffice','it_support'], deny:['hzalo','hcall','hsocial','hinternet'], note:'PBX/SBC/SIP-RTP mô phỏng, không phải mở peer-to-peer giữa agent.' },
   hzalo:{ title:'Zalo Simulator', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'Service ngoài chỉ phản hồi phiên do user khởi tạo.' },
   hcall:{ title:'Call App / CRM', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'Ứng dụng ngoài không được chủ động mở kết nối vào máy agent.' },
   hsocial:{ title:'Mạng xã hội', allow:[], deny:['project_a','project_b','project_c','telesale','backoffice','it_support'], note:'User thường bị chặn Social; Social không được ping vào trong.' },

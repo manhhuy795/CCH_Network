@@ -40,19 +40,19 @@ CLUSTER_SOURCES = {
 }
 
 CLUSTER_ALLOW_TARGETS = {
-    "project_a": ("h90", "hzalo", "hcall", "hinternet", "h50_01"),
+    "project_a": ("h90", "hzalo", "hcall", "hinternet"),
     "project_b": ("h90", "hzalo", "hcall", "hinternet"),
     "project_c": ("h90", "hzalo", "hcall", "hinternet"),
-    "telesale": ("h90", "hzalo", "hcall", "hinternet", "h20_01"),
+    "telesale": ("h90", "hzalo", "hcall", "hinternet"),
     "backoffice": ("h90", "hzalo", "hcall", "hinternet"),
     "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hcall", "hsocial"),
 }
 
 CLUSTER_DENY_TARGETS = {
-    "project_a": ("h30_01", "h40_01", "h60_01", "hsocial"),
+    "project_a": ("h30_01", "h40_01", "h50_01", "h60_01", "hsocial"),
     "project_b": ("h20_01", "h40_01", "h50_01", "h60_01", "hsocial"),
     "project_c": ("h20_01", "h30_01", "h50_01", "h60_01", "hsocial"),
-    "telesale": ("h60_01", "h30_01", "h40_01", "hsocial"),
+    "telesale": ("h20_01", "h30_01", "h40_01", "h60_01", "hsocial"),
     "backoffice": ("h50_01", "h20_01", "h30_01", "h40_01", "hsocial"),
     "it_support": (),
 }
@@ -397,7 +397,7 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
     cases: list[dict[str, Any]] = []
 
     voice_payload = call_quality(source, "h90", seconds=seconds)
-    cases.append(_case_result("Chất lượng Cfono/Gphone tới Voice/PBX", "voice", "allow", voice_payload))
+    cases.append(_case_result("Softphone Cfono/Gphone -> PBX/SBC/SIP-RTP", "voice", "allow", voice_payload))
 
     if "hcall" in CLUSTER_ALLOW_TARGETS[cluster]:
         cases.append(_case_result("Call App/CRM TCP throughput", "application", "allow", iperf(source, "hcall", "tcp", seconds)))
@@ -432,9 +432,9 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
         "cases": cases,
         "verdict": verdict,
         "softphone_note": (
-            "Cfono/Gphone là softphone cài trên máy agent: cần kiểm tra PBX/SIP/RTP, "
-            "jitter, packet loss và MOS. Không dùng kết quả ping ngang giữa user để "
-            "kết luận voice hoạt động đúng."
+            "Cfono/Gphone là softphone cài trên máy agent: lab chỉ cho user VLAN đi tới "
+            "cụm PBX/SBC/SIP-RTP và Call App cần thiết. Không mở ping ngang giữa "
+            "Project/Telesale/BackOffice; chỉ IT Support được full access để hỗ trợ remote."
         ),
     }
 

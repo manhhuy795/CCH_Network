@@ -35,7 +35,13 @@ docs/                 Tài liệu kiến trúc
 | Phòng IT Support | 70 | 172.16.70.0/24 | 4 |
 | Telesale | 50 | 172.16.50.0/24 | 20 |
 | BackOffice | 60 | 172.16.60.0/24 | 20 |
-| Voice | 90 | 172.16.90.0/24 | Service |
+| Voice Cluster | 90 | 172.16.90.0/24 | PBX/SBC/SIP-RTP service simulation |
+
+> Lưu ý nghiêm túc về Cfono/Gphone/softphone: demo này kiểm tra segmentation,
+> reachability, jitter/loss/MOS mô phỏng và OpenFlow policy. Triển khai thật
+> phải thay `h90` bằng PBX/SBC/SIP trunk/Call App thật, khai báo port SIP/RTP,
+> NAT/firewall stateful, QoS và kiểm thử SIP registration/call setup/one-way audio.
+> Không mở ping ngang giữa Project/Telesale/BackOffice chỉ vì máy agent có cài softphone.
 
 Service Zalo/Call App/Social/Internet dùng `172.16.200.10` đến
 `172.16.203.10`.

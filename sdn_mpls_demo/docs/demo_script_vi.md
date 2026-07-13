@@ -44,11 +44,19 @@ Chọn `h50_01 → hsocial`: traffic bị chặn tại Firewall Branch.
 Chọn `h50_01 → h20_01`, bấm **Mô phỏng path**:
 
 ```text
-Telesale → Branch Access → Branch Distribution → CE Branch
-→ MPLS Cloud → CE HQ → HQ Core → Access HQ-A → Dự án A
+Telesale → Branch Access → Branch Distribution
 ```
 
-Nhấn mạnh rằng controller không nối control-plane tới CE/MPLS Cloud.
+Kết quả mong đợi là **deny** tại Branch Distribution. Telesale không được ping ngang sang Project A/B/C.
+
+Sau đó chọn `h70_01 → h50_01`, bấm **Mô phỏng path**:
+
+```text
+IT Support → Access HQ-IT → HQ Core → CE HQ
+→ MPLS Cloud → CE Branch → Branch Distribution → Branch Access → Telesale
+```
+
+Nhấn mạnh rằng chỉ IT Support có quyền hỗ trợ liên site; controller không nối control-plane tới CE/MPLS Cloud.
 
 ## 7. Flow table
 

@@ -178,7 +178,7 @@ isolationflows   # xem DROP flow priority 400 trên 8 OVS
 - Project/Telesale/BackOffice/IT ping được Voice `h90`.
 - User thường dùng được Zalo, Call App, Internet test.
 - User thường bị chặn Social Media.
-- Chỉ một số luồng liên site được cho phép theo policy.
+- Luồng liên site user-to-user mặc định bị chặn; IT Support là ngoại lệ quản trị.
 - IT Support được remote/support user và kiểm tra dịch vụ.
 - Internet/service bên ngoài không được chủ động ping vào user nội bộ.
 
