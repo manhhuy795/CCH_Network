@@ -1,7 +1,7 @@
 # SDN MPLS Demo - Call Center BPO
 
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 100 user thật trong Mininet, 5 service và 7 Open vSwitch
+24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 8 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
 
 ## Phạm vi đúng
@@ -18,8 +18,9 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 |---|---:|
 | User Dự án A/B/C | 60 |
 | User Telesale/BackOffice | 40 |
+| User Phòng IT Support | 10 |
 | Voice/Zalo/Call App/Social/Internet | 5 |
-| OVS được OS-Ken điều khiển | 7 |
+| OVS được OS-Ken điều khiển | 8 |
 
 Đường liên site:
 
@@ -94,7 +95,7 @@ Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
 
 ```text
 testpolicy       # chạy 8 ca ALLOW/DENY bằng ping thật
-isolationflows   # xem DROP flow priority 400 trên 7 OVS
+isolationflows   # xem DROP flow priority 400 trên 8 OVS
 ```
 
 ## Chạy lab lại sau khi đã cài xong
@@ -145,7 +146,7 @@ Kiểm tra nhanh segmentation bằng traffic thật:
 
 ```text
 testpolicy       # chạy 8 ca ALLOW/DENY
-isolationflows   # xem DROP flow priority 400 trên 7 OVS
+isolationflows   # xem DROP flow priority 400 trên 8 OVS
 ```
 
 Terminal 3, chạy backend:

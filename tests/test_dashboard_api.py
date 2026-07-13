@@ -19,8 +19,9 @@ def test_dashboard_api_topology_and_policy_endpoints():
 
     assert topology["nodes"]
     assert topology["links"]
-    assert len(topology["hosts"]) == 105
-    assert topology["summary"]["user_count"] == 100
+    assert len(topology["hosts"]) == 115
+    assert topology["summary"]["user_count"] == 110
+    assert topology["summary"]["controlled_ovs_count"] == 8
     assert policies["policies"]["block_social_media"] is True
 
 
@@ -50,6 +51,8 @@ def test_dashboard_serves_live_web_page():
     assert 'id="wan"' not in html
     assert "FIREWALL HQ TẠI BIÊN SITE" in html
     assert "FIREWALL BRANCH TẠI BIÊN SITE" in html
+    assert "Phòng IT" in html
+    assert 'id="link-it_support-access_hq_it"' in html
     assert "BẢO MẬT / INTERNET EDGE" not in html
 
 
@@ -85,6 +88,18 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
         "access_hq_a",
         "project_a",
     ]
+
+    support = policy_decision("h70_01", "h20_01")
+    assert support["action"] == "allow"
+    assert support["path"] == ["it_support", "access_hq_it", "core_hq", "access_hq_a", "project_a"]
+    assert "IT" in support["reason"]
+
+    support_branch = policy_decision("h70_01", "h50_01")
+    assert support_branch["action"] == "allow"
+    assert "mpls_cloud" in support_branch["path"]
+
+    support_social = policy_decision("h70_01", "hsocial")
+    assert support_social["action"] == "allow"
 
 
 def test_call_quality_score_uses_call_center_thresholds():

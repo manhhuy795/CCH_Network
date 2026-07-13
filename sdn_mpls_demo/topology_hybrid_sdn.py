@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Topology 100 user cho Hybrid MPLS L3VPN + SDN Edge Policy."""
+"""Topology 110 user cho Hybrid MPLS L3VPN + SDN Edge Policy."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ DPIDS = {
     "core_hq": "0000000000000005",
     "access_branch": "0000000000000006",
     "dist_branch": "0000000000000007",
+    "access_hq_it": "0000000000000008",
 }
 
 
@@ -50,6 +51,9 @@ POLICY_TESTS = (
     ("h50_01", "hcall", True, "Cho phép Call App qua Firewall Branch"),
     ("h20_01", "hsocial", False, "Chặn Social Media"),
     ("h50_01", "h20_01", True, "Cho phép liên site có kiểm soát"),
+    ("h70_01", "h20_01", True, "IT Support được remote user Project A"),
+    ("h70_01", "h50_01", True, "IT Support được remote user Branch qua MPLS"),
+    ("h70_01", "hsocial", True, "IT Support có quyền kiểm tra dịch vụ bị chặn với user thường"),
 )
 
 
@@ -144,7 +148,14 @@ def configure_routing(net, policy):
     configure_router_interface(
         ce_hq,
         "ce_hq-eth0",
-        ["172.16.20.1/24", "172.16.30.1/24", "172.16.40.1/24", "172.16.90.1/24", "10.255.20.1/30"],
+        [
+            "172.16.20.1/24",
+            "172.16.30.1/24",
+            "172.16.40.1/24",
+            "172.16.70.1/24",
+            "172.16.90.1/24",
+            "10.255.20.1/30",
+        ],
     )
     configure_router_interface(ce_hq, "ce_hq-eth1", ["10.255.10.1/29"])
     configure_router_interface(
@@ -161,12 +172,12 @@ def configure_routing(net, policy):
 
     for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
         add_route(ce_hq, prefix, "10.255.10.2")
-    for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.90.0/24"):
+    for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
         add_route(ce_branch, prefix, "10.255.10.1")
     add_route(ce_hq, "172.16.200.0/22", "10.255.20.2")
     add_route(ce_branch, "172.16.200.0/22", "10.255.21.2")
 
-    for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.90.0/24"):
+    for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
         add_route(fw_hq, prefix, "10.255.20.1")
     for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
         add_route(fw_branch, prefix, "10.255.21.1")
@@ -183,7 +194,7 @@ def configure_routing(net, policy):
         host.cmd(f"ip addr flush dev {interface}")
         host.cmd(f"ip addr add {service['ip']}/32 dev {interface}")
         host.cmd(f"ip addr add {transit_ip}/24 dev {interface}")
-        for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.90.0/24"):
+        for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
             add_route(host, prefix, "10.255.30.1")
         for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
             add_route(host, prefix, "10.255.30.2")
@@ -291,6 +302,15 @@ def build_topology():
         delay="1ms",
     )
     net.addLink(
+        switches["access_hq_it"],
+        switches["core_hq"],
+        intfName1="hqi-eth99",
+        intfName2="core-eth07",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
         switches["voice_mgmt"],
         switches["core_hq"],
         intfName1="voice-eth99",
@@ -363,10 +383,11 @@ def build_topology():
     start_service_simulators(net)
 
     info(f"*** Đã tạo {len(user_hosts)} user và 5 service.\n")
-    info("*** Controller chỉ quản lý 7 OVS; CE, Firewall và MPLS Cloud không dùng OpenFlow.\n")
+    info("*** Controller quản lý 8 OVS; CE, Firewall và MPLS Cloud không dùng OpenFlow.\n")
     info("*** Thử: h20_01 ping -c 2 h30_01 (bị chặn)\n")
     info("*** Thử: h20_01 ping -c 2 h90 (cho phép)\n")
     info("*** Thử: h50_01 ping -c 2 h20_01 (liên site qua MPLS logic)\n")
+    info("*** Thử: h70_01 ping -c 2 h20_01 (IT remote support được phép)\n")
     info("*** Chạy toàn bộ kiểm tra policy: testpolicy\n")
     info("*** Xem DROP flow chủ động: isolationflows\n")
     CallCenterCLI(net, policy)

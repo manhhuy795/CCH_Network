@@ -1,7 +1,7 @@
 export default function FlowTable({ flows }: { flows: Array<Record<string, unknown>> }) {
   return (
     <section>
-      <div className="section-title"><h2>Bảng flow OpenFlow</h2><span>{flows.length} flow đọc từ 7 OVS</span></div>
+      <div className="section-title"><h2>Bảng flow OpenFlow</h2><span>{flows.length} flow đọc từ 8 OVS</span></div>
       <div className="table-scroll">
         <table>
           <thead>

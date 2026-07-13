@@ -126,7 +126,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
   </section>
 
   <div class="stats">
-    <div class="stat"><strong id="hostCount">0/105</strong><span>Endpoint Mininet hoạt động</span></div>
+    <div class="stat"><strong id="hostCount">0/115</strong><span>Endpoint Mininet hoạt động</span></div>
     <div class="stat"><strong id="flowCount">0</strong><span>Luồng OpenFlow</span></div>
     <div class="stat"><strong id="rttValue">--</strong><span>RTT trung bình (ms)</span></div>
     <div class="stat"><strong id="jitterValue">--</strong><span>Jitter UDP (ms)</span></div>
@@ -157,11 +157,13 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <path id="link-project_a-access_hq_a" class="net-link" d="M165 160 L225 160"/>
               <path id="link-project_b-access_hq_b" class="net-link" d="M165 240 L225 240"/>
               <path id="link-project_c-access_hq_c" class="net-link" d="M165 320 L225 320"/>
-              <path id="link-h90-voice_mgmt" class="net-link" d="M165 420 L225 420"/>
+              <path id="link-it_support-access_hq_it" class="net-link" d="M165 390 L225 390"/>
+              <path id="link-h90-voice_mgmt" class="net-link" d="M165 465 L225 465"/>
               <path id="link-access_hq_a-core_hq" class="net-link" d="M365 160 L430 250"/>
               <path id="link-access_hq_b-core_hq" class="net-link" d="M365 240 L430 275"/>
               <path id="link-access_hq_c-core_hq" class="net-link" d="M365 320 L430 300"/>
-              <path id="link-voice_mgmt-core_hq" class="net-link" d="M365 420 L430 325"/>
+              <path id="link-access_hq_it-core_hq" class="net-link" d="M365 390 L430 315"/>
+              <path id="link-voice_mgmt-core_hq" class="net-link" d="M365 465 L430 325"/>
 
               <path id="link-telesale-access_branch" class="net-link" d="M165 635 L230 675"/>
               <path id="link-backoffice-access_branch" class="net-link" d="M165 760 L230 700"/>
@@ -187,16 +189,19 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <path id="link-c0-access_hq_a" class="net-link control" d="M900 140 L330 145"/>
               <path id="link-c0-access_hq_b" class="net-link control" d="M900 145 L340 225"/>
               <path id="link-c0-access_hq_c" class="net-link control" d="M910 155 L350 305"/>
+              <path id="link-c0-access_hq_it" class="net-link control" d="M920 162 L350 390"/>
               <path id="link-c0-access_branch" class="net-link control" d="M950 170 L335 655"/>
 
               <g id="project_a" class="node user" transform="translate(45 135)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án A</text><text class="sub" x="60" y="35">20 user · VLAN 20</text></g>
               <g id="project_b" class="node user" transform="translate(45 215)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án B</text><text class="sub" x="60" y="35">20 user · VLAN 30</text></g>
               <g id="project_c" class="node user" transform="translate(45 295)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án C</text><text class="sub" x="60" y="35">20 user · VLAN 40</text></g>
-              <g id="h90" class="node service" transform="translate(45 395)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice VLAN</text><text class="sub" x="60" y="35">h90 · VLAN 90 · .10</text></g>
+              <g id="it_support" class="node user" transform="translate(45 365)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Phòng IT</text><text class="sub" x="60" y="35">10 user · VLAN 70</text></g>
+              <g id="h90" class="node service" transform="translate(45 440)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice VLAN</text><text class="sub" x="60" y="35">h90 · VLAN 90 · .10</text></g>
               <g id="access_hq_a" class="node switch" transform="translate(225 137)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-A</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_b" class="node switch" transform="translate(225 217)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-B</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_c" class="node switch" transform="translate(225 297)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-C</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
-              <g id="voice_mgmt" class="node switch" transform="translate(225 397)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Voice Access</text><text class="sub" x="70" y="34">VLAN 90</text></g>
+              <g id="access_hq_it" class="node switch" transform="translate(225 367)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-IT</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
+              <g id="voice_mgmt" class="node switch" transform="translate(225 442)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Voice Access</text><text class="sub" x="70" y="34">VLAN 90</text></g>
               <g id="core_hq" class="node switch" transform="translate(430 250)"><rect width="120" height="75" rx="6"/><text x="60" y="29">HQ Core SDN</text><text class="sub" x="60" y="49">OVS · OpenFlow 1.3</text></g>
 
               <g id="telesale" class="node user" transform="translate(45 610)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Telesale</text><text class="sub" x="60" y="35">20 user · VLAN 50</text></g>
@@ -295,8 +300,8 @@ const pair = () => ({
   destination: document.getElementById('destination').value,
 });
 const positions = {
-  project_a:[105,160], project_b:[105,240], project_c:[105,320], h90:[105,420],
-  access_hq_a:[295,160], access_hq_b:[295,240], access_hq_c:[295,320], voice_mgmt:[295,420],
+  project_a:[105,160], project_b:[105,240], project_c:[105,320], it_support:[105,390], h90:[105,465],
+  access_hq_a:[295,160], access_hq_b:[295,240], access_hq_c:[295,320], access_hq_it:[295,390], voice_mgmt:[295,465],
   core_hq:[490,287], fw_hq:[660,360], fw_branch:[660,680],
   ce_hq:[870,385], mpls_cloud:[930,500], ce_branch:[870,615],
   telesale:[105,635], backoffice:[105,760], access_branch:[300,687], dist_branch:[490,687],
@@ -431,7 +436,7 @@ async function loadFlows() {
     <td><span class="badge ${flow.action === 'ALLOW' ? 'allow' : 'drop'}">${flow.action === 'ALLOW' ? 'CHO PHÉP' : flow.action}</span></td>
     <td>${flow.priority}</td><td>${flow.raw_match}</td><td>${flow.raw_action}</td>
     <td>${flow.packets}</td><td>${flow.bytes}</td><td>${flow.reason}</td></tr>`).join('')
-    : '<tr><td colspan="10">Chưa đọc được flow. Hãy kiểm tra 7 OVS và quyền chạy dashboard.</td></tr>';
+    : '<tr><td colspan="10">Chưa đọc được flow. Hãy kiểm tra 8 OVS và quyền chạy dashboard.</td></tr>';
   document.getElementById('flowCount').textContent = flows.length;
 }
 function runPing() { return execute('Kết quả Ping', () => post('/api/test/ping', pair())); }

@@ -21,6 +21,7 @@ CONTROLLED_SWITCHES = (
     "access_hq_a",
     "access_hq_b",
     "access_hq_c",
+    "access_hq_it",
     "voice_mgmt",
     "core_hq",
     "access_branch",
@@ -34,6 +35,7 @@ INFRA_NODES = [
     ("access_hq_a", "Access HQ-A", "switch"),
     ("access_hq_b", "Access HQ-B", "switch"),
     ("access_hq_c", "Access HQ-C", "switch"),
+    ("access_hq_it", "Access HQ-IT", "switch"),
     ("voice_mgmt", "Voice Access", "switch"),
     ("core_hq", "HQ Core SDN", "switch"),
     ("access_branch", "Branch Access", "switch"),
@@ -50,10 +52,12 @@ ARCHITECTURE_LINKS = [
     ("project_a", "access_hq_a", "data"),
     ("project_b", "access_hq_b", "data"),
     ("project_c", "access_hq_c", "data"),
+    ("it_support", "access_hq_it", "data"),
     ("h90", "voice_mgmt", "data"),
     ("access_hq_a", "core_hq", "data"),
     ("access_hq_b", "core_hq", "data"),
     ("access_hq_c", "core_hq", "data"),
+    ("access_hq_it", "core_hq", "data"),
     ("voice_mgmt", "core_hq", "data"),
     ("telesale", "access_branch", "data"),
     ("backoffice", "access_branch", "data"),
@@ -139,7 +143,11 @@ def topology_payload() -> dict[str, Any]:
         "hosts": hosts,
         "links": links,
         "metadata": ENGINE.data["metadata"],
-        "summary": {"user_count": 100, "service_count": 5, "controlled_ovs_count": 7},
+        "summary": {
+            "user_count": sum(int(group["count"]) for group in ENGINE.groups.values()),
+            "service_count": len(ENGINE.services),
+            "controlled_ovs_count": len(CONTROLLED_SWITCHES),
+        },
     }
 
 

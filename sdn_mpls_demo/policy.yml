@@ -32,6 +32,15 @@ host_groups:
     subnet: "172.16.40.0/24"
     first_host: 11
     switch: "access_hq_c"
+  it_support:
+    label: "Phòng IT Support"
+    vlan: 70
+    site: "HQ"
+    count: 10
+    prefix: "h70"
+    subnet: "172.16.70.0/24"
+    first_host: 11
+    switch: "access_hq_it"
   telesale:
     label: "Telesale"
     vlan: 50
@@ -83,6 +92,7 @@ policies:
   allow_call_app: true
   allow_general_internet: true
   block_social_media: true
+  allow_it_support_full_access: true
   voice_priority: true
   steer_hq_internet_to: "fw_hq"
   steer_branch_internet_to: "fw_branch"

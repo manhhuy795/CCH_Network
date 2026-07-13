@@ -4,7 +4,7 @@ Repository mô phỏng hệ thống mạng Call Center BPO hai site với hai ph
 
 1. **Network Automation**: source-of-truth YAML, Jinja2, validation, render,
    Ansible workflow, backup/deploy/rollback.
-2. **SDN runtime demo**: 100 user trong Mininet, Open vSwitch, OS-Ken
+2. **SDN runtime demo**: 110 user trong Mininet, Open vSwitch, OS-Ken
    Controller, OpenFlow 1.3 và dashboard đo kiểm trực tiếp.
 
 SDN không thay thế MPLS. MPLS L3VPN là WAN transport giữa HQ và Branch; SDN
@@ -18,7 +18,7 @@ templates/            Template cấu hình
 scripts/              Validate, generate, verify, deploy, backup
 generated_configs/    Cấu hình đã render
 sdn_demo/             Lab SDN nhỏ tương thích Ubuntu 22.04 (legacy)
-sdn_mpls_demo/        Lab OS-Ken + 100 user cho Ubuntu 24.04
+sdn_mpls_demo/        Lab OS-Ken + 110 user cho Ubuntu 24.04
 dashboard/backend/    FastAPI, WebSocket, Mininet/OVS client
 dashboard/frontend/   React + TypeScript
 tests/                Acceptance và unit test
@@ -32,6 +32,7 @@ docs/                 Tài liệu kiến trúc
 | Dự án A | 20 | 172.16.20.0/24 | 20 |
 | Dự án B | 30 | 172.16.30.0/24 | 20 |
 | Dự án C | 40 | 172.16.40.0/24 | 20 |
+| Phòng IT Support | 70 | 172.16.70.0/24 | 10 |
 | Telesale | 50 | 172.16.50.0/24 | 20 |
 | BackOffice | 60 | 172.16.60.0/24 | 20 |
 | Voice | 90 | 172.16.90.0/24 | Service |
@@ -101,9 +102,9 @@ sudo ./sdn_mpls_demo/run_topology.sh
 
 Topology tạo:
 
-- `h20_01` đến `h60_20`: 100 user thật.
+- `h20_01` đến `h60_20` và `h70_01` đến `h70_10`: 110 user thật.
 - `h90`, `hzalo`, `hcall`, `hsocial`, `hinternet`: 5 service.
-- 7 OVS do OS-Ken điều khiển.
+- 8 OVS do OS-Ken điều khiển.
 - CE, Firewall, MPLS Cloud không chịu sự điều khiển của controller.
 
 Đường liên site bắt buộc:
@@ -135,14 +136,15 @@ npm run dev -- --host 0.0.0.0
 
 Mở `http://<IP-Ubuntu-VM>:5173`.
 
-Dashboard hiển thị 5 nhóm user nhưng dropdown cho chọn từng user. Chức năng:
+Dashboard hiển thị 6 nhóm user, gồm phòng IT Support có quyền remote/support
+tới các user và service. Dropdown vẫn cho chọn từng user thật. Chức năng:
 
 - Ping thật và mô phỏng packet path.
 - Throughput TCP bằng iperf3.
 - Jitter/loss bằng iperf3 UDP.
 - RTT và packet loss bằng ping.
 - MOS/R-factor cho chất lượng Call Center.
-- Flow table từ 7 OVS.
+- Flow table từ 8 OVS.
 - Block/unblock OpenFlow tạm thời.
 - Link failure/reroute logic phục vụ demo.
 

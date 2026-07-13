@@ -119,9 +119,9 @@ export default function App() {
       </header>
 
       <div className="summary">
-        <div><strong>{online}/105</strong><span>Endpoint Mininet</span></div>
-        <div><strong>{topology?.summary.user_count ?? 100}</strong><span>User thật</span></div>
-        <div><strong>{topology?.summary.controlled_ovs_count ?? 7}</strong><span>OVS được điều khiển</span></div>
+        <div><strong>{online}/{(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}</strong><span>Endpoint Mininet</span></div>
+        <div><strong>{topology?.summary.user_count ?? 110}</strong><span>User thật</span></div>
+        <div><strong>{topology?.summary.controlled_ovs_count ?? 8}</strong><span>OVS được điều khiển</span></div>
         <div><strong>{flows.length}</strong><span>Flow OpenFlow</span></div>
       </div>
 

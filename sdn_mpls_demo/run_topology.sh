@@ -47,12 +47,13 @@ cleanup_stale_network() {
     voice-core core-voice br-dist dist-access core-ce mpls-hq mpls-br
     dist-ce core-fw inet-hq dist-fw inet-br
     hqa-eth99 core-eth01 hqb-eth99 core-eth02 hqc-eth99 core-eth03
+    hqi-eth99 core-eth07
     voice-eth99 core-eth04 br-eth99 dist-eth01 core-eth05
     mpls-eth01 mpls-eth02 dist-eth02 core-eth06 inet-eth01
     dist-eth03 inet-eth02
   )
   local bridges=(
-    access_hq_a access_hq_b access_hq_c voice_mgmt core_hq
+    access_hq_a access_hq_b access_hq_c access_hq_it voice_mgmt core_hq
     access_branch dist_branch mpls_cloud internet
   )
 
@@ -66,6 +67,11 @@ cleanup_stale_network() {
       sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
       sudo ip link delete "$interface" >/dev/null 2>&1 || true
     done
+  done
+  for index in $(seq -w 1 10); do
+    interface="h70-u${index}"
+    sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
+    sudo ip link delete "$interface" >/dev/null 2>&1 || true
   done
   sudo ip link delete voice-h90 >/dev/null 2>&1 || true
   sudo ip link delete voice-eth01 >/dev/null 2>&1 || true
@@ -150,6 +156,6 @@ echo "Dọn trạng thái Mininet cũ..."
 sudo mn -c >/dev/null 2>&1 || true
 cleanup_stale_network
 
-echo "Khởi động topology 100 user + 5 service..."
+echo "Khởi động topology 110 user + 5 service..."
 MININET_ATTEMPTED=1
 sudo python3 "$SCRIPT_DIR/topology_hybrid_sdn.py"

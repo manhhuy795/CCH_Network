@@ -36,6 +36,7 @@ DPID_NAMES = {
     5: "core_hq",
     6: "access_branch",
     7: "dist_branch",
+    8: "access_hq_it",
 }
 
 

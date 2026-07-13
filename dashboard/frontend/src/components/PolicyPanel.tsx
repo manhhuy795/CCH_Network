@@ -6,6 +6,7 @@ const labels: Record<string, string> = {
   allow_call_app: "Cho phép Call App / CRM",
   allow_general_internet: "Cho phép Internet chung",
   block_social_media: "Chặn mạng xã hội",
+  allow_it_support_full_access: "Phòng IT được quyền remote/support",
   voice_priority: "Ưu tiên lưu lượng thoại",
   intersite_via_mpls_l3vpn: "Liên site qua MPLS L3VPN",
 };

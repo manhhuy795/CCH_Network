@@ -63,7 +63,7 @@ WS   /ws/metrics
 
 ## Giới hạn
 
-- Mininet có 100 user thật nhưng sơ đồ gom thành 5 nhóm.
+- Mininet có 110 user thật nhưng sơ đồ gom thành 6 nhóm, gồm phòng IT Support.
 - MPLS Cloud là WAN transport mô phỏng, không phải MPLS provider-grade.
 - Controller không điều khiển CE, Firewall hoặc MPLS Cloud.
 - Link failure/reroute hiện là mô phỏng logic trên dashboard.

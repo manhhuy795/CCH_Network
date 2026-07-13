@@ -11,11 +11,13 @@ import yaml
 
 HQ_PROJECTS = {"project_a", "project_b", "project_c"}
 BRANCH_GROUPS = {"telesale", "backoffice"}
+IT_SUPPORT_GROUP = "it_support"
 
 GROUP_PATHS = {
     "project_a": ["project_a", "access_hq_a", "core_hq"],
     "project_b": ["project_b", "access_hq_b", "core_hq"],
     "project_c": ["project_c", "access_hq_c", "core_hq"],
+    "it_support": ["it_support", "access_hq_it", "core_hq"],
     "telesale": ["telesale", "access_branch", "dist_branch"],
     "backoffice": ["backoffice", "access_branch", "dist_branch"],
 }
@@ -104,6 +106,15 @@ class PolicyEngine:
             return self._result("deny", "Mặc định từ chối giữa các dịch vụ.", [], None)
 
         source_group = source["group"]
+        if self._is_it_support_flow(source_group, destination):
+            path = self._it_support_path(source_group, destination)
+            return self._result(
+                "allow",
+                "Phòng IT được phép truy cập/hỗ trợ remote tới user và dịch vụ theo chính sách quản trị.",
+                path,
+                None,
+            )
+
         if destination["kind"] == "service":
             return self._service_decision(source, destination)
 
@@ -208,6 +219,38 @@ class PolicyEngine:
                 "h90",
             ]
         return [*source_path, "voice_mgmt", "h90"]
+
+    def _is_it_support_flow(self, source_group, destination):
+        return bool(
+            self.policies.get("allow_it_support_full_access", False)
+            and (
+                source_group == IT_SUPPORT_GROUP
+                or (destination["kind"] == "user" and destination["group"] == IT_SUPPORT_GROUP)
+            )
+        )
+
+    def _it_support_path(self, source_group, destination):
+        if source_group == IT_SUPPORT_GROUP:
+            source_path = GROUP_PATHS[IT_SUPPORT_GROUP]
+            if destination["kind"] == "service":
+                if destination["name"] == "h90":
+                    return [*source_path, "voice_mgmt", "h90"]
+                return [*source_path, "fw_hq", "internet", destination["name"]]
+            destination_group = destination["group"]
+            if destination_group in BRANCH_GROUPS:
+                return [
+                    *source_path,
+                    "ce_hq",
+                    "mpls_cloud",
+                    "ce_branch",
+                    "dist_branch",
+                    GROUP_PATHS[destination_group][1],
+                    destination_group,
+                ]
+            return [*source_path, GROUP_PATHS[destination_group][1], destination_group]
+
+        # Chiều ngược lại dùng để phản hồi phiên remote/ping từ IT.
+        return list(reversed(self._it_support_path(IT_SUPPORT_GROUP, {"kind": "user", "group": source_group})))
 
     @staticmethod
     def _intersite_path(source_group, destination_group):

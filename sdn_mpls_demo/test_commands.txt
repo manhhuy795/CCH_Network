@@ -13,6 +13,9 @@ h50_01 ping -c 2 hcall      # mong đợi: pass qua Firewall Branch
 h50_01 ping -c 2 hsocial    # mong đợi: fail
 h50_01 ping -c 2 h20_01     # mong đợi: pass qua CE/MPLS/CE
 h50_01 ping -c 2 h60_01     # mong đợi: fail
+h70_01 ping -c 2 h20_01     # mong đợi: pass, IT remote support Project A
+h70_01 ping -c 2 h50_01     # mong đợi: pass, IT remote support Branch qua MPLS
+h70_01 ping -c 2 hsocial    # mong đợi: pass, IT có quyền kiểm tra dịch vụ
 
 # Kiểm tra flow thật
 sh ovs-ofctl -O OpenFlow13 dump-flows access_hq_a

@@ -26,6 +26,13 @@ vlans:
     gateway: 172.16.40.1
     approx_users: 20
     description: "Project C users"
+  - id: 70
+    name: IT_SUPPORT
+    site: hq
+    subnet: 172.16.70.0/24
+    gateway: 172.16.70.1
+    approx_users: 10
+    description: "IT support and remote assistance"
   - id: 90
     name: VOICE
     site: hq

@@ -44,7 +44,7 @@ Dashboard chỉ đo cặp endpoint đang chọn:
 - ping: RTT và packet loss.
 - iperf3 TCP: throughput.
 - iperf3 UDP: throughput, jitter và packet loss.
-- ovs-ofctl: flow/packet/byte counter trên 7 OVS.
+- ovs-ofctl: flow/packet/byte counter trên 8 OVS.
 
 Link failure/reroute trên dashboard hiện là mô phỏng logic phục vụ demo. Phiên
 bản này không cài fast-failover group hoặc giao thức định tuyến động.
