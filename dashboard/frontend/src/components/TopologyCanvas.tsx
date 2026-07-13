@@ -7,7 +7,7 @@ const positions: Record<string, [number, number]> = {
   access_hq_a: [270, 145], access_hq_b: [270, 225], access_hq_c: [270, 305], access_hq_it: [270, 385], voice_access: [270, 465],
   core_hq: [470, 305], c0: [800, 75],
   telesale: [90, 635], backoffice: [90, 735], access_branch: [270, 685], dist_branch: [470, 685],
-  fw_hq: [665, 475], fw_branch: [665, 745],
+  fw_hq: [665, 305], fw_branch: [665, 745],
   ce_hq: [800, 255], mpls_cloud: [900, 455], ce_branch: [800, 650],
   internet: [1085, 620],
   hzalo: [1260, 165], hcall: [1260, 315], hsocial: [1260, 555], hinternet: [1260, 725],
@@ -15,8 +15,8 @@ const positions: Record<string, [number, number]> = {
 };
 
 const routedLinks: Record<string, [number, number][]> = {
-  "core_hq-fw_hq": [[470, 305], [565, 305], [565, 475], [665, 475]],
-  "fw_hq-internet": [[665, 475], [900, 475], [900, 620], [1085, 620]],
+  "core_hq-fw_hq": [[470, 305], [665, 305]],
+  "fw_hq-internet": [[665, 305], [1040, 305], [1040, 620], [1085, 620]],
   "dist_branch-fw_branch": [[470, 685], [565, 685], [565, 745], [665, 745]],
   "fw_branch-internet": [[665, 745], [900, 745], [900, 620], [1085, 620]],
 };

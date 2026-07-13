@@ -33,9 +33,9 @@ p { color: #607084; line-height: 1.45; margin: 0; }
 .summary div { background: #fff; border: 1px solid #d9e1e8; border-radius: 7px; padding: 10px; }
 .summary strong { display: block; font-size: 20px; }
 .summary span { color: #68788a; font-size: 12px; }
+.operate-grid { display: grid; gap: 12px; grid-template-columns: minmax(760px, 1fr) 430px; }
 .dashboard-grid { display: grid; gap: 12px; grid-template-columns: minmax(680px, 1fr) 400px; }
-.overview-grid { grid-template-columns: minmax(760px, 1fr) 360px; }
-.dashboard-grid > *, .main-column { min-width: 0; }
+.operate-grid > *, .dashboard-grid > *, .main-column { min-width: 0; }
 .main-column, aside { display: grid; gap: 12px; align-content: start; }
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .tabs button.active { background: #172033; border-color: #172033; color: #fff; }
@@ -141,7 +141,7 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
 .chart-card span { color: #66768a; font-size: 12px; }
 .chart-card svg { display: block; height: 64px; width: 100%; }
 .chart-card polyline { fill: none; stroke: #0f5cc0; stroke-width: 2; }
-@media (max-width: 1120px) { .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1120px) { .operate-grid, .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
   main { padding: 8px; } header { align-items: flex-start; flex-direction: column; }
   .summary { grid-template-columns: 1fr 1fr; } .form-grid, .action-grid, .chart-grid, .flow-filters { grid-template-columns: 1fr; }

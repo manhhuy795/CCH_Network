@@ -11,10 +11,10 @@ import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
 
 type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
-type Tab = "overview" | "test" | "policy" | "logs";
+type Tab = "operate" | "policy" | "logs";
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("operate");
   const [topology, setTopology] = useState<Topology>();
   const [policies, setPolicies] = useState<Record<string, unknown>>({});
   const [flows, setFlows] = useState<Array<Record<string, unknown>>>([]);
@@ -84,6 +84,7 @@ export default function App() {
         const simulated = await api.post<Decision & { src: string; dst: string }>("/api/simulate/path", pair);
         payload = { ok: simulated.action === "allow", message: `Mô phỏng ${source} → ${destination}`, decision: simulated, raw: simulated.reason };
       } else payload = await api.post(action === "block" ? "/api/live/block" : "/api/live/unblock", pair);
+
       setResult(payload);
       if (payload.decision) {
         setDecision(payload.decision);
@@ -112,7 +113,7 @@ export default function App() {
   };
 
   const totalEndpoints = (topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5);
-  const tabs: Array<[Tab, string]> = [["overview", "Tổng quan"], ["test", "Đo kiểm mạng"], ["policy", "Chính sách & OpenFlow"], ["logs", "Nhật ký hệ thống"]];
+  const tabs: Array<[Tab, string]> = [["operate", "Vận hành"], ["policy", "Chính sách & OpenFlow"], ["logs", "Nhật ký"]];
 
   return (
     <main>
@@ -131,54 +132,44 @@ export default function App() {
       <div className="summary">
         <div><strong>{online}/{totalEndpoints}</strong><span>Endpoint Mininet</span></div>
         <div><strong>{topology?.summary.user_count ?? 110}</strong><span>User thật</span></div>
-        <div><strong>{topology?.summary.controlled_ovs_count ?? 8}</strong><span>OVS được điều khiển</span></div>
+        <div><strong>{flows.length}</strong><span>Flow OpenFlow</span></div>
         <div><strong>{websocketOnline ? "Online" : "Idle"}</strong><span>WebSocket</span></div>
       </div>
 
-      {tab === "overview" && (
-        <div className="dashboard-grid overview-grid">
+      {tab === "operate" && (
+        <div className="operate-grid">
           <div className="main-column">
             <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
               failedLinks={failedLinks} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
               onSource={setSource} onDestination={setDestination} />
           </div>
           <aside>
+            <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
+              busy={busy} result={result} onSource={setSource} onDestination={setDestination}
+              onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
+            <RealtimePanel source={source} destination={destination} onStatus={setWebsocketOnline} />
+            <MetricsPanel metrics={metrics} />
             <section>
               <div className="section-title"><h2>Trạng thái runtime</h2><span>Cập nhật từ API</span></div>
               <div className="metric-grid">
                 <div className="metric"><strong>{String(runtime.mnexec ?? false)}</strong><span>Mininet/mnexec</span></div>
                 <div className="metric"><strong>{String(runtime.ovs_bridge ?? false)}</strong><span>Open vSwitch</span></div>
-                <div className="metric"><strong>{flows.length}</strong><span>Flow OpenFlow</span></div>
-                <div className="metric"><strong>{new Date().toLocaleTimeString("vi-VN")}</strong><span>Cập nhật cuối</span></div>
               </div>
             </section>
-            <MetricsPanel metrics={metrics} />
-          </aside>
-        </div>
-      )}
-
-      {tab === "test" && (
-        <div className="dashboard-grid">
-          <div className="main-column">
-            <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
-              failedLinks={failedLinks} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
-              onSource={setSource} onDestination={setDestination} />
-            <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
-              busy={busy} result={result} onSource={setSource} onDestination={setDestination}
-              onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
-            <RealtimePanel source={source} destination={destination} onStatus={setWebsocketOnline} />
-          </div>
-          <aside>
-            <ClusterDetailPanel />
-            <MetricsPanel metrics={metrics} />
           </aside>
         </div>
       )}
 
       {tab === "policy" && (
-        <div className="main-column">
-          <PolicyPanel policies={policies} />
-          <FlowTable flows={flows} />
+        <div className="dashboard-grid">
+          <div className="main-column">
+            <PolicyPanel policies={policies} />
+            <FlowTable flows={flows} />
+          </div>
+          <aside>
+            <ClusterDetailPanel />
+            <MetricsPanel metrics={metrics} />
+          </aside>
         </div>
       )}
 
