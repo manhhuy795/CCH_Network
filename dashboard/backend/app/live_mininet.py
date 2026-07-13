@@ -11,24 +11,16 @@ from pathlib import Path
 from typing import Any
 
 from . import repo  # Đảm bảo repository root có trong sys.path.
+from scripts.network_model import architecture_links, controlled_switches, load_network_model
 from sdn_mpls_demo.policy_engine import GROUP_PATHS, PolicyEngine
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 POLICY_FILE = REPO_ROOT / "sdn_mpls_demo" / "policy.yml"
 RUNTIME_FLOWS_FILE = REPO_ROOT / "sdn_mpls_demo" / "runtime" / "installed_flows.json"
-CONTROLLED_SWITCHES = (
-    "access_hq_a",
-    "access_hq_b",
-    "access_hq_c",
-    "access_hq_it",
-    "voice_mgmt",
-    "core_hq",
-    "access_branch",
-    "dist_branch",
-)
-
+NETWORK_MODEL = load_network_model()
 ENGINE = PolicyEngine(POLICY_FILE)
+CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
 
 CLUSTER_SOURCES = {
     "project_a": ("h20_01", "Dự án A / VLAN 20"),
@@ -58,50 +50,19 @@ CLUSTER_DENY_TARGETS = {
 }
 
 INFRA_NODES = [
-    ("c0", "SDN Controller", "controller"),
-    ("access_hq_a", "Access HQ-A", "switch"),
-    ("access_hq_b", "Access HQ-B", "switch"),
-    ("access_hq_c", "Access HQ-C", "switch"),
-    ("access_hq_it", "Access HQ-IT", "switch"),
-    ("voice_mgmt", "Voice Access", "switch"),
-    ("core_hq", "HQ Core SDN", "switch"),
-    ("access_branch", "Branch Access", "switch"),
-    ("dist_branch", "Branch Distribution", "switch"),
-    ("ce_hq", "CE Router HQ", "router"),
-    ("mpls_cloud", "MPLS L3VPN Cloud", "wan"),
-    ("ce_branch", "CE Router Branch", "router"),
-    ("fw_hq", "Firewall HQ", "firewall"),
-    ("fw_branch", "Firewall Branch", "firewall"),
-    ("internet", "Internet Zone", "service_edge"),
+    ("c0", NETWORK_MODEL["infrastructure"]["c0"]["label"], "controller"),
+    *(
+        (name, switch["label"], "switch")
+        for name, switch in NETWORK_MODEL["switches"].items()
+    ),
+    *(
+        (name, node["label"], node["type"])
+        for name, node in NETWORK_MODEL["infrastructure"].items()
+        if name != "c0"
+    ),
 ]
 
-ARCHITECTURE_LINKS = [
-    ("project_a", "access_hq_a", "data"),
-    ("project_b", "access_hq_b", "data"),
-    ("project_c", "access_hq_c", "data"),
-    ("it_support", "access_hq_it", "data"),
-    ("h90", "voice_mgmt", "data"),
-    ("access_hq_a", "core_hq", "data"),
-    ("access_hq_b", "core_hq", "data"),
-    ("access_hq_c", "core_hq", "data"),
-    ("access_hq_it", "core_hq", "data"),
-    ("voice_mgmt", "core_hq", "data"),
-    ("telesale", "access_branch", "data"),
-    ("backoffice", "access_branch", "data"),
-    ("access_branch", "dist_branch", "data"),
-    ("core_hq", "ce_hq", "mpls"),
-    ("ce_hq", "mpls_cloud", "mpls"),
-    ("mpls_cloud", "ce_branch", "mpls"),
-    ("ce_branch", "dist_branch", "mpls"),
-    ("core_hq", "fw_hq", "data"),
-    ("fw_hq", "internet", "data"),
-    ("dist_branch", "fw_branch", "data"),
-    ("fw_branch", "internet", "data"),
-    ("internet", "hzalo", "data"),
-    ("internet", "hcall", "data"),
-    ("internet", "hsocial", "data"),
-    ("internet", "hinternet", "data"),
-]
+ARCHITECTURE_LINKS = architecture_links(NETWORK_MODEL)
 
 
 def now_iso() -> str:
@@ -126,7 +87,9 @@ def run_command(command: list[str], timeout: int = 20) -> tuple[bool, str]:
 def topology_payload() -> dict[str, Any]:
     nodes = []
     groups = []
+    hosts = sorted(ENGINE.hosts.values(), key=lambda item: (item["kind"] != "user", item["name"]))
     for name, group in ENGINE.groups.items():
+        group_hosts = [host for host in hosts if host.get("group") == name and host.get("kind") == "user"]
         item = {
             "id": name,
             "label": group["label"],
@@ -136,6 +99,7 @@ def topology_payload() -> dict[str, Any]:
             "count": int(group["count"]),
             "subnet": group["subnet"],
             "switch": group["switch"],
+            "hosts": group_hosts,
         }
         nodes.append(item)
         groups.append(item)
@@ -163,19 +127,55 @@ def topology_payload() -> dict[str, Any]:
         }
         for source, target, link_type in ARCHITECTURE_LINKS
     ]
-    hosts = sorted(ENGINE.hosts.values(), key=lambda item: (item["kind"] != "user", item["name"]))
     return {
         "nodes": nodes,
         "groups": groups,
         "hosts": hosts,
         "links": links,
         "metadata": ENGINE.data["metadata"],
+        "policy_map": policy_map_payload(),
         "summary": {
             "user_count": sum(int(group["count"]) for group in ENGINE.groups.values()),
             "service_count": len(ENGINE.services),
             "controlled_ovs_count": len(CONTROLLED_SWITCHES),
         },
     }
+
+
+def representative_endpoint(node_id: str) -> str:
+    if node_id in ENGINE.groups:
+        group = ENGINE.groups[node_id]
+        return f"{group['prefix']}_01"
+    return node_id
+
+
+def policy_map_payload() -> dict[str, Any]:
+    selectable = [*ENGINE.groups.keys(), *ENGINE.services.keys()]
+    names = {
+        **{name: group["label"] for name, group in ENGINE.groups.items()},
+        **{name: service["label"] for name, service in ENGINE.services.items()},
+    }
+    payload: dict[str, Any] = {}
+    for source_id in selectable:
+        source_endpoint = representative_endpoint(source_id)
+        allow: list[str] = []
+        deny: list[str] = []
+        notes: dict[str, str] = {}
+        for destination_id in selectable:
+            if destination_id == source_id:
+                continue
+            destination_endpoint = representative_endpoint(destination_id)
+            decision = policy_decision(source_endpoint, destination_endpoint)
+            target_list = allow if decision["action"] == "allow" else deny
+            target_list.append(destination_id)
+            notes[destination_id] = decision["reason"]
+        payload[source_id] = {
+            "title": names.get(source_id, source_id),
+            "allow": allow,
+            "deny": deny,
+            "notes": notes,
+        }
+    return payload
 
 
 def policy_payload() -> dict[str, Any]:
@@ -434,7 +434,7 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
         "softphone_note": (
             "Cfono/Gphone là softphone cài trên máy agent: lab chỉ cho user VLAN đi tới "
             "cụm PBX/SBC/SIP-RTP và Call App cần thiết. Không mở ping ngang giữa "
-            "Project/Telesale/BackOffice; chỉ IT Support được full access để hỗ trợ remote."
+            "Project/Telesale/BackOffice; chỉ IT Support có quyền remote/support có kiểm soát."
         ),
     }
 
@@ -515,6 +515,48 @@ def current_metrics() -> dict[str, Any]:
         "packets": sum(flow["packets"] for flow in payload["flows"]),
         "bytes": sum(flow["bytes"] for flow in payload["flows"]),
         "flows": payload["flows"],
+    }
+
+
+def pair_flow_bytes(source: str, destination: str) -> int:
+    payload = ovs_flows()
+    total = 0
+    for flow in payload["flows"]:
+        if (
+            (flow.get("source") == source and flow.get("destination") == destination)
+            or (flow.get("source") == destination and flow.get("destination") == source)
+        ):
+            total += int(flow.get("bytes") or 0)
+    return total
+
+
+def pair_realtime_metrics(
+    source: str,
+    destination: str,
+    previous_bytes: int | None = None,
+    previous_time: float | None = None,
+) -> dict[str, Any]:
+    timestamp = time.time()
+    ping_payload = ping(source, destination, count=2)
+    result = ping_payload.get("result", {})
+    byte_count = pair_flow_bytes(source, destination)
+    throughput_mbps = 0.0
+    if previous_bytes is not None and previous_time is not None and timestamp > previous_time:
+        delta_bytes = max(0, byte_count - previous_bytes)
+        throughput_mbps = round((delta_bytes * 8) / (timestamp - previous_time) / 1_000_000, 4)
+    return {
+        "timestamp": now_iso(),
+        "source": source,
+        "destination": destination,
+        "ok": bool(ping_payload.get("ok")),
+        "delay_ms": result.get("rtt_avg_ms"),
+        "packet_loss_percent": result.get("packet_loss_percent"),
+        "jitter_ms": result.get("jitter_ms"),
+        "throughput_mbps": throughput_mbps,
+        "byte_count": byte_count,
+        "previous_byte_count": previous_bytes,
+        "message": ping_payload.get("message"),
+        "decision": ping_payload.get("decision"),
     }
 
 

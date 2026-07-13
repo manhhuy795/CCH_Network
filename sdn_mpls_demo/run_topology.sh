@@ -10,21 +10,21 @@ CONTROLLER_STARTED=0
 MININET_ATTEMPTED=0
 LOCK_FILE="/tmp/cch-sdn-topology.lock"
 
-# Giữ file descriptor 9 trong suốt phiên Mininet. Một terminal thứ hai sẽ
-# dừng ngay tại đây, trước khi mn -c có thể phá topology đang hoạt động.
+# Giá»¯ file descriptor 9 trong suá»‘t phiĂªn Mininet. Má»™t terminal thá»© hai sáº½
+# dá»«ng ngay táº¡i Ä‘Ă¢y, trÆ°á»›c khi mn -c cĂ³ thá»ƒ phĂ¡ topology Ä‘ang hoáº¡t Ä‘á»™ng.
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
-  echo "Lỗi: topology CCH đang chạy ở một terminal khác."
-  echo "Không chạy run_topology.sh lần thứ hai."
-  echo "Terminal mới nên dùng để chạy dashboard:"
+  echo "Lá»—i: topology CCH Ä‘ang cháº¡y á»Ÿ má»™t terminal khĂ¡c."
+  echo "KhĂ´ng cháº¡y run_topology.sh láº§n thá»© hai."
+  echo "Terminal má»›i nĂªn dĂ¹ng Ä‘á»ƒ cháº¡y dashboard:"
   echo "  ./dashboard/run_live_dashboard.sh"
   exit 2
 fi
 
-# Hỗ trợ phát hiện một phiên cũ được chạy trước khi project có file lock.
+# Há»— trá»£ phĂ¡t hiá»‡n má»™t phiĂªn cÅ© Ä‘Æ°á»£c cháº¡y trÆ°á»›c khi project cĂ³ file lock.
 if pgrep -f "[t]opology_hybrid_sdn.py" >/dev/null 2>&1; then
-  echo "Lỗi: đã tìm thấy topology_hybrid_sdn.py đang chạy."
-  echo "Hãy quay lại terminal Mininet hiện tại hoặc thoát phiên cũ trước."
+  echo "Lá»—i: Ä‘Ă£ tĂ¬m tháº¥y topology_hybrid_sdn.py Ä‘ang cháº¡y."
+  echo "HĂ£y quay láº¡i terminal Mininet hiá»‡n táº¡i hoáº·c thoĂ¡t phiĂªn cÅ© trÆ°á»›c."
   exit 2
 fi
 
@@ -34,7 +34,7 @@ controller_is_listening() {
 
 stop_auto_controller() {
   if [[ "$CONTROLLER_STARTED" -eq 1 && -n "$CONTROLLER_PID" ]]; then
-    echo "Dừng OS-Ken Controller do script tự khởi động..."
+    echo "Dá»«ng OS-Ken Controller do script tá»± khá»Ÿi Ä‘á»™ng..."
     pkill -TERM -P "$CONTROLLER_PID" >/dev/null 2>&1 || true
     kill "$CONTROLLER_PID" >/dev/null 2>&1 || true
     wait "$CONTROLLER_PID" >/dev/null 2>&1 || true
@@ -53,7 +53,7 @@ cleanup_stale_network() {
     dist-eth03 inet-eth02
   )
   local bridges=(
-    access_hq_a access_hq_b access_hq_c access_hq_it voice_mgmt core_hq
+    access_hq_a access_hq_b access_hq_c access_hq_it voice_access core_hq
     access_branch dist_branch mpls_cloud internet
   )
 
@@ -91,16 +91,16 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT INT TERM
 
 if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-  echo "Lỗi: chưa có virtualenv OS-Ken tại $VENV_DIR"
-  echo "Hãy chạy: ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
+  echo "Lá»—i: chÆ°a cĂ³ virtualenv OS-Ken táº¡i $VENV_DIR"
+  echo "HĂ£y cháº¡y: ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
   exit 1
 fi
 
 if [[ ! -x "$VENV_DIR/bin/osken-manager" ]] || \
    ! "$VENV_DIR/bin/python" -c "import os_ken.cmd.manager" >/dev/null 2>&1; then
-  echo "Lỗi: virtualenv không có OS-Ken Controller CLI tương thích."
-  echo "OS-Ken 4.x đã xóa osken-manager; project sử dụng OS-Ken 3.1.1."
-  echo "Hãy chạy lại: ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
+  echo "Lá»—i: virtualenv khĂ´ng cĂ³ OS-Ken Controller CLI tÆ°Æ¡ng thĂ­ch."
+  echo "OS-Ken 4.x Ä‘Ă£ xĂ³a osken-manager; project sá»­ dá»¥ng OS-Ken 3.1.1."
+  echo "HĂ£y cháº¡y láº¡i: ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
   exit 1
 fi
 
@@ -114,9 +114,9 @@ else
 fi
 
 if controller_is_listening; then
-  echo "Đã thấy OpenFlow Controller lắng nghe tại 127.0.0.1:6653."
+  echo "ÄĂ£ tháº¥y OpenFlow Controller láº¯ng nghe táº¡i 127.0.0.1:6653."
 else
-  echo "Chưa có controller tại cổng 6653. Tự khởi động OS-Ken..."
+  echo "ChÆ°a cĂ³ controller táº¡i cá»•ng 6653. Tá»± khá»Ÿi Ä‘á»™ng OS-Ken..."
   : > "$CONTROLLER_LOG"
   if [[ "$(id -u)" -eq 0 && -n "${SUDO_USER:-}" ]]; then
     chown "$RUN_USER:$RUN_GROUP" "$CONTROLLER_LOG"
@@ -142,20 +142,20 @@ else
 
   if ! controller_is_listening; then
     echo
-    echo "Lỗi: OS-Ken không mở được cổng 6653."
+    echo "Lá»—i: OS-Ken khĂ´ng má»Ÿ Ä‘Æ°á»£c cá»•ng 6653."
     echo "Log controller: $CONTROLLER_LOG"
-    echo "---------------- 40 dòng log cuối ----------------"
+    echo "---------------- 40 dĂ²ng log cuá»‘i ----------------"
     tail -n 40 "$CONTROLLER_LOG" 2>/dev/null || true
     echo "---------------------------------------------------"
     exit 1
   fi
-  echo "OS-Ken đã sẵn sàng tại 127.0.0.1:6653."
+  echo "OS-Ken Ä‘Ă£ sáºµn sĂ ng táº¡i 127.0.0.1:6653."
 fi
 
-echo "Dọn trạng thái Mininet cũ..."
+echo "Dá»n tráº¡ng thĂ¡i Mininet cÅ©..."
 sudo mn -c >/dev/null 2>&1 || true
 cleanup_stale_network
 
-echo "Khởi động topology 104 user + 5 service..."
+echo "Khá»Ÿi Ä‘á»™ng topology 110 user + 5 service..."
 MININET_ATTEMPTED=1
 sudo python3 "$SCRIPT_DIR/topology_hybrid_sdn.py"

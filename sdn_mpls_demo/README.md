@@ -1,7 +1,7 @@
 # SDN MPLS Demo - Call Center BPO
 
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 104 user thật trong Mininet, 5 service và 8 Open vSwitch
+24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 8 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
 
 ## Phạm vi đúng
@@ -49,7 +49,7 @@ Vì vậy lab không hiểu "Voice" là mở ping ngang giữa các máy agent. 
 
 Nếu triển khai thật, cần thay `h90` bằng IP/FQDN PBX/SIP proxy/SBC và port thật của
 Cfono/Gphone, ví dụ SIP TLS, RTP media range, HTTPS API của Call App. Không nên mở
-full access giữa các VLAN user chỉ vì máy có cài softphone.
+quyền truy cập ngang giữa các VLAN user chỉ vì máy có cài softphone.
 
 ## Ubuntu VM mới - copy/paste từ đầu
 

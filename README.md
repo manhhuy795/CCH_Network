@@ -1,58 +1,235 @@
-# CCH Network - Hybrid MPLS L3VPN + SDN Edge Policy
+# Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO
 
-Repository mô phỏng hệ thống mạng Call Center BPO hai site với hai phần:
+Dự án gồm hai phần:
 
-1. **Network Automation**: source-of-truth YAML, Jinja2, validation, render,
-   Ansible workflow, backup/deploy/rollback.
-2. **SDN runtime demo**: 104 user trong Mininet, Open vSwitch, OS-Ken
-   Controller, OpenFlow 1.3 và dashboard đo kiểm trực tiếp.
+- **Network Automation**: dùng YAML, Jinja2, Python và Ansible để sinh, kiểm tra, backup/deploy/rollback cấu hình mạng.
+- **SDN runtime demo**: dùng Mininet, Open vSwitch, OS-Ken Controller và OpenFlow 1.3 để demo SDN Edge Policy cho Call Center BPO.
 
-SDN không thay thế MPLS. MPLS L3VPN là WAN transport giữa HQ và Branch; SDN
-Controller chỉ điều khiển OVS tại access/core/distribution ở hai đầu mạng.
+MPLS L3VPN trong module SDN là mô phỏng logic WAN transport, không phải MPLS provider-grade hoàn chỉnh. Firewall hiện là Linux router mô phỏng Internet Edge nếu chưa cấu hình nftables/iptables thật.
 
-## Cấu trúc
+## Source Of Truth
+
+Topology, VLAN, subnet, gateway, host inventory, service, switch mapping và link nằm tại:
 
 ```text
-vars/                 Source-of-truth Network Automation
-templates/            Template cấu hình
-scripts/              Validate, generate, verify, deploy, backup
-generated_configs/    Cấu hình đã render
-sdn_demo/             Lab SDN nhỏ tương thích Ubuntu 22.04 (legacy)
-sdn_mpls_demo/        Lab OS-Ken + 104 user cho Ubuntu 24.04
-dashboard/backend/    FastAPI, WebSocket, Mininet/OVS client
-dashboard/frontend/   React + TypeScript
-tests/                Acceptance và unit test
-docs/                 Tài liệu kiến trúc
+vars/network_model.yml
 ```
 
-## IP plan
+Policy chỉ chứa luật mạng tại:
 
-| Nhóm | VLAN | Subnet | User |
+```text
+sdn_mpls_demo/policy.yml
+```
+
+Luồng dữ liệu:
+
+```text
+vars/network_model.yml
+→ validation/test
+→ Mininet topology
+→ FastAPI backend
+→ React dashboard
+```
+
+## Mô Hình Mạng
+
+| Nhóm | VLAN | Subnet | Số user |
 |---|---:|---|---:|
 | Dự án A | 20 | 172.16.20.0/24 | 20 |
 | Dự án B | 30 | 172.16.30.0/24 | 20 |
 | Dự án C | 40 | 172.16.40.0/24 | 20 |
-| Phòng IT Support | 70 | 172.16.70.0/24 | 4 |
+| IT Support | 70 | 172.16.70.0/24 | 10 |
 | Telesale | 50 | 172.16.50.0/24 | 20 |
 | BackOffice | 60 | 172.16.60.0/24 | 20 |
-| Voice Cluster | 90 | 172.16.90.0/24 | PBX/SBC/SIP-RTP service simulation |
+| Voice Service | 90 | 172.16.90.10 | service |
 
-> Lưu ý nghiêm túc về Cfono/Gphone/softphone: demo này kiểm tra segmentation,
-> reachability, jitter/loss/MOS mô phỏng và OpenFlow policy. Triển khai thật
-> phải thay `h90` bằng PBX/SBC/SIP trunk/Call App thật, khai báo port SIP/RTP,
-> NAT/firewall stateful, QoS và kiểm thử SIP registration/call setup/one-way audio.
-> Không mở ping ngang giữa Project/Telesale/BackOffice chỉ vì máy agent có cài softphone.
+Tổng user thật trong Mininet: **110**.
 
-Service Zalo/Call App/Social/Internet dùng `172.16.200.10` đến
-`172.16.203.10`.
+Service mô phỏng:
 
-## Kiểm tra Network Automation
+- `h90`: Voice Service, `172.16.90.10`
+- `hzalo`: Zalo Service, `172.16.200.10`
+- `hcall`: Call App / CRM, `172.16.201.10`
+- `hsocial`: Social Media, `172.16.202.10`
+- `hinternet`: General Internet Test Service, `172.16.203.10`
+
+## Kiến Trúc
+
+Đường liên site bắt buộc:
+
+```text
+HQ Core SDN
+→ CE Router HQ
+→ MPLS L3VPN Cloud
+→ CE Router Branch
+→ Branch Distribution SDN
+```
+
+Internet HQ:
+
+```text
+HQ Core SDN → Firewall HQ → Internet Zone → Service
+```
+
+Internet Branch:
+
+```text
+Branch Distribution SDN → Firewall Branch → Internet Zone → Service
+```
+
+Controller chỉ điều khiển 8 Open vSwitch:
+
+- `access_hq_a`
+- `access_hq_b`
+- `access_hq_c`
+- `access_hq_it`
+- `voice_access`
+- `core_hq`
+- `access_branch`
+- `dist_branch`
+
+Controller không điều khiển CE Router, Firewall hoặc MPLS Cloud.
+
+## Policy
+
+- Project A/B/C bị cách ly tại `core_hq`.
+- VLAN 50 và VLAN 60 bị cách ly tại `dist_branch`.
+- Social Media bị drop tại SDN Edge: HQ drop ở `core_hq`, Branch drop ở `dist_branch`.
+- User thường được truy cập Voice, Zalo, Call App và General Internet nếu policy cho phép.
+- IT Support có quyền remote/support có kiểm soát theo policy.
+- Internet/service bên ngoài không được chủ động ping vào user nội bộ.
+
+Voice Flow Priority là nhận diện và áp dụng flow policy ưu tiên cho luồng voice. Đây chưa phải QoS hoàn chỉnh nếu chưa có DSCP, OVS Queue, HTB hoặc bandwidth guarantee.
+
+## Cài Đặt Ubuntu VM
+
+Ubuntu 24.04 được khuyến nghị cho module `sdn_mpls_demo`.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip nodejs npm mininet openvswitch-switch iperf3 curl
+git clone https://github.com/manhhuy795/CCH_Network.git
+cd CCH_Network
+chmod +x sdn_mpls_demo/*.sh scripts/*.sh
+./sdn_mpls_demo/setup_ubuntu_24_04.sh
+cd dashboard/frontend
+npm install
+cd ../..
+```
 
+## Chạy Nhanh
+
+Terminal 1:
+
+```bash
+cd ~/Downloads/CCH_Network
+sudo mn -c
+sudo ./sdn_mpls_demo/run_topology.sh
+```
+
+Terminal 2:
+
+```bash
+cd ~/Downloads/CCH_Network
+./scripts/start_demo.sh
+```
+
+Mở dashboard:
+
+```text
+http://localhost:5173
+```
+
+Nếu mở từ máy host:
+
+```text
+http://<IP_VM>:5173
+```
+
+## Chạy Thủ Công
+
+Controller:
+
+```bash
+./sdn_mpls_demo/run_controller.sh
+```
+
+Topology:
+
+```bash
+sudo ./sdn_mpls_demo/run_topology.sh
+```
+
+Backend:
+
+```bash
+python3 -m uvicorn dashboard.backend.app.main:app --host 0.0.0.0 --port 8000
+```
+
+Frontend:
+
+```bash
+cd dashboard/frontend
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+## Dashboard
+
+React Dashboard là giao diện chính, gồm 4 tab:
+
+- **Tổng quan**: sơ đồ mạng, trạng thái OS-Ken/Mininet/OVS, số user, số switch, số flow, WebSocket.
+- **Đo kiểm mạng**: Ping, Throughput TCP, Jitter UDP, chất lượng thoại, real-time metrics.
+- **Chính sách & OpenFlow**: policy đang bật, bảng flow dễ đọc, chặn/gỡ chặn thủ công, chi tiết OpenFlow.
+- **Nhật ký hệ thống**: sự kiện thao tác, allow/deny, cảnh báo.
+
+Real-time metrics:
+
+- Throughput Mbps từ delta OpenFlow byte counter.
+- Delay từ ping định kỳ.
+- Packet Loss từ ping.
+- Jitter từ ping/UDP probe trong phép đo chủ động.
+- Iperf3 chỉ dùng cho đo throughput chủ động, không chạy liên tục mỗi 1-2 giây.
+
+## Test Trong Mininet
+
+Trong prompt `mininet>`:
+
+```text
+testpolicy
+isolationflows
+h20_01 ping -c 2 h30_01
+h20_01 ping -c 2 hcall
+h20_01 ping -c 2 hsocial
+h50_01 ping -c 2 hcall
+h50_01 ping -c 2 hsocial
+h70_01 ping -c 2 h20_01
+hinternet ping -c 2 h20_01
+```
+
+Kỳ vọng:
+
+- `h20_01 → h30_01`: fail tại `core_hq`.
+- `h20_01 → hcall`: pass qua `fw_hq`.
+- `h20_01 → hsocial`: fail tại `core_hq`.
+- `h50_01 → hcall`: pass qua `fw_branch`.
+- `h50_01 → hsocial`: fail tại `dist_branch`.
+- `h70_01 → h20_01`: pass theo policy IT Support.
+- `hinternet → h20_01`: fail inbound từ Internet.
+
+## Health Check Và Cleanup
+
+```bash
+./scripts/check_demo_health.sh
+./scripts/stop_demo.sh
+./sdn_mpls_demo/cleanup.sh
+sudo mn -c
+```
+
+## Network Automation
+
+Các lệnh offline vẫn giữ nguyên:
+
+```bash
 python scripts/validate_vars.py
 python scripts/generate_configs.py
 python scripts/verify_network.py
@@ -60,109 +237,17 @@ python scripts/generate_sdn_policies.py
 pytest
 ```
 
-`vars/sdn.yml` và `generate_sdn_policies.py` là lớp sinh intent ở mức
-automation. Generic REST intent không được xem là controller OpenFlow thật.
+## Lỗi Thường Gặp
 
-## Ubuntu VM mới - copy/paste từ đầu
+- Không thấy controller port 6653: chạy `./sdn_mpls_demo/run_controller.sh` hoặc `./scripts/start_demo.sh`.
+- Không ping được dù policy allow: kiểm tra `sdn_mpls_demo/runtime/controller.log`, `testpolicy`, `isolationflows`.
+- Dashboard không kết nối WebSocket: kiểm tra backend port 8000 và URL API trong frontend.
+- Không chạy được Mininet: chạy `sudo mn -c` rồi khởi động lại topology.
 
-Dùng Ubuntu 24.04 LTS. Nếu vừa tạo máy ảo mới, mở Terminal 1 và chạy nguyên
-block này:
+## Giới Hạn Mô Phỏng
 
-```bash
-cd ~/Downloads
-
-sudo apt update
-sudo apt install -y \
-  git mininet openvswitch-switch iperf3 \
-  python3 python3-venv python3-pip python3-dev \
-  build-essential curl jq iproute2 procps util-linux \
-  nodejs npm
-sudo systemctl enable --now openvswitch-switch
-
-if [ ! -d CCH_Network ]; then
-  git clone https://github.com/manhhuy795/CCH_Network.git
-fi
-
-cd ~/Downloads/CCH_Network
-git pull
-chmod +x sdn_mpls_demo/*.sh
-./sdn_mpls_demo/setup_ubuntu_24_04.sh
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Giữ Terminal 1 ở màn hình `mininet>`. Không chạy `run_topology.sh` lần thứ hai
-ở terminal khác.
-
-## Terminal 1 - chạy lại SDN runtime demo
-
-Script tự khởi động OS-Ken và chờ cổng `6653` trước khi tạo Mininet. Có thể
-chạy thủ công ở hai terminal khi cần xem log controller trực tiếp:
-
-```bash
-# Terminal 1
-./sdn_mpls_demo/run_controller.sh
-
-# Terminal 2
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Topology tạo:
-
-- `h20_01` đến `h60_20` và `h70_01` đến `h70_04`: 104 user thật.
-- `h90`, `hzalo`, `hcall`, `hsocial`, `hinternet`: 5 service.
-- 8 OVS do OS-Ken điều khiển.
-- CE, Firewall, MPLS Cloud không chịu sự điều khiển của controller.
-
-Đường liên site bắt buộc:
-
-```text
-Branch Distribution → CE Router Branch → MPLS L3VPN Cloud
-→ CE Router HQ → HQ Core SDN
-```
-
-## Chạy dashboard
-
-Terminal 3:
-
-```bash
-./dashboard/run_live_dashboard.sh
-```
-
-Terminal 4:
-
-```bash
-cd dashboard/frontend
-npm install
-npm run dev -- --host 0.0.0.0
-```
-
-Mở nhanh trang tích hợp tại `http://<IP-Ubuntu-VM>:8000`. Nếu chạy React thì
-mở `http://<IP-Ubuntu-VM>:5173`.
-
-Dashboard hiển thị 6 nhóm user, gồm phòng IT Support có quyền remote/support
-tới các user và service. Dropdown vẫn cho chọn từng user thật. Chức năng:
-
-- Ping thật và mô phỏng packet path.
-- Throughput TCP bằng iperf3.
-- Jitter/loss bằng iperf3 UDP.
-- RTT và packet loss bằng ping.
-- MOS/R-factor cho chất lượng Call Center.
-- Flow table từ 8 OVS.
-- Block/unblock OpenFlow tạm thời.
-- Link failure/reroute logic phục vụ demo.
-
-## Cleanup
-
-```bash
-./sdn_mpls_demo/cleanup.sh
-```
-
-## Tài liệu
-
-- `docs/assets/sdn_mpls_topology_it_support.png`: ảnh sơ đồ mạng để chèn vào báo cáo.
-- `docs/assets/sdn_mpls_topology_it_support.svg`: bản vector không vỡ nét.
-- `docs/sdn_design.md`
-- `sdn_mpls_demo/README.md`
-- `sdn_mpls_demo/docs/sdn_design_vi.md`
-- `sdn_mpls_demo/docs/demo_script_vi.md`
-- `dashboard/README.md`
+- MPLS Cloud chỉ là WAN transport logic.
+- Firewall chỉ mô phỏng Internet Edge nếu chưa có iptables/nftables thật.
+- Voice Flow Priority chưa phải QoS hoàn chỉnh.
+- Softphone như Cfono/Gphone cần kiểm thử thật thêm SIP registration, call setup, RTP media, one-way audio, NAT/SBC và QoS.
+- Lab không mở ping ngang giữa Project/Telesale/BackOffice chỉ vì máy agent có cài softphone.

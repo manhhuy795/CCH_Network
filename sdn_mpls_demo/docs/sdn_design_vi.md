@@ -16,7 +16,7 @@ allow/drop rồi gửi Flow-Mod xuống OVS.
 Controller điều khiển:
 
 - `access_hq_a`, `access_hq_b`, `access_hq_c`
-- `voice_mgmt`, `core_hq`
+- `voice_access`, `core_hq`
 - `access_branch`, `dist_branch`
 
 Controller không điều khiển:

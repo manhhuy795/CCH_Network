@@ -5,7 +5,7 @@
 “Đây là mô hình Hybrid MPLS L3VPN + SDN Edge Policy. MPLS vận chuyển traffic
 giữa hai site; OS-Ken chỉ điều khiển các Open vSwitch ở hai đầu mạng.”
 
-## 2. Kiểm tra 104 user
+## 2. Kiểm tra 110 user
 
 Tại Mininet:
 

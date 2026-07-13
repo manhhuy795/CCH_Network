@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from .live_mininet import cluster_detail_test, current_metrics, live_status, ovs_flows, policy_decision, temporary_block
+from .live_mininet import cluster_detail_test, current_metrics, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
@@ -36,6 +36,11 @@ def api_flows(request: Request):
 @router.get("/metrics/current")
 def api_metrics_current(request: Request):
     return current_metrics()
+
+
+@router.post("/metrics/pair")
+def api_metrics_pair(payload: HostPair):
+    return pair_realtime_metrics(payload.source, payload.destination)
 
 
 @router.get("/live/status")

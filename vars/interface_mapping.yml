@@ -11,7 +11,7 @@ interfaces:
         description: "TRUNK to hq-access-c"
         allowed_vlans: [10, 40, 90]
       - name: GigabitEthernet1/0/4
-        description: "TRUNK to hq-voice-mgmt"
+        description: "TRUNK to hq-voice-access"
         allowed_vlans: [10, 90]
     routed:
       - name: GigabitEthernet1/0/47
@@ -47,7 +47,7 @@ interfaces:
       name: GigabitEthernet1/0/49
       description: "TRUNK to hq-core-l3"
       allowed_vlans: [10, 40, 90]
-  hq-voice-mgmt:
+  hq-voice-access:
     access_ports:
       - range: GigabitEthernet1/0/1-12
         description: "Management device ports"

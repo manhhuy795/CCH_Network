@@ -16,7 +16,7 @@ Controller và không chứng minh dataplane đã được lập trình.
 - OS-Ken Controller.
 - OpenFlow 1.3.
 - 7 Open vSwitch.
-- 104 user + 5 service trong Mininet.
+- 110 user + 5 service trong Mininet.
 - Flow allow/drop được cài và đọc lại bằng `ovs-ofctl`.
 
 ## Quan hệ với MPLS

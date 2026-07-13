@@ -6,12 +6,15 @@ import EventLog, { type LogEntry } from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
 import PolicyPanel from "./components/PolicyPanel";
+import RealtimePanel from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
 
 type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
+type Tab = "overview" | "test" | "policy" | "logs";
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>("overview");
   const [topology, setTopology] = useState<Topology>();
   const [policies, setPolicies] = useState<Record<string, unknown>>({});
   const [flows, setFlows] = useState<Array<Record<string, unknown>>>([]);
@@ -26,13 +29,15 @@ export default function App() {
   const [events, setEvents] = useState<LogEntry[]>([]);
   const [failedLinks, setFailedLinks] = useState<string[]>([]);
   const [online, setOnline] = useState(0);
+  const [runtime, setRuntime] = useState<Record<string, unknown>>({});
+  const [websocketOnline, setWebsocketOnline] = useState(false);
   const timer = useRef<number>();
 
   const addEvent = (message: string, kind: LogEntry["kind"] = "info") => {
     setEvents((current) => [
       { time: new Date().toLocaleTimeString("vi-VN"), message, kind },
       ...current,
-    ].slice(0, 30));
+    ].slice(0, 60));
   };
 
   const refresh = async () => {
@@ -43,6 +48,7 @@ export default function App() {
       setTopology(topologyData);
       setPolicies(policyData);
       setFlows(flowData.flows);
+      setRuntime(status);
       const hosts = (status.hosts || {}) as Record<string, boolean>;
       setOnline(Object.values(hosts).filter(Boolean).length);
     } catch (error) {
@@ -72,16 +78,12 @@ export default function App() {
       const pair = { source, destination };
       let payload: TestResult;
       if (action === "ping") payload = await api.post("/api/test/ping", pair);
-      else if (action === "tcp" || action === "udp") {
-        payload = await api.post("/api/test/iperf", { ...pair, protocol: action, seconds });
-      } else if (action === "quality") {
-        payload = await api.post("/api/test/call-quality", { ...pair, protocol: "udp", seconds });
-      } else if (action === "simulate") {
+      else if (action === "tcp" || action === "udp") payload = await api.post("/api/test/iperf", { ...pair, protocol: action, seconds });
+      else if (action === "quality") payload = await api.post("/api/test/call-quality", { ...pair, protocol: "udp", seconds });
+      else if (action === "simulate") {
         const simulated = await api.post<Decision & { src: string; dst: string }>("/api/simulate/path", pair);
         payload = { ok: simulated.action === "allow", message: `Mô phỏng ${source} → ${destination}`, decision: simulated, raw: simulated.reason };
-      } else {
-        payload = await api.post(action === "block" ? "/api/live/block" : "/api/live/unblock", pair);
-      }
+      } else payload = await api.post(action === "block" ? "/api/live/block" : "/api/live/unblock", pair);
       setResult(payload);
       if (payload.decision) {
         setDecision(payload.decision);
@@ -109,39 +111,75 @@ export default function App() {
     addEvent(payload.message, fail ? "deny" : "allow");
   };
 
+  const totalEndpoints = (topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5);
+  const tabs: Array<[Tab, string]> = [["overview", "Tổng quan"], ["test", "Đo kiểm mạng"], ["policy", "Chính sách & OpenFlow"], ["logs", "Nhật ký hệ thống"]];
+
   return (
     <main>
       <header>
         <div>
-          <h1>Giám sát Hybrid MPLS L3VPN + SDN Call Center CCH</h1>
-          <p>SDN điều khiển OVS tại edge; MPLS L3VPN vận chuyển traffic giữa HQ và Branch.</p>
+          <h1>Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO</h1>
+          <p>OS-Ken điều khiển Open vSwitch tại SDN Edge; MPLS L3VPN chỉ là WAN transport giữa HQ và Branch.</p>
         </div>
         <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
       </header>
 
-      <div className="summary">
-        <div><strong>{online}/{(topology?.summary.user_count ?? 104) + (topology?.summary.service_count ?? 5)}</strong><span>Endpoint Mininet</span></div>
-        <div><strong>{topology?.summary.user_count ?? 104}</strong><span>User thật</span></div>
-        <div><strong>{topology?.summary.controlled_ovs_count ?? 8}</strong><span>OVS được điều khiển</span></div>
-        <div><strong>{flows.length}</strong><span>Flow OpenFlow</span></div>
+      <div className="tabs">
+        {tabs.map(([key, label]) => <button className={tab === key ? "active" : ""} onClick={() => setTab(key)} key={key}>{label}</button>)}
       </div>
 
-      <div className="dashboard-grid">
+      <div className="summary">
+        <div><strong>{online}/{totalEndpoints}</strong><span>Endpoint Mininet</span></div>
+        <div><strong>{topology?.summary.user_count ?? 110}</strong><span>User thật</span></div>
+        <div><strong>{topology?.summary.controlled_ovs_count ?? 8}</strong><span>OVS được điều khiển</span></div>
+        <div><strong>{websocketOnline ? "Online" : "Idle"}</strong><span>WebSocket</span></div>
+      </div>
+
+      {tab === "overview" && (
+        <div className="dashboard-grid overview-grid">
+          <div className="main-column">
+            <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
+              failedLinks={failedLinks} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
+              onSource={setSource} onDestination={setDestination} />
+          </div>
+          <aside>
+            <section>
+              <div className="section-title"><h2>Trạng thái runtime</h2><span>Cập nhật từ API</span></div>
+              <div className="metric-grid">
+                <div className="metric"><strong>{String(runtime.mnexec ?? false)}</strong><span>Mininet/mnexec</span></div>
+                <div className="metric"><strong>{String(runtime.ovs_bridge ?? false)}</strong><span>Open vSwitch</span></div>
+                <div className="metric"><strong>{flows.length}</strong><span>Flow OpenFlow</span></div>
+                <div className="metric"><strong>{new Date().toLocaleTimeString("vi-VN")}</strong><span>Cập nhật cuối</span></div>
+              </div>
+            </section>
+            <MetricsPanel metrics={metrics} />
+          </aside>
+        </div>
+      )}
+
+      {tab === "test" && (
+        <div className="dashboard-grid">
+          <div className="main-column">
+            <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
+              busy={busy} result={result} onSource={setSource} onDestination={setDestination}
+              onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
+            <RealtimePanel source={source} destination={destination} onStatus={setWebsocketOnline} />
+          </div>
+          <aside>
+            <ClusterDetailPanel />
+            <MetricsPanel metrics={metrics} />
+          </aside>
+        </div>
+      )}
+
+      {tab === "policy" && (
         <div className="main-column">
-          <TopologyCanvas links={topology?.links || []} decision={decision} activeIndex={activeIndex}
-            failedLinks={failedLinks} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)} />
+          <PolicyPanel policies={policies} />
           <FlowTable flows={flows} />
         </div>
-        <aside>
-          <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
-            busy={busy} result={result} onSource={setSource} onDestination={setDestination}
-            onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
-          <ClusterDetailPanel />
-          <MetricsPanel metrics={metrics} />
-          <PolicyPanel policies={policies} />
-          <EventLog entries={events} />
-        </aside>
-      </div>
+      )}
+
+      {tab === "logs" && <EventLog entries={events} />}
     </main>
   );
 }

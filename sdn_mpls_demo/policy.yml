@@ -1,88 +1,7 @@
 metadata:
-  name: "hybrid-mpls-sdn-callcenter"
-  description: "Chính sách SDN Edge cho Call Center BPO"
-  openflow_version: "1.3"
+  name: "sdn-edge-policy-callcenter-bpo"
+  description: "Luat SDN Edge Policy cho Call Center BPO; topology lay tu vars/network_model.yml."
   default_action: "deny"
-
-host_groups:
-  project_a:
-    label: "Dự án A"
-    vlan: 20
-    site: "HQ"
-    count: 20
-    prefix: "h20"
-    subnet: "172.16.20.0/24"
-    first_host: 11
-    switch: "access_hq_a"
-  project_b:
-    label: "Dự án B"
-    vlan: 30
-    site: "HQ"
-    count: 20
-    prefix: "h30"
-    subnet: "172.16.30.0/24"
-    first_host: 11
-    switch: "access_hq_b"
-  project_c:
-    label: "Dự án C"
-    vlan: 40
-    site: "HQ"
-    count: 20
-    prefix: "h40"
-    subnet: "172.16.40.0/24"
-    first_host: 11
-    switch: "access_hq_c"
-  it_support:
-    label: "Phòng IT Support"
-    vlan: 70
-    site: "HQ"
-    count: 4
-    prefix: "h70"
-    subnet: "172.16.70.0/24"
-    first_host: 11
-    switch: "access_hq_it"
-  telesale:
-    label: "Telesale"
-    vlan: 50
-    site: "Branch"
-    count: 20
-    prefix: "h50"
-    subnet: "172.16.50.0/24"
-    first_host: 11
-    switch: "access_branch"
-  backoffice:
-    label: "BackOffice"
-    vlan: 60
-    site: "Branch"
-    count: 20
-    prefix: "h60"
-    subnet: "172.16.60.0/24"
-    first_host: 11
-    switch: "access_branch"
-
-services:
-  h90:
-    label: "Voice/PBX Softphone Service"
-    ip: "172.16.90.10"
-    subnet: "172.16.90.0/24"
-    gateway: "172.16.90.1"
-    switch: "voice_mgmt"
-  hzalo:
-    label: "Zalo Service"
-    ip: "172.16.200.10"
-    transit_ip: "10.255.30.10"
-  hcall:
-    label: "Call App / CRM"
-    ip: "172.16.201.10"
-    transit_ip: "10.255.30.11"
-  hsocial:
-    label: "Mạng xã hội"
-    ip: "172.16.202.10"
-    transit_ip: "10.255.30.12"
-  hinternet:
-    label: "Internet chung"
-    ip: "172.16.203.10"
-    transit_ip: "10.255.30.13"
 
 policies:
   isolate_hq_projects: true
@@ -92,17 +11,17 @@ policies:
   allow_call_app: true
   allow_general_internet: true
   block_social_media: true
-  allow_it_support_full_access: true
-  voice_priority: true
+  allow_it_support_controlled_access: true
+  voice_flow_priority: true
   steer_hq_internet_to: "fw_hq"
   steer_branch_internet_to: "fw_branch"
   intersite_via_mpls_l3vpn: true
   intersite_allow: []
   softphone_model:
-    note: "Cfono/Gphone/softphone la ung dung cai tren may agent; user VLAN chi duoc di toi cum PBX/SBC/SIP-RTP va Call App can thiet, khong mo ping ngang giua cac du an."
+    note: "Cfono/Gphone/softphone la ung dung tren may agent; user VLAN chi duoc di toi Voice Service, Call App va dich vu duoc phep."
     signaling_examples: ["SIP UDP/TCP 5060", "SIP TLS 5061"]
     media_examples: ["RTP/RTCP UDP range theo PBX/SBC thuc te"]
-    production_warning: "Lab nay mo phong network policy, khong thay the kiem thu SIP registration, call setup, one-way audio, NAT/SBC va QoS tren he thong that."
+    production_warning: "Lab nay mo phong SDN policy, khong thay the kiem thu SIP registration, call setup, one-way audio, NAT/SBC va QoS that."
 
 runtime:
   controller: "127.0.0.1:6653"

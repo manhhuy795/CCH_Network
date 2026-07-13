@@ -24,11 +24,11 @@ sites:
         template: cisco_ios/access_switch.j2
         management_ip: 192.0.2.13
         access_vlans: [40]
-      - name: hq-voice-mgmt
-        role: voice_mgmt_switch
+      - name: hq-voice-access
+        role: voice_access_switch
         site: hq
         platform: cisco_ios
-        template: cisco_ios/voice_mgmt_switch.j2
+        template: cisco_ios/voice_access_switch.j2
         management_ip: 192.0.2.14
         access_vlans: [10, 90]
       - name: hq-core-l3
@@ -82,7 +82,7 @@ sites:
         management_ip: 192.0.2.53
 deployment_order:
   - access_switch
-  - voice_mgmt_switch
+  - voice_access_switch
   - core_hq
   - distribution_branch
   - ce_router

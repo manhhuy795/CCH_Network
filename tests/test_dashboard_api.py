@@ -19,8 +19,8 @@ def test_dashboard_api_topology_and_policy_endpoints():
 
     assert topology["nodes"]
     assert topology["links"]
-    assert len(topology["hosts"]) == 109
-    assert topology["summary"]["user_count"] == 104
+    assert len(topology["hosts"]) == 115
+    assert topology["summary"]["user_count"] == 110
     assert topology["summary"]["controlled_ovs_count"] == 8
     assert policies["policies"]["block_social_media"] is True
 
@@ -42,24 +42,10 @@ def test_dashboard_serves_live_web_page():
     html = response.text
 
     assert response.status_code == 200
-    assert "Giám sát Hybrid MPLS L3VPN + SDN Call Center CCH" in html
-    assert "Ping thực tế" in html
-    assert "Chất lượng cuộc gọi" in html
-    assert "Sơ đồ logic và luồng gói tin" in html
-    assert "/assets/So_do_logic_CCH.png" not in html
-    assert "Bảng luồng OpenFlow dễ đọc" in html
-    assert "/api/test/cluster-detail" in html
-    assert 'id="clusterPolicy"' in html
-    assert 'id="link-core_hq-fw_hq"' in html
-    assert 'id="link-ce_hq-mpls_cloud"' in html
-    assert 'id="link-mpls_cloud-ce_branch"' in html
-    assert 'id="link-dist_branch-wan"' not in html
-    assert 'id="wan"' not in html
-    assert "FIREWALL HQ TẠI BIÊN SITE" in html
-    assert "FIREWALL BRANCH TẠI BIÊN SITE" in html
-    assert "Phòng IT" in html
-    assert 'id="link-it_support-access_hq_it"' in html
-    assert "BẢO MẬT / INTERNET EDGE" not in html
+    assert "Hybrid MPLS L3VPN + SDN Edge Policy Demo" in html
+    assert "React Dashboard" in html
+    assert "/api/topology" in html
+    assert "voice_mgmt" not in html
 
     topology = client.get("/api/topology")
     assert topology.status_code == 200
@@ -76,13 +62,13 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
 
     denied = policy_decision("h20_01", "h30_01")
     assert denied["action"] == "deny"
-    assert "cách ly" in denied["reason"]
+    assert "cach ly" in denied["reason"]
     assert denied["path"] == ["project_a", "access_hq_a", "core_hq"]
     assert denied["blocked_at"] == "core_hq"
 
     social = policy_decision("h50_01", "hsocial")
-    assert social["path"] == ["telesale", "access_branch", "dist_branch", "fw_branch"]
-    assert social["blocked_at"] == "fw_branch"
+    assert social["path"] == ["telesale", "access_branch", "dist_branch"]
+    assert social["blocked_at"] == "dist_branch"
 
     intersite = policy_decision("h50_01", "h20_01")
     assert intersite["action"] == "deny"

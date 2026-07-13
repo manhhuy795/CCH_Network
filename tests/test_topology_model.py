@@ -3,6 +3,7 @@ from pathlib import Path
 
 import yaml
 
+from scripts.network_model import build_host_inventory, controlled_switches, load_network_model
 from sdn_mpls_demo.policy_engine import PolicyEngine
 
 
@@ -12,16 +13,38 @@ TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
 CONTROLLER_PATH = REPO_ROOT / "sdn_mpls_demo" / "controller_policy.py"
 
 
-def test_hybrid_topology_has_one_hundred_four_users_and_five_services():
+def test_network_model_is_single_source_of_truth():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    hosts = build_host_inventory(model)
+    users = [host for host in hosts.values() if host["kind"] == "user"]
+    ips = [host["ip"] for host in hosts.values()]
+
+    assert len(users) == 110
+    assert model["host_groups"]["project_a"]["count"] == 20
+    assert model["host_groups"]["project_b"]["count"] == 20
+    assert model["host_groups"]["project_c"]["count"] == 20
+    assert model["host_groups"]["telesale"]["count"] == 20
+    assert model["host_groups"]["backoffice"]["count"] == 20
+    assert model["host_groups"]["it_support"]["count"] == 10
+    assert len(hosts) == len(set(hosts))
+    assert len(ips) == len(set(ips))
+    assert "voice_access" in controlled_switches(model)
+
+    policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))
+    assert "host_groups" not in policy
+    assert "services" not in policy
+
+
+def test_hybrid_topology_has_one_hundred_ten_users_and_five_services():
     engine = PolicyEngine(POLICY_PATH)
     users = [host for host in engine.hosts.values() if host["kind"] == "user"]
     services = [host for host in engine.hosts.values() if host["kind"] == "service"]
 
-    assert len(users) == 104
+    assert len(users) == 110
     assert len(services) == 5
     assert engine.hosts["h20_01"]["ip"] == "172.16.20.11"
-    assert engine.hosts["h70_04"]["ip"] == "172.16.70.14"
-    assert "h70_05" not in engine.hosts
+    assert engine.hosts["h70_10"]["ip"] == "172.16.70.20"
+    assert "h70_11" not in engine.hosts
     assert engine.hosts["h60_20"]["ip"] == "172.16.60.30"
 
 
@@ -49,7 +72,7 @@ def test_only_expected_ovs_are_controller_managed():
 
     assert policy["runtime"]["controller"] == "127.0.0.1:6653"
     for switch in (
-        "access_hq_a", "access_hq_b", "access_hq_c", "voice_mgmt",
+        "access_hq_a", "access_hq_b", "access_hq_c", "voice_access",
         "core_hq", "access_branch", "dist_branch", "access_hq_it",
     ):
         assert f'"{switch}"' in topology
@@ -70,7 +93,7 @@ def test_controller_is_real_osken_openflow_13_app():
     assert "install_isolation_flows" in controller
     assert "install_service_policy_flows" in controller
     assert "install_it_support_flows" in controller
-    assert "IT Support full access" in controller
+    assert "IT Support co quyen remote/support co kiem soat" in controller
     assert "Block Social Media cho user thuong" in controller
     assert "Chan ping chu dong tu Internet/service vao user noi bo" in controller
     assert "eth_type=ether_types.ETH_TYPE_ARP" in controller

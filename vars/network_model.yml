@@ -1,0 +1,209 @@
+metadata:
+  name: "Hybrid MPLS L3VPN + SDN Edge Policy Demo for Call Center BPO"
+  description: "Source of truth cho topology, IP plan, host inventory va dashboard."
+  openflow_version: "1.3"
+  controller: "127.0.0.1:6653"
+
+sites:
+  hq:
+    label: "Tru so chinh HQ"
+  branch:
+    label: "Chi nhanh Branch"
+  wan:
+    label: "WAN / MPLS L3VPN"
+  internet:
+    label: "Dich vu Internet"
+
+host_groups:
+  project_a:
+    label: "Du an A"
+    vlan: 20
+    site: "HQ"
+    count: 20
+    prefix: "h20"
+    subnet: "172.16.20.0/24"
+    gateway: "172.16.20.1"
+    first_host: 11
+    switch: "access_hq_a"
+  project_b:
+    label: "Du an B"
+    vlan: 30
+    site: "HQ"
+    count: 20
+    prefix: "h30"
+    subnet: "172.16.30.0/24"
+    gateway: "172.16.30.1"
+    first_host: 11
+    switch: "access_hq_b"
+  project_c:
+    label: "Du an C"
+    vlan: 40
+    site: "HQ"
+    count: 20
+    prefix: "h40"
+    subnet: "172.16.40.0/24"
+    gateway: "172.16.40.1"
+    first_host: 11
+    switch: "access_hq_c"
+  it_support:
+    label: "IT Support"
+    vlan: 70
+    site: "HQ"
+    count: 10
+    prefix: "h70"
+    subnet: "172.16.70.0/24"
+    gateway: "172.16.70.1"
+    first_host: 11
+    switch: "access_hq_it"
+  telesale:
+    label: "Telesale"
+    vlan: 50
+    site: "Branch"
+    count: 20
+    prefix: "h50"
+    subnet: "172.16.50.0/24"
+    gateway: "172.16.50.1"
+    first_host: 11
+    switch: "access_branch"
+  backoffice:
+    label: "BackOffice"
+    vlan: 60
+    site: "Branch"
+    count: 20
+    prefix: "h60"
+    subnet: "172.16.60.0/24"
+    gateway: "172.16.60.1"
+    first_host: 11
+    switch: "access_branch"
+
+services:
+  h90:
+    label: "Voice Service"
+    ip: "172.16.90.10"
+    subnet: "172.16.90.0/24"
+    gateway: "172.16.90.1"
+    vlan: 90
+    site: "HQ"
+    switch: "voice_access"
+  hzalo:
+    label: "Zalo Service"
+    ip: "172.16.200.10"
+    transit_ip: "10.255.30.10"
+    site: "Internet"
+  hcall:
+    label: "Call App / CRM"
+    ip: "172.16.201.10"
+    transit_ip: "10.255.30.11"
+    site: "Internet"
+  hsocial:
+    label: "Social Media"
+    ip: "172.16.202.10"
+    transit_ip: "10.255.30.12"
+    site: "Internet"
+  hinternet:
+    label: "General Internet Test Service"
+    ip: "172.16.203.10"
+    transit_ip: "10.255.30.13"
+    site: "Internet"
+
+switches:
+  access_hq_a:
+    label: "Access HQ-A"
+    site: "HQ"
+    controlled: true
+    dpid: "0000000000000001"
+  access_hq_b:
+    label: "Access HQ-B"
+    site: "HQ"
+    controlled: true
+    dpid: "0000000000000002"
+  access_hq_c:
+    label: "Access HQ-C"
+    site: "HQ"
+    controlled: true
+    dpid: "0000000000000003"
+  voice_access:
+    label: "Voice Access"
+    site: "HQ"
+    controlled: true
+    dpid: "0000000000000004"
+  core_hq:
+    label: "HQ Core SDN"
+    site: "HQ"
+    controlled: true
+    dpid: "0000000000000005"
+  access_branch:
+    label: "Branch Access"
+    site: "Branch"
+    controlled: true
+    dpid: "0000000000000006"
+  dist_branch:
+    label: "Branch Distribution SDN"
+    site: "Branch"
+    controlled: true
+    dpid: "0000000000000007"
+  access_hq_it:
+    label: "Access HQ-IT"
+    site: "HQ"
+    controlled: true
+    dpid: "0000000000000008"
+
+infrastructure:
+  c0:
+    label: "SDN Controller"
+    type: "controller"
+  ce_hq:
+    label: "CE Router HQ"
+    type: "router"
+  ce_branch:
+    label: "CE Router Branch"
+    type: "router"
+  mpls_cloud:
+    label: "MPLS L3VPN Cloud"
+    type: "wan"
+  fw_hq:
+    label: "Firewall HQ"
+    subtitle: "Mo phong Internet Edge"
+    type: "firewall"
+  fw_branch:
+    label: "Firewall Branch"
+    subtitle: "Mo phong Internet Edge"
+    type: "firewall"
+  internet:
+    label: "Internet Zone"
+    type: "service_edge"
+
+links:
+  - [project_a, access_hq_a, data]
+  - [project_b, access_hq_b, data]
+  - [project_c, access_hq_c, data]
+  - [it_support, access_hq_it, data]
+  - [h90, voice_access, data]
+  - [access_hq_a, core_hq, data]
+  - [access_hq_b, core_hq, data]
+  - [access_hq_c, core_hq, data]
+  - [access_hq_it, core_hq, data]
+  - [voice_access, core_hq, data]
+  - [telesale, access_branch, data]
+  - [backoffice, access_branch, data]
+  - [access_branch, dist_branch, data]
+  - [core_hq, ce_hq, mpls]
+  - [ce_hq, mpls_cloud, mpls]
+  - [mpls_cloud, ce_branch, mpls]
+  - [ce_branch, dist_branch, mpls]
+  - [core_hq, fw_hq, data]
+  - [fw_hq, internet, data]
+  - [dist_branch, fw_branch, data]
+  - [fw_branch, internet, data]
+  - [internet, hzalo, data]
+  - [internet, hcall, data]
+  - [internet, hsocial, data]
+  - [internet, hinternet, data]
+
+group_paths:
+  project_a: [project_a, access_hq_a, core_hq]
+  project_b: [project_b, access_hq_b, core_hq]
+  project_c: [project_c, access_hq_c, core_hq]
+  it_support: [it_support, access_hq_it, core_hq]
+  telesale: [telesale, access_branch, dist_branch]
+  backoffice: [backoffice, access_branch, dist_branch]

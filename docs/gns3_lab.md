@@ -46,7 +46,7 @@ hq-core-l3
 hq-access-a
 hq-access-b
 hq-access-c
-hq-voice-mgmt
+hq-voice-access
 hq-ce-router
 br-access
 br-dist-l3

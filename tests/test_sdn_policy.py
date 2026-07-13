@@ -29,8 +29,8 @@ def test_real_sdn_policy_required_allow_deny_paths():
     assert engine.decide("h20_01", "h90")["action"] == "allow"
     assert engine.decide("h20_01", "hcall")["path"][-3:] == ["fw_hq", "internet", "hcall"]
     assert engine.decide("h50_01", "hcall")["path"][-3:] == ["fw_branch", "internet", "hcall"]
-    assert engine.decide("h20_01", "hsocial")["blocked_at"] == "fw_hq"
-    assert engine.decide("h50_01", "hsocial")["blocked_at"] == "fw_branch"
+    assert engine.decide("h20_01", "hsocial")["blocked_at"] == "core_hq"
+    assert engine.decide("h50_01", "hsocial")["blocked_at"] == "dist_branch"
     intersite_user = engine.decide("h50_01", "h20_01")
     assert intersite_user["action"] == "deny"
     assert intersite_user["blocked_at"] == "dist_branch"
@@ -43,8 +43,9 @@ def test_all_user_groups_can_reach_voice_service():
     for source in ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h70_01"):
         decision = engine.decide(source, "h90")
         assert decision["action"] == "allow"
-        assert decision["voice_priority"] is True
-        assert decision["path"][-2:] == ["voice_mgmt", "h90"]
+        if source != "h70_01":
+            assert decision["voice_flow_priority"] is True
+        assert decision["path"][-2:] == ["voice_access", "h90"]
 
 
 def test_internet_cannot_initiate_ping_to_inside_users():

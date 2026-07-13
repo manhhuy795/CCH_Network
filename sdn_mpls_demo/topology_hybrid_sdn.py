@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Topology 104 user cho Hybrid MPLS L3VPN + SDN Edge Policy."""
+"""Topology 110 user cho Hybrid MPLS L3VPN + SDN Edge Policy."""
 
 from __future__ import annotations
 
@@ -16,20 +16,21 @@ from mininet.log import info, setLogLevel
 from mininet.net import Mininet
 from mininet.node import Node, OVSBridge, OVSKernelSwitch, RemoteController
 
+try:
+    from scripts.network_model import dpid_map, load_network_model
+    from sdn_mpls_demo.policy_engine import PolicyEngine
+except ImportError:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.network_model import dpid_map, load_network_model
+    from policy_engine import PolicyEngine
+
 
 BASE_DIR = Path(__file__).resolve().parent
 POLICY_FILE = BASE_DIR / "policy.yml"
 
-DPIDS = {
-    "access_hq_a": "0000000000000001",
-    "access_hq_b": "0000000000000002",
-    "access_hq_c": "0000000000000003",
-    "voice_mgmt": "0000000000000004",
-    "core_hq": "0000000000000005",
-    "access_branch": "0000000000000006",
-    "dist_branch": "0000000000000007",
-    "access_hq_it": "0000000000000008",
-}
+DPIDS = dpid_map(load_network_model())
 
 
 class LinuxRouter(Node):
@@ -45,44 +46,44 @@ class LinuxRouter(Node):
 
 
 POLICY_TESTS = (
-    ("Project isolation", "h20_01", "h30_01", False, "Project A không được ping Project B"),
-    ("Project isolation", "h20_01", "h40_01", False, "Project A không được ping Project C"),
-    ("Project isolation", "h30_01", "h20_01", False, "Project B không được ping Project A"),
-    ("Project isolation", "h30_01", "h40_01", False, "Project B không được ping Project C"),
-    ("Project isolation", "h40_01", "h20_01", False, "Project C không được ping Project A"),
-    ("Project isolation", "h40_01", "h30_01", False, "Project C không được ping Project B"),
-    ("Branch isolation", "h50_01", "h60_01", False, "Telesale không được ping BackOffice"),
-    ("Branch isolation", "h60_01", "h50_01", False, "BackOffice không được ping Telesale"),
-    ("Voice", "h20_01", "h90", True, "Project A được ping Voice"),
-    ("Voice", "h30_01", "h90", True, "Project B được ping Voice"),
-    ("Voice", "h40_01", "h90", True, "Project C được ping Voice"),
-    ("Voice", "h50_01", "h90", True, "Telesale được ping Voice qua MPLS"),
-    ("Voice", "h60_01", "h90", True, "BackOffice được ping Voice qua MPLS"),
-    ("Voice", "h70_01", "h90", True, "IT Support được ping Voice"),
-    ("Internet services", "h20_01", "hzalo", True, "Project A được dùng Zalo qua Firewall HQ"),
-    ("Internet services", "h20_01", "hcall", True, "Project A được dùng Call App qua Firewall HQ"),
-    ("Internet services", "h20_01", "hinternet", True, "Project A được dùng Internet test qua Firewall HQ"),
-    ("Internet services", "h50_01", "hzalo", True, "Telesale được dùng Zalo qua Firewall Branch"),
-    ("Internet services", "h50_01", "hcall", True, "Telesale được dùng Call App qua Firewall Branch"),
-    ("Internet services", "h60_01", "hinternet", True, "BackOffice được dùng Internet test qua Firewall Branch"),
-    ("Social block", "h20_01", "hsocial", False, "Project A bị chặn Social Media tại Firewall HQ"),
-    ("Social block", "h30_01", "hsocial", False, "Project B bị chặn Social Media tại Firewall HQ"),
-    ("Social block", "h40_01", "hsocial", False, "Project C bị chặn Social Media tại Firewall HQ"),
-    ("Social block", "h50_01", "hsocial", False, "Telesale bị chặn Social Media tại Firewall Branch"),
-    ("Social block", "h60_01", "hsocial", False, "BackOffice bị chặn Social Media tại Firewall Branch"),
-    ("Controlled intersite", "h50_01", "h20_01", False, "Telesale không được ping Project A; chỉ IT có quyền hỗ trợ user"),
-    ("Controlled intersite", "h20_01", "h50_01", False, "Project A không được ping Telesale; chỉ IT có quyền hỗ trợ user"),
-    ("Controlled intersite", "h60_01", "h20_01", False, "BackOffice không có full access vào Project A"),
-    ("Controlled intersite", "h20_01", "h60_01", False, "Project A không có full access vào BackOffice"),
-    ("IT support", "h70_01", "h20_01", True, "IT Support được remote Project A"),
-    ("IT support", "h70_01", "h30_01", True, "IT Support được remote Project B"),
-    ("IT support", "h70_01", "h50_01", True, "IT Support được remote Telesale qua MPLS"),
-    ("IT support", "h70_01", "hsocial", True, "IT Support được kiểm tra dịch vụ social"),
-    ("Internet inbound", "hinternet", "h20_01", False, "Internet ngoài không được chủ động ping Project A"),
-    ("Internet inbound", "hzalo", "h30_01", False, "Zalo simulator không được chủ động ping Project B"),
-    ("Internet inbound", "hcall", "h50_01", False, "Call App simulator không được chủ động ping Telesale"),
-    ("Internet inbound", "hsocial", "h60_01", False, "Social simulator không được chủ động ping BackOffice"),
-    ("Internet inbound", "hinternet", "h70_01", False, "Internet ngoài không được chủ động ping IT"),
+    ("Project isolation", "h20_01", "h30_01", False, "Project A khĂ´ng Ä‘Æ°á»£c ping Project B"),
+    ("Project isolation", "h20_01", "h40_01", False, "Project A khĂ´ng Ä‘Æ°á»£c ping Project C"),
+    ("Project isolation", "h30_01", "h20_01", False, "Project B khĂ´ng Ä‘Æ°á»£c ping Project A"),
+    ("Project isolation", "h30_01", "h40_01", False, "Project B khĂ´ng Ä‘Æ°á»£c ping Project C"),
+    ("Project isolation", "h40_01", "h20_01", False, "Project C khĂ´ng Ä‘Æ°á»£c ping Project A"),
+    ("Project isolation", "h40_01", "h30_01", False, "Project C khĂ´ng Ä‘Æ°á»£c ping Project B"),
+    ("Branch isolation", "h50_01", "h60_01", False, "Telesale khĂ´ng Ä‘Æ°á»£c ping BackOffice"),
+    ("Branch isolation", "h60_01", "h50_01", False, "BackOffice khĂ´ng Ä‘Æ°á»£c ping Telesale"),
+    ("Voice", "h20_01", "h90", True, "Project A Ä‘Æ°á»£c ping Voice"),
+    ("Voice", "h30_01", "h90", True, "Project B Ä‘Æ°á»£c ping Voice"),
+    ("Voice", "h40_01", "h90", True, "Project C Ä‘Æ°á»£c ping Voice"),
+    ("Voice", "h50_01", "h90", True, "Telesale Ä‘Æ°á»£c ping Voice qua MPLS"),
+    ("Voice", "h60_01", "h90", True, "BackOffice Ä‘Æ°á»£c ping Voice qua MPLS"),
+    ("Voice", "h70_01", "h90", True, "IT Support Ä‘Æ°á»£c ping Voice"),
+    ("Internet services", "h20_01", "hzalo", True, "Project A Ä‘Æ°á»£c dĂ¹ng Zalo qua Firewall HQ"),
+    ("Internet services", "h20_01", "hcall", True, "Project A Ä‘Æ°á»£c dĂ¹ng Call App qua Firewall HQ"),
+    ("Internet services", "h20_01", "hinternet", True, "Project A Ä‘Æ°á»£c dĂ¹ng Internet test qua Firewall HQ"),
+    ("Internet services", "h50_01", "hzalo", True, "Telesale Ä‘Æ°á»£c dĂ¹ng Zalo qua Firewall Branch"),
+    ("Internet services", "h50_01", "hcall", True, "Telesale Ä‘Æ°á»£c dĂ¹ng Call App qua Firewall Branch"),
+    ("Internet services", "h60_01", "hinternet", True, "BackOffice Ä‘Æ°á»£c dĂ¹ng Internet test qua Firewall Branch"),
+    ("Social block", "h20_01", "hsocial", False, "Project A bi chan Social Media tai HQ Core SDN"),
+    ("Social block", "h30_01", "hsocial", False, "Project B bi chan Social Media tai HQ Core SDN"),
+    ("Social block", "h40_01", "hsocial", False, "Project C bi chan Social Media tai HQ Core SDN"),
+    ("Social block", "h50_01", "hsocial", False, "Telesale bi chan Social Media tai Branch Distribution SDN"),
+    ("Social block", "h60_01", "hsocial", False, "BackOffice bi chan Social Media tai Branch Distribution SDN"),
+    ("Controlled intersite", "h50_01", "h20_01", False, "Telesale khĂ´ng Ä‘Æ°á»£c ping Project A; chá»‰ IT cĂ³ quyá»n há»— trá»£ user"),
+    ("Controlled intersite", "h20_01", "h50_01", False, "Project A khĂ´ng Ä‘Æ°á»£c ping Telesale; chá»‰ IT cĂ³ quyá»n há»— trá»£ user"),
+    ("Controlled intersite", "h60_01", "h20_01", False, "BackOffice khong co quyen truy cap ngang vao Project A"),
+    ("Controlled intersite", "h20_01", "h60_01", False, "Project A khong co quyen truy cap ngang vao BackOffice"),
+    ("IT support", "h70_01", "h20_01", True, "IT Support Ä‘Æ°á»£c remote Project A"),
+    ("IT support", "h70_01", "h30_01", True, "IT Support Ä‘Æ°á»£c remote Project B"),
+    ("IT support", "h70_01", "h50_01", True, "IT Support Ä‘Æ°á»£c remote Telesale qua MPLS"),
+    ("IT support", "h70_01", "hsocial", True, "IT Support Ä‘Æ°á»£c kiá»ƒm tra dá»‹ch vá»¥ social"),
+    ("Internet inbound", "hinternet", "h20_01", False, "Internet ngoĂ i khĂ´ng Ä‘Æ°á»£c chá»§ Ä‘á»™ng ping Project A"),
+    ("Internet inbound", "hzalo", "h30_01", False, "Zalo simulator khĂ´ng Ä‘Æ°á»£c chá»§ Ä‘á»™ng ping Project B"),
+    ("Internet inbound", "hcall", "h50_01", False, "Call App simulator khĂ´ng Ä‘Æ°á»£c chá»§ Ä‘á»™ng ping Telesale"),
+    ("Internet inbound", "hsocial", "h60_01", False, "Social simulator khĂ´ng Ä‘Æ°á»£c chá»§ Ä‘á»™ng ping BackOffice"),
+    ("Internet inbound", "hinternet", "h70_01", False, "Internet ngoĂ i khĂ´ng Ä‘Æ°á»£c chá»§ Ä‘á»™ng ping IT"),
 )
 
 
@@ -116,7 +117,7 @@ def short_text(value, width):
     return value if len(value) <= width else value[: width - 3] + "..."
 
 
-def run_policy_tests(net, policy, title="Kiểm tra policy bằng ping thật"):
+def run_policy_tests(net, policy, title="Kiá»ƒm tra policy báº±ng ping tháº­t"):
     width = 112
     emit()
     emit("=" * width)
@@ -155,11 +156,11 @@ class CallCenterCLI(CLI):
         return endpoint_ip(self.mn, self.policy, host_name)
 
     def do_testpolicy(self, _line):
-        "Chạy ma trận ping chi tiết theo policy ALLOW/DENY."
-        run_policy_tests(self.mn, self.policy, title="Kiểm tra policy thủ công bằng ping thật")
+        "Cháº¡y ma tráº­n ping chi tiáº¿t theo policy ALLOW/DENY."
+        run_policy_tests(self.mn, self.policy, title="Kiá»ƒm tra policy thá»§ cĂ´ng báº±ng ping tháº­t")
 
     def do_isolationflows(self, _line):
-        "Hiển thị các flow DROP priority 400 trên OVS."
+        "Hiá»ƒn thá»‹ cĂ¡c flow DROP priority 400 trĂªn OVS."
         info("\n*** Isolation flow priority 400\n")
         for switch_name in DPIDS:
             switch = self.mn.get(switch_name)
@@ -171,7 +172,7 @@ class CallCenterCLI(CLI):
 
 
 def load_policy():
-    return yaml.safe_load(POLICY_FILE.read_text(encoding="utf-8"))
+    return PolicyEngine(POLICY_FILE).data
 
 
 def add_group_hosts(net, policy, switches):
@@ -277,7 +278,7 @@ def configure_routing(net, policy):
 def start_service_simulators(net):
     for name in ("hzalo", "hcall", "hsocial", "hinternet"):
         host = net.get(name)
-        host.cmd(f"printf 'Dịch vụ mô phỏng: {name}\\n' > /tmp/{name}.txt")
+        host.cmd(f"printf 'Dá»‹ch vá»¥ mĂ´ phá»ng: {name}\\n' > /tmp/{name}.txt")
         host.cmd(
             f"cd /tmp && python3 -m http.server 8000 "
             f">/tmp/{name}_http.log 2>&1 &"
@@ -310,8 +311,8 @@ def build_topology():
         )
         for name, dpid in DPIDS.items()
     }
-    # Mininet chỉ tự sinh DPID cho tên canonical như s1/s23. Hai bridge
-    # standalone vẫn cần DPID tường minh dù không kết nối SDN Controller.
+    # Mininet chá»‰ tá»± sinh DPID cho tĂªn canonical nhÆ° s1/s23. Hai bridge
+    # standalone váº«n cáº§n DPID tÆ°á»ng minh dĂ¹ khĂ´ng káº¿t ná»‘i SDN Controller.
     mpls_cloud = net.addSwitch(
         "mpls_cloud",
         cls=OVSBridge,
@@ -326,10 +327,16 @@ def build_topology():
     )
 
     user_hosts = add_group_hosts(net, policy, switches)
-    h90 = net.addHost("h90", ip="172.16.90.10/24", defaultRoute="via 172.16.90.1")
+    voice_service = policy["services"]["h90"]
+    voice_prefix = ipaddress.ip_network(voice_service["subnet"]).prefixlen
+    h90 = net.addHost(
+        "h90",
+        ip=f"{voice_service['ip']}/{voice_prefix}",
+        defaultRoute=f"via {voice_service['gateway']}",
+    )
     net.addLink(
         h90,
-        switches["voice_mgmt"],
+        switches["voice_access"],
         intfName2="voice-eth01",
         cls=TCLink,
         bw=50,
@@ -383,7 +390,7 @@ def build_topology():
         delay="1ms",
     )
     net.addLink(
-        switches["voice_mgmt"],
+        switches["voice_access"],
         switches["core_hq"],
         intfName1="voice-eth99",
         intfName2="core-eth04",
@@ -443,7 +450,7 @@ def build_topology():
         cls=TCLink, bw=100, delay="5ms",
     )
 
-    info("*** Khởi động topology Hybrid MPLS L3VPN + SDN Edge Policy\n")
+    info("*** Khá»Ÿi Ä‘á»™ng topology Hybrid MPLS L3VPN + SDN Edge Policy\n")
     net.build()
     controller.start()
     for switch in switches.values():
@@ -464,7 +471,7 @@ def build_topology():
     emit("  h20_01 ping -c 2 h90")
     emit("=" * 88)
     if os.environ.get("CCH_AUTO_TEST_POLICY", "1") != "0":
-        run_policy_tests(net, policy, title="Kiểm tra tự động sau khi khởi động topology")
+        run_policy_tests(net, policy, title="Kiá»ƒm tra tá»± Ä‘á»™ng sau khi khá»Ÿi Ä‘á»™ng topology")
     else:
         emit("Bo qua auto-test vi CCH_AUTO_TEST_POLICY=0. Co the chay tay: testpolicy")
     CallCenterCLI(net, policy)

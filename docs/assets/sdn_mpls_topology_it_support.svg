@@ -29,7 +29,7 @@
 
   <rect class="bg" x="0" y="0" width="1360" height="820"/>
   <text class="title" x="30" y="36">Hybrid MPLS L3VPN + SDN Edge Policy - Call Center CCH</text>
-  <text class="subtitle" x="30" y="60">104 user thật trong Mininet, 8 Open vSwitch do OS-Ken điều khiển, phòng IT Support có quyền remote/support.</text>
+  <text class="subtitle" x="30" y="60">110 user thật trong Mininet, 8 Open vSwitch do OS-Ken điều khiển, phòng IT Support có quyền remote/support.</text>
 
   <rect class="zone" x="20" y="95" width="700" height="430" rx="8"/>
   <text class="zone-label" x="35" y="117">TRỤ SỞ CHÍNH · PROJECT / IT / VOICE · FIREWALL HQ TẠI BIÊN INTERNET</text>

@@ -19,8 +19,13 @@ from os_ken.ofproto import ofproto_v1_3
 
 try:
     from .policy_engine import ICMP_ECHO_REQUEST, PolicyEngine
+    from scripts.network_model import dpid_name_map, load_network_model
 except ImportError:
     from policy_engine import ICMP_ECHO_REQUEST, PolicyEngine
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.network_model import dpid_name_map, load_network_model
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -29,16 +34,7 @@ RUNTIME_DIR = BASE_DIR / "runtime"
 FLOWS_FILE = RUNTIME_DIR / "installed_flows.json"
 EVENTS_FILE = RUNTIME_DIR / "events.jsonl"
 
-DPID_NAMES = {
-    1: "access_hq_a",
-    2: "access_hq_b",
-    3: "access_hq_c",
-    4: "voice_mgmt",
-    5: "core_hq",
-    6: "access_branch",
-    7: "dist_branch",
-    8: "access_hq_it",
-}
+DPID_NAMES = dpid_name_map(load_network_model())
 
 
 def utc_now() -> str:
@@ -153,7 +149,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
 
     def install_it_support_flows(self, datapath):
         """Cài ALLOW chủ động cho VLAN IT để remote/support đi ổn định qua mọi OVS."""
-        if not self.policy.policies.get("allow_it_support_full_access", False):
+        if not self.policy.policies.get("allow_it_support_controlled_access", False):
             return
 
         parser = datapath.ofproto_parser
@@ -194,7 +190,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "action": "ALLOW",
                         "source": source_label,
                         "destination": target_label,
-                        "reason": "IT Support full access: remote/helpdesk được ưu tiên cho phép.",
+                        "reason": "IT Support co quyen remote/support co kiem soat theo policy.",
                     },
                     idle_timeout=0,
                 )
@@ -215,7 +211,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     "action": "ALLOW",
                     "source": "it_support",
                     "destination": destination_name,
-                    "reason": "IT Support full access: IT được chủ động kiểm tra dịch vụ.",
+                    "reason": "IT Support co quyen kiem tra dich vu quan tri duoc khai bao.",
                 },
                 idle_timeout=0,
             )
@@ -233,7 +229,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
         normal_actions = [parser.OFPActionOutput(normal_port)]
         voice_network = ipaddress.ip_network(f"{voice_service['ip']}/32")
-        priority = 425 if self.policy.policies.get("voice_priority", False) else 350
+        priority = 425 if self.policy.policies.get("voice_flow_priority", False) else 350
 
         for group_name, user_network in self.policy.networks.items():
             for source_network, target_network, source_label, target_label in (
@@ -254,7 +250,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "action": "ALLOW",
                         "source": source_label,
                         "destination": target_label,
-                        "reason": "Voice service h90 được cho phép hai chiều theo policy Call Center.",
+                        "reason": "Voice duoc nhan dien va ap dung flow policy uu tien.",
                     },
                     idle_timeout=0,
                 )
@@ -426,10 +422,10 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 return
 
             if out_port != ofproto.OFPP_FLOOD:
-                priority = 250 if decision.get("voice_priority") else 200
+                priority = 250 if decision.get("voice_flow_priority") else 200
                 self.add_flow(datapath, priority, match, actions, metadata)
-                if decision.get("voice_priority"):
-                    self.logger.info("VOICE PRIORITY FLOW INSTALLED: %s -> %s", ip_packet.src, ip_packet.dst)
+                if decision.get("voice_flow_priority"):
+                    self.logger.info("VOICE FLOW PRIORITY INSTALLED: %s -> %s", ip_packet.src, ip_packet.dst)
                 else:
                     self.logger.info("CHO PHÉP %s -> %s: %s", ip_packet.src, ip_packet.dst, decision["reason"])
         elif eth.ethertype == ether_types.ETH_TYPE_ARP and out_port != ofproto.OFPP_FLOOD:

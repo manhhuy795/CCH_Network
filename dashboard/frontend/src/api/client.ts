@@ -7,8 +7,21 @@ export type Host = {
   ip: string;
   kind: "user" | "service";
   group: string;
+  group_label: string;
   vlan: number | null;
   site: string;
+};
+
+export type Group = {
+  id: string;
+  label: string;
+  type: string;
+  site: string;
+  vlan: number;
+  count: number;
+  subnet: string;
+  switch: string;
+  hosts: Host[];
 };
 
 export type Link = {
@@ -21,9 +34,10 @@ export type Link = {
 
 export type Topology = {
   nodes: Array<Record<string, unknown>>;
-  groups: Array<Record<string, unknown>>;
+  groups: Group[];
   hosts: Host[];
   links: Link[];
+  policy_map: Record<string, { title: string; allow: string[]; deny: string[]; notes: Record<string, string> }>;
   summary: { user_count: number; service_count: number; controlled_ovs_count: number };
 };
 
@@ -40,6 +54,19 @@ export type TestResult = {
   decision?: Decision;
   result?: Record<string, number | string | boolean | object | null>;
   raw?: string;
+};
+
+export type RealtimeMetric = {
+  timestamp: string;
+  source: string;
+  destination: string;
+  ok: boolean;
+  delay_ms?: number;
+  packet_loss_percent?: number;
+  jitter_ms?: number;
+  throughput_mbps: number;
+  byte_count: number;
+  message?: string;
 };
 
 export type ClusterCase = {
@@ -88,3 +115,9 @@ export const api = {
       body: JSON.stringify(body),
     }),
 };
+
+export function wsUrl(source: string, destination: string, interval: number) {
+  const base = API_BASE.replace(/^http/, "ws");
+  const params = new URLSearchParams({ source, destination, interval: String(interval) });
+  return `${base}/ws/metrics?${params.toString()}`;
+}
