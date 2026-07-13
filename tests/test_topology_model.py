@@ -70,6 +70,8 @@ def test_controller_is_real_osken_openflow_13_app():
     assert "install_isolation_flows" in controller
     assert "install_it_support_flows" in controller
     assert "IT Support full access" in controller
+    assert "eth_type=ether_types.ETH_TYPE_ARP" in controller
+    assert "không bypass IP policy" in controller
     assert "priority=400" in (
         REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
     ).read_text(encoding="utf-8")

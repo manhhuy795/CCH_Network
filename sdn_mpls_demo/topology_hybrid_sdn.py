@@ -99,27 +99,43 @@ def ping_reachable(net, policy, source_name, destination_name, count=2, timeout=
     return reachable, output
 
 
+def emit(message=""):
+    print(message, flush=True)
+
+
+def short_text(value, width):
+    value = str(value)
+    return value if len(value) <= width else value[: width - 3] + "..."
+
+
 def run_policy_tests(net, policy, title="Kiểm tra policy bằng ping thật"):
-    info(f"\n*** {title}\n")
-    info("*** Ý nghĩa: PASS = kết quả ping thật khớp policy ALLOW/DENY.\n")
+    width = 124
+    emit()
+    emit("=" * width)
+    emit(f"{title}")
+    emit("PASS = ping thật khớp policy. FAIL = cần xem controller.log / dump-flows.")
+    emit("=" * width)
+    emit(
+        f"{'STT':<4} {'NHOM POLICY':<21} {'SOURCE':<10} {'DEST':<10} "
+        f"{'POLICY':<7} {'PING':<7} {'KQ':<6} GHI CHU"
+    )
+    emit("-" * width)
     passed = 0
-    current_category = None
-    for category, source_name, destination_name, expected, reason in POLICY_TESTS:
-        if category != current_category:
-            current_category = category
-            info(f"\n### {category}\n")
+    for index, (category, source_name, destination_name, expected, reason) in enumerate(POLICY_TESTS, start=1):
         reachable, _output = ping_reachable(net, policy, source_name, destination_name)
         matched = reachable == expected
         passed += int(matched)
-        info(
-            f"{'PASS' if matched else 'FAIL':4} "
-            f"{source_name:>9} -> {destination_name:<9} "
-            f"policy={'ALLOW' if expected else 'DENY':<5} "
-            f"ping={'ALLOW' if reachable else 'DENY':<5} | {reason}\n"
+        emit(
+            f"{index:<4} {short_text(category, 21):<21} {source_name:<10} {destination_name:<10} "
+            f"{'ALLOW' if expected else 'DENY':<7} {'ALLOW' if reachable else 'DENY':<7} "
+            f"{'PASS' if matched else 'FAIL':<6} {short_text(reason, 52)}"
         )
-    info(f"\n*** Kết quả: {passed}/{len(POLICY_TESTS)} policy test đạt\n")
+    emit("-" * width)
+    emit(f"KET QUA: {passed}/{len(POLICY_TESTS)} policy test dat")
     if passed != len(POLICY_TESTS):
-        info("*** Có test FAIL. Hãy xem controller.log và dump flow để debug.\n")
+        emit("CANH BAO: Co test FAIL. Hay xem sdn_mpls_demo/runtime/controller.log va ovs dump-flows de debug.")
+    emit("=" * width)
+    emit()
 
 
 class CallCenterCLI(CLI):
@@ -430,18 +446,19 @@ def build_topology():
     configure_routing(net, policy)
     start_service_simulators(net)
 
-    info(f"*** Đã tạo {len(user_hosts)} user và 5 service.\n")
-    info("*** Controller quản lý 8 OVS; CE, Firewall và MPLS Cloud không dùng OpenFlow.\n")
-    info("*** Thử: h20_01 ping -c 2 h30_01 (bị chặn)\n")
-    info("*** Thử: h20_01 ping -c 2 h90 (cho phép)\n")
-    info("*** Thử: h50_01 ping -c 2 h20_01 (liên site qua MPLS logic)\n")
-    info("*** Thử: h70_01 ping -c 2 h20_01 (IT remote support được phép)\n")
-    info("*** Chạy lại toàn bộ kiểm tra policy trong CLI: testpolicy\n")
-    info("*** Xem DROP flow chủ động: isolationflows\n")
+    emit()
+    emit("=" * 88)
+    emit(f"Topology da tao: {len(user_hosts)} user + 5 service")
+    emit("Controller quan ly 8 OVS; CE, Firewall va MPLS Cloud khong dung OpenFlow.")
+    emit("Lenh nhanh trong mininet:")
+    emit("  testpolicy      # chay bang ping policy chi tiet")
+    emit("  isolationflows  # xem DROP flow priority 400")
+    emit("  h20_01 ping -c 2 h90")
+    emit("=" * 88)
     if os.environ.get("CCH_AUTO_TEST_POLICY", "1") != "0":
         run_policy_tests(net, policy, title="Kiểm tra tự động sau khi khởi động topology")
     else:
-        info("*** Bỏ qua auto-test vì CCH_AUTO_TEST_POLICY=0. Có thể chạy tay: testpolicy\n")
+        emit("Bo qua auto-test vi CCH_AUTO_TEST_POLICY=0. Co the chay tay: testpolicy")
     CallCenterCLI(net, policy)
     net.stop()
 

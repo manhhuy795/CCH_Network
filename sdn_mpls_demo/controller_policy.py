@@ -337,14 +337,18 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     self.logger.info("VOICE PRIORITY FLOW INSTALLED: %s -> %s", ip_packet.src, ip_packet.dst)
                 else:
                     self.logger.info("CHO PHÉP %s -> %s: %s", ip_packet.src, ip_packet.dst, decision["reason"])
-        elif out_port != ofproto.OFPP_FLOOD:
-            match = parser.OFPMatch(in_port=in_port, eth_dst=eth.dst)
+        elif eth.ethertype == ether_types.ETH_TYPE_ARP and out_port != ofproto.OFPP_FLOOD:
+            match = parser.OFPMatch(
+                in_port=in_port,
+                eth_type=ether_types.ETH_TYPE_ARP,
+                eth_dst=eth.dst,
+            )
             self.add_flow(
                 datapath,
                 50,
                 match,
                 actions,
-                {"action": "ALLOW", "reason": "Học MAC cho ARP/L2."},
+                {"action": "ALLOW", "reason": "Học MAC chỉ cho ARP, không bypass IP policy."},
                 idle_timeout=120,
             )
 
