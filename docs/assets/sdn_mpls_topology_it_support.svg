@@ -8,7 +8,7 @@
       .subtitle { fill: #607084; font: 500 13px "Segoe UI", Arial, sans-serif; }
       .zone { fill: #ffffff; stroke: #d8e1e9; stroke-width: 1.5; }
       .zone-label { fill: #607084; font: 700 13px "Segoe UI", Arial, sans-serif; letter-spacing: .2px; }
-      .link { stroke: #aebdcc; stroke-width: 3; stroke-linecap: round; }
+      .link { fill: none; stroke: #aebdcc; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
       .link.mpls { stroke: #7765a8; stroke-width: 4; }
       .link.control { stroke: #8b5cf6; stroke-width: 2.4; stroke-dasharray: 7 6; }
       .node rect { stroke-width: 2; rx: 6; }
@@ -60,10 +60,10 @@
   <line class="link mpls" x1="895" y1="405" x2="820" y2="650"/>
   <line class="link mpls" x1="820" y1="650" x2="470" y2="685"/>
 
-  <line class="link" x1="470" y1="305" x2="670" y2="475"/>
-  <line class="link" x1="670" y1="475" x2="1085" y2="620"/>
-  <line class="link" x1="470" y1="685" x2="670" y2="745"/>
-  <line class="link" x1="670" y1="745" x2="1085" y2="620"/>
+  <polyline class="link" points="470,305 565,305 565,475 670,475"/>
+  <polyline class="link" points="670,475 900,475 900,620 1085,620"/>
+  <polyline class="link" points="470,685 565,685 565,745 670,745"/>
+  <polyline class="link" points="670,745 900,745 900,620 1085,620"/>
   <line class="link" x1="1085" y1="620" x2="1260" y2="165"/>
   <line class="link" x1="1085" y1="620" x2="1260" y2="315"/>
   <line class="link" x1="1085" y1="620" x2="1260" y2="555"/>

@@ -174,10 +174,10 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <path id="link-mpls_cloud-ce_branch" class="net-link mpls" d="M950 465 L960 655"/>
               <path id="link-ce_branch-dist_branch" class="net-link mpls" d="M820 655 L550 687"/>
 
-              <path id="link-core_hq-fw_hq" class="net-link" d="M550 307 L620 440"/>
-              <path id="link-fw_hq-internet" class="net-link" d="M740 440 L1200 600"/>
-              <path id="link-dist_branch-fw_branch" class="net-link" d="M550 707 L620 760"/>
-              <path id="link-fw_branch-internet" class="net-link" d="M740 760 L1200 630"/>
+              <path id="link-core_hq-fw_hq" class="net-link" d="M550 307 H585 V440 H620"/>
+              <path id="link-fw_hq-internet" class="net-link" d="M740 440 H1040 V600 H1200"/>
+              <path id="link-dist_branch-fw_branch" class="net-link" d="M550 707 H585 V760 H620"/>
+              <path id="link-fw_branch-internet" class="net-link" d="M740 760 H1040 V600 H1200"/>
 
               <path id="link-internet-hzalo" class="net-link" d="M1320 600 L1400 210"/>
               <path id="link-internet-hcall" class="net-link" d="M1320 600 L1400 350"/>

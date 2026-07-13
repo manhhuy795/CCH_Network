@@ -61,7 +61,7 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .topology-svg { display: block; min-width: 1050px; width: 100%; }
 .zone { fill: #fbfcfd; stroke: #d7e0e8; }
 .zone-label { fill: #5f7083; font-size: 11px; font-weight: 700; }
-.topology-link { stroke: #aebdcc; stroke-width: 2.5; }
+.topology-link { fill: none; stroke: #aebdcc; stroke-width: 2.5; }
 .topology-link.mpls { stroke: #7765a8; stroke-width: 4; }
 .topology-link.control { stroke: #8b5cf6; stroke-dasharray: 7 6; }
 .topology-link.allow { stroke: #0d9b68; stroke-width: 6; }

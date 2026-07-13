@@ -31,6 +31,13 @@ const labels: Record<string, [string, string]> = {
 
 const controlled = ["access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_mgmt", "core_hq", "access_branch", "dist_branch"];
 
+const routedLinks: Record<string, [number, number][]> = {
+  "core_hq-fw_hq": [[470, 305], [565, 305], [565, 475], [670, 475]],
+  "fw_hq-internet": [[670, 475], [900, 475], [900, 620], [1085, 620]],
+  "dist_branch-fw_branch": [[470, 685], [565, 685], [565, 745], [670, 745]],
+  "fw_branch-internet": [[670, 745], [900, 745], [900, 620], [1085, 620]],
+};
+
 type Props = {
   links: Link[];
   decision?: Decision;
@@ -77,6 +84,11 @@ export default function TopologyCanvas({ links, decision, activeIndex, failedLin
             if (!from || !to) return null;
             const active = decision ? isPathLink(decision.path, link.source, link.target) : false;
             const failed = failedLinks.includes(link.id);
+            const route = routedLinks[link.id];
+            if (route) {
+              return <polyline key={link.id} points={route.map(([x, y]) => `${x},${y}`).join(" ")}
+                className={`topology-link ${link.type} ${active ? decision?.action : ""} ${failed ? "failed" : ""}`} />;
+            }
             return <line key={link.id} x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]}
               className={`topology-link ${link.type} ${active ? decision?.action : ""} ${failed ? "failed" : ""}`} />;
           })}
