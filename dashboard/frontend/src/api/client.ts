@@ -42,6 +42,34 @@ export type TestResult = {
   raw?: string;
 };
 
+export type ClusterCase = {
+  name: string;
+  category: string;
+  expected: "allow" | "deny";
+  passed: boolean;
+  message: string;
+  reason?: string;
+  rtt_ms?: number;
+  jitter_ms?: number;
+  loss_percent?: number;
+  mos?: number;
+  throughput_mbps?: number;
+};
+
+export type ClusterDetailResult = {
+  ok: boolean;
+  cluster: string;
+  source: string;
+  label: string;
+  score: number;
+  passed: number;
+  total: number;
+  message: string;
+  verdict: string;
+  softphone_note: string;
+  cases: ClusterCase[];
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, options);
   if (!response.ok) throw new Error(`Máy chủ trả về HTTP ${response.status}`);

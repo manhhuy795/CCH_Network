@@ -30,6 +30,33 @@ CONTROLLED_SWITCHES = (
 
 ENGINE = PolicyEngine(POLICY_FILE)
 
+CLUSTER_SOURCES = {
+    "project_a": ("h20_01", "Dự án A / VLAN 20"),
+    "project_b": ("h30_01", "Dự án B / VLAN 30"),
+    "project_c": ("h40_01", "Dự án C / VLAN 40"),
+    "telesale": ("h50_01", "Telesale / VLAN 50"),
+    "backoffice": ("h60_01", "BackOffice / VLAN 60"),
+    "it_support": ("h70_01", "IT Support / VLAN 70"),
+}
+
+CLUSTER_ALLOW_TARGETS = {
+    "project_a": ("h90", "hzalo", "hcall", "hinternet", "h50_01"),
+    "project_b": ("h90", "hzalo", "hcall", "hinternet"),
+    "project_c": ("h90", "hzalo", "hcall", "hinternet"),
+    "telesale": ("h90", "hzalo", "hcall", "hinternet", "h20_01"),
+    "backoffice": ("h90", "hzalo", "hcall", "hinternet"),
+    "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hcall", "hsocial"),
+}
+
+CLUSTER_DENY_TARGETS = {
+    "project_a": ("h30_01", "h40_01", "h60_01", "hsocial"),
+    "project_b": ("h20_01", "h40_01", "h50_01", "h60_01", "hsocial"),
+    "project_c": ("h20_01", "h30_01", "h50_01", "h60_01", "hsocial"),
+    "telesale": ("h60_01", "h30_01", "h40_01", "hsocial"),
+    "backoffice": ("h50_01", "h20_01", "h30_01", "h40_01", "hsocial"),
+    "it_support": (),
+}
+
 INFRA_NODES = [
     ("c0", "SDN Controller", "controller"),
     ("access_hq_a", "Access HQ-A", "switch"),
@@ -339,6 +366,76 @@ def call_quality(source: str, destination: str, seconds: int = 5) -> dict[str, A
         "decision": decision,
         "result": result,
         "raw": f"=== PING ===\n{ping_payload['raw']}\n\n=== IPERF3 UDP ===\n{udp_payload['raw']}",
+    }
+
+
+def _case_result(name: str, category: str, expected: str, payload: dict[str, Any]) -> dict[str, Any]:
+    reachable = bool(payload.get("result", {}).get("reachable", payload.get("ok", False)))
+    passed = (expected == "allow" and bool(payload.get("ok"))) or (expected == "deny" and not reachable)
+    metric = payload.get("result", {})
+    return {
+        "name": name,
+        "category": category,
+        "expected": expected,
+        "passed": passed,
+        "message": payload.get("message", ""),
+        "reason": payload.get("decision", {}).get("reason", ""),
+        "rtt_ms": metric.get("rtt_avg_ms"),
+        "jitter_ms": metric.get("jitter_ms"),
+        "loss_percent": metric.get("packet_loss_percent"),
+        "mos": metric.get("mos"),
+        "throughput_mbps": metric.get("throughput_mbps"),
+        "raw": payload.get("raw", ""),
+    }
+
+
+def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
+    if cluster not in CLUSTER_SOURCES:
+        return {"ok": False, "message": f"Không có cụm test: {cluster}", "cases": []}
+
+    source, label = CLUSTER_SOURCES[cluster]
+    cases: list[dict[str, Any]] = []
+
+    voice_payload = call_quality(source, "h90", seconds=seconds)
+    cases.append(_case_result("Chất lượng Cfono/Gphone tới Voice/PBX", "voice", "allow", voice_payload))
+
+    if "hcall" in CLUSTER_ALLOW_TARGETS[cluster]:
+        cases.append(_case_result("Call App/CRM TCP throughput", "application", "allow", iperf(source, "hcall", "tcp", seconds)))
+    if "hinternet" in CLUSTER_ALLOW_TARGETS[cluster]:
+        cases.append(_case_result("Internet test reachability", "internet", "allow", ping(source, "hinternet", count=3)))
+    if "hzalo" in CLUSTER_ALLOW_TARGETS[cluster]:
+        cases.append(_case_result("Zalo service reachability", "internet", "allow", ping(source, "hzalo", count=3)))
+
+    for target in CLUSTER_DENY_TARGETS[cluster]:
+        cases.append(_case_result(f"Policy chặn {source} -> {target}", "segmentation", "deny", ping(source, target, count=2)))
+
+    passed = sum(1 for item in cases if item["passed"])
+    total = len(cases)
+    score = round((passed / total) * 100, 1) if total else 0
+    critical_failures = [
+        item for item in cases
+        if not item["passed"] and item["category"] in {"voice", "segmentation"}
+    ]
+    verdict = (
+        "Đạt cho demo vận hành" if not critical_failures and score >= 80
+        else "Chưa đạt: cần kiểm tra voice hoặc segmentation"
+    )
+    return {
+        "ok": not critical_failures and score >= 80,
+        "cluster": cluster,
+        "source": source,
+        "label": label,
+        "score": score,
+        "passed": passed,
+        "total": total,
+        "message": f"{label}: {verdict} ({passed}/{total}, {score}%).",
+        "cases": cases,
+        "verdict": verdict,
+        "softphone_note": (
+            "Cfono/Gphone là softphone cài trên máy agent: cần kiểm tra PBX/SIP/RTP, "
+            "jitter, packet loss và MOS. Không dùng kết quả ping ngang giữa user để "
+            "kết luận voice hoạt động đúng."
+        ),
     }
 
 

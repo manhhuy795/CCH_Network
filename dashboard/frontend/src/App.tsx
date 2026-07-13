@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, type Decision, type TestResult, type Topology } from "./api/client";
+import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog, { type LogEntry } from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
@@ -135,6 +136,7 @@ export default function App() {
           <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
             busy={busy} result={result} onSource={setSource} onDestination={setDestination}
             onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
+          <ClusterDetailPanel />
           <MetricsPanel metrics={metrics} />
           <PolicyPanel policies={policies} />
           <EventLog entries={events} />

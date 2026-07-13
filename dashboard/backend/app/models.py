@@ -15,6 +15,11 @@ class IperfRequest(HostPair):
     seconds: int = Field(default=5, ge=1, le=60)
 
 
+class ClusterTestRequest(BaseModel):
+    cluster: Literal["project_a", "project_b", "project_c", "telesale", "backoffice", "it_support"] = "project_a"
+    seconds: int = Field(default=3, ge=1, le=20)
+
+
 class PolicyToggleRequest(BaseModel):
     key: str
     enabled: bool

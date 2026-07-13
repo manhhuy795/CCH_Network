@@ -48,6 +48,8 @@ def test_dashboard_serves_live_web_page():
     assert "Sơ đồ logic và luồng gói tin" in html
     assert "/assets/So_do_logic_CCH.png" not in html
     assert "Bảng luồng OpenFlow dễ đọc" in html
+    assert "/api/test/cluster-detail" in html
+    assert 'id="clusterPolicy"' in html
     assert 'id="link-core_hq-fw_hq"' in html
     assert 'id="link-ce_hq-mpls_cloud"' in html
     assert 'id="link-mpls_cloud-ce_branch"' in html
@@ -124,3 +126,18 @@ def test_call_quality_score_uses_call_center_thresholds():
     assert good["thresholds"]["rtt_ms"] == 150
     assert bad["passed"] is False
     assert bad["mos"] < good["mos"]
+
+
+def test_cluster_detail_configuration_covers_main_groups():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import CLUSTER_ALLOW_TARGETS, CLUSTER_DENY_TARGETS, CLUSTER_SOURCES
+
+    assert CLUSTER_SOURCES["project_a"][0] == "h20_01"
+    assert CLUSTER_SOURCES["telesale"][0] == "h50_01"
+    assert "h90" in CLUSTER_ALLOW_TARGETS["project_a"]
+    assert "hcall" in CLUSTER_ALLOW_TARGETS["telesale"]
+    assert "h30_01" in CLUSTER_DENY_TARGETS["project_a"]
+    assert CLUSTER_DENY_TARGETS["it_support"] == ()

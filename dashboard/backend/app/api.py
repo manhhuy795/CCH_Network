@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from .live_mininet import current_metrics, live_status, ovs_flows, policy_decision, temporary_block
+from .live_mininet import cluster_detail_test, current_metrics, live_status, ovs_flows, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
-from .models import HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
+from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
 from .topology import get_topology
 
@@ -56,6 +56,11 @@ def api_test_iperf(payload: IperfRequest, request: Request):
 @router.post("/test/call-quality")
 def api_test_call_quality(payload: IperfRequest, request: Request):
     return run_call_quality(payload.source, payload.destination, payload.seconds, failed_links(request))
+
+
+@router.post("/test/cluster-detail")
+def api_test_cluster_detail(payload: ClusterTestRequest):
+    return cluster_detail_test(payload.cluster, payload.seconds)
 
 
 @router.post("/live/block")

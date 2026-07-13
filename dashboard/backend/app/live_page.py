@@ -284,6 +284,23 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
             <button onclick="unblockPair()">✓ Gỡ chặn</button>
           </div>
           <div id="result" class="result"><strong>Sẵn sàng đo kiểm</strong><p>Chọn nguồn, đích và một phép đo.</p></div>
+          <div class="result">
+            <strong>Test chi tiết theo cụm</strong>
+            <p>Chạy Voice/PBX, Call App, Internet và các case segmentation cho từng nhóm.</p>
+            <div class="form" style="margin-top:8px">
+              <label>Cụm<select id="cluster">
+                <option value="project_a">Dự án A</option>
+                <option value="project_b">Dự án B</option>
+                <option value="project_c">Dự án C</option>
+                <option value="telesale">Telesale</option>
+                <option value="backoffice">BackOffice</option>
+                <option value="it_support">IT Support</option>
+              </select></label>
+              <label>Giây<input id="clusterSeconds" type="number" min="1" max="20" value="3"></label>
+            </div>
+            <button class="primary" style="margin-top:8px;width:100%" onclick="runClusterDetail()">Test chi tiết</button>
+            <div id="clusterOutput" style="margin-top:8px"></div>
+          </div>
           <div class="quality">
             <div><strong id="qualityRtt">--</strong><span>RTT ≤ 150 ms</span></div>
             <div><strong id="qualityJitter">--</strong><span>Jitter ≤ 30 ms</span></div>
@@ -516,6 +533,33 @@ async function blockPair() {
 }
 async function unblockPair() {
   const payload = await post('/api/live/unblock', pair()); show('Gỡ chặn OpenFlow', payload); await loadFlows();
+}
+async function runClusterDetail() {
+  setBusy(true);
+  const body = {
+    cluster: document.getElementById('cluster').value,
+    seconds: Number(document.getElementById('clusterSeconds').value || 3),
+  };
+  const output = document.getElementById('clusterOutput');
+  output.innerHTML = '<p>Đang chạy test chi tiết từ Mininet...</p>';
+  try {
+    const payload = await post('/api/test/cluster-detail', body);
+    output.innerHTML = `
+      <div class="result ${payload.ok ? 'ok' : 'bad'}">
+        <strong>${payload.message}</strong>
+        <p>${payload.softphone_note}</p>
+        ${(payload.cases || []).map((item) => `
+          <div style="border-left:4px solid ${item.passed ? '#087f5b' : '#c92a2a'};background:#fff;margin-top:6px;padding:7px;border-radius:6px">
+            <strong>${item.passed ? 'PASS' : 'FAIL'} · ${item.name}</strong>
+            <p>${item.expected.toUpperCase()} · RTT ${item.rtt_ms ?? '--'} ms · Jitter ${item.jitter_ms ?? '--'} ms · Loss ${item.loss_percent ?? '--'}% · MOS ${item.mos ?? '--'} · TCP ${item.throughput_mbps ?? '--'} Mbps</p>
+          </div>`).join('')}
+      </div>`;
+    await loadFlows();
+  } catch (error) {
+    output.innerHTML = `<div class="result bad"><strong>Lỗi test chi tiết</strong><p>${error.message}</p></div>`;
+  } finally {
+    setBusy(false);
+  }
 }
 function initPolicyMap() {
   Object.keys(pingPolicies).forEach((nodeId) => {
