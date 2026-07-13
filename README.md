@@ -156,6 +156,8 @@ tới các user và service. Dropdown vẫn cho chọn từng user thật. Chứ
 
 ## Tài liệu
 
+- `docs/assets/sdn_mpls_topology_it_support.png`: ảnh sơ đồ mạng để chèn vào báo cáo.
+- `docs/assets/sdn_mpls_topology_it_support.svg`: bản vector không vỡ nét.
 - `docs/sdn_design.md`
 - `sdn_mpls_demo/README.md`
 - `sdn_mpls_demo/docs/sdn_design_vi.md`

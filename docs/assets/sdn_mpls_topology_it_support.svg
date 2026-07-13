@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="820" viewBox="0 0 1360 820" role="img" aria-label="Sơ đồ Hybrid MPLS L3VPN và SDN Edge Policy có phòng IT Support">
+  <title>Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy - Call Center CCH</title>
+  <desc>Sơ đồ mạng Call Center BPO gồm HQ, Branch, MPLS L3VPN, Internet services, SDN Controller, Firewall từng site và phòng IT Support VLAN 70.</desc>
+  <defs>
+    <style>
+      .bg { fill: #eef2f5; }
+      .title { fill: #172033; font: 700 24px "Segoe UI", Arial, sans-serif; }
+      .subtitle { fill: #607084; font: 500 13px "Segoe UI", Arial, sans-serif; }
+      .zone { fill: #ffffff; stroke: #d8e1e9; stroke-width: 1.5; }
+      .zone-label { fill: #607084; font: 700 13px "Segoe UI", Arial, sans-serif; letter-spacing: .2px; }
+      .link { stroke: #aebdcc; stroke-width: 3; stroke-linecap: round; }
+      .link.mpls { stroke: #7765a8; stroke-width: 4; }
+      .link.control { stroke: #8b5cf6; stroke-width: 2.4; stroke-dasharray: 7 6; }
+      .node rect { stroke-width: 2; rx: 6; }
+      .node text { fill: #172033; font: 700 12px "Segoe UI", Arial, sans-serif; text-anchor: middle; }
+      .node .sub { fill: #68788a; font: 500 10px "Segoe UI", Arial, sans-serif; }
+      .user rect { fill: #eef6ff; stroke: #4b86c5; }
+      .it rect { fill: #fff7ed; stroke: #d97706; }
+      .switch rect { fill: #ecfdf5; stroke: #15966b; }
+      .router rect { fill: #eff6ff; stroke: #3974b8; }
+      .controller rect, .cloud ellipse { fill: #f3f0ff; stroke: #7765a8; stroke-width: 2; }
+      .firewall polygon { fill: #fff7ed; stroke: #d97706; stroke-width: 2; }
+      .service rect { fill: #f5f3ff; stroke: #7c5cc4; }
+      .blocked rect { fill: #fff1f2; stroke: #dc2626; }
+      .note { fill: #526276; font: 500 11px "Segoe UI", Arial, sans-serif; }
+      .legend text { fill: #66768a; font: 500 12px "Segoe UI", Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1360" height="820"/>
+  <text class="title" x="30" y="36">Hybrid MPLS L3VPN + SDN Edge Policy - Call Center CCH</text>
+  <text class="subtitle" x="30" y="60">110 user thật trong Mininet, 8 Open vSwitch do OS-Ken điều khiển, phòng IT Support có quyền remote/support.</text>
+
+  <rect class="zone" x="20" y="95" width="700" height="430" rx="8"/>
+  <text class="zone-label" x="35" y="117">TRỤ SỞ CHÍNH · PROJECT / IT / VOICE · FIREWALL HQ TẠI BIÊN INTERNET</text>
+  <rect class="zone" x="20" y="575" width="700" height="220" rx="8"/>
+  <text class="zone-label" x="35" y="597">CHI NHÁNH · TELESALE / BACKOFFICE · FIREWALL BRANCH TẠI BIÊN INTERNET</text>
+  <rect class="zone" x="740" y="210" width="245" height="585" rx="8"/>
+  <text class="zone-label" x="755" y="232">WAN / MPLS L3VPN</text>
+  <rect class="zone" x="1010" y="95" width="330" height="700" rx="8"/>
+  <text class="zone-label" x="1025" y="117">DỊCH VỤ / INTERNET</text>
+
+  <line class="link" x1="90" y1="145" x2="270" y2="145"/>
+  <line class="link" x1="90" y1="225" x2="270" y2="225"/>
+  <line class="link" x1="90" y1="305" x2="270" y2="305"/>
+  <line class="link" x1="90" y1="385" x2="270" y2="385"/>
+  <line class="link" x1="90" y1="465" x2="270" y2="465"/>
+  <line class="link" x1="270" y1="145" x2="470" y2="305"/>
+  <line class="link" x1="270" y1="225" x2="470" y2="305"/>
+  <line class="link" x1="270" y1="305" x2="470" y2="305"/>
+  <line class="link" x1="270" y1="385" x2="470" y2="305"/>
+  <line class="link" x1="270" y1="465" x2="470" y2="305"/>
+
+  <line class="link" x1="90" y1="635" x2="270" y2="685"/>
+  <line class="link" x1="90" y1="735" x2="270" y2="685"/>
+  <line class="link" x1="270" y1="685" x2="470" y2="685"/>
+
+  <line class="link mpls" x1="470" y1="305" x2="780" y2="305"/>
+  <line class="link mpls" x1="780" y1="305" x2="860" y2="505"/>
+  <line class="link mpls" x1="860" y1="505" x2="780" y2="685"/>
+  <line class="link mpls" x1="780" y1="685" x2="470" y2="685"/>
+
+  <line class="link" x1="470" y1="305" x2="660" y2="405"/>
+  <line class="link" x1="660" y1="405" x2="1060" y2="505"/>
+  <line class="link" x1="470" y1="685" x2="660" y2="685"/>
+  <line class="link" x1="660" y1="685" x2="1060" y2="505"/>
+  <line class="link" x1="1060" y1="505" x2="1260" y2="165"/>
+  <line class="link" x1="1060" y1="505" x2="1260" y2="315"/>
+  <line class="link" x1="1060" y1="505" x2="1260" y2="555"/>
+  <line class="link" x1="1060" y1="505" x2="1260" y2="725"/>
+
+  <line class="link control" x1="780" y1="80" x2="270" y2="145"/>
+  <line class="link control" x1="780" y1="80" x2="270" y2="225"/>
+  <line class="link control" x1="780" y1="80" x2="270" y2="305"/>
+  <line class="link control" x1="780" y1="80" x2="270" y2="385"/>
+  <line class="link control" x1="780" y1="80" x2="270" y2="465"/>
+  <line class="link control" x1="780" y1="80" x2="470" y2="305"/>
+  <line class="link control" x1="780" y1="80" x2="270" y2="685"/>
+  <line class="link control" x1="780" y1="80" x2="470" y2="685"/>
+
+  <g class="node user" transform="translate(30 120)"><rect width="120" height="50"/><text x="60" y="20">Dự án A</text><text class="sub" x="60" y="36">20 user · VLAN 20</text></g>
+  <g class="node user" transform="translate(30 200)"><rect width="120" height="50"/><text x="60" y="20">Dự án B</text><text class="sub" x="60" y="36">20 user · VLAN 30</text></g>
+  <g class="node user" transform="translate(30 280)"><rect width="120" height="50"/><text x="60" y="20">Dự án C</text><text class="sub" x="60" y="36">20 user · VLAN 40</text></g>
+  <g class="node it" transform="translate(30 360)"><rect width="120" height="50"/><text x="60" y="20">Phòng IT</text><text class="sub" x="60" y="36">10 user · VLAN 70</text></g>
+  <g class="node service" transform="translate(30 440)"><rect width="120" height="50"/><text x="60" y="20">Voice Service</text><text class="sub" x="60" y="36">h90 · VLAN 90</text></g>
+
+  <g class="node switch" transform="translate(210 120)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-A</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
+  <g class="node switch" transform="translate(210 200)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-B</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
+  <g class="node switch" transform="translate(210 280)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-C</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
+  <g class="node switch" transform="translate(210 360)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-IT</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
+  <g class="node switch" transform="translate(210 440)"><rect width="120" height="50"/><text x="60" y="20">Voice Access</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
+  <g class="node switch" transform="translate(410 270)"><rect width="120" height="70"/><text x="60" y="28">HQ Core SDN</text><text class="sub" x="60" y="47">OpenFlow 1.3</text></g>
+
+  <g class="node user" transform="translate(30 610)"><rect width="120" height="50"/><text x="60" y="20">Telesale</text><text class="sub" x="60" y="36">20 user · VLAN 50</text></g>
+  <g class="node user" transform="translate(30 710)"><rect width="120" height="50"/><text x="60" y="20">BackOffice</text><text class="sub" x="60" y="36">20 user · VLAN 60</text></g>
+  <g class="node switch" transform="translate(210 660)"><rect width="120" height="50"/><text x="60" y="20">Branch Access</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
+  <g class="node switch" transform="translate(410 650)"><rect width="120" height="70"/><text x="60" y="28">Branch Dist.</text><text class="sub" x="60" y="47">OpenFlow 1.3</text></g>
+
+  <g class="node controller" transform="translate(705 50)"><rect width="150" height="60"/><text x="75" y="25">SDN Controller</text><text class="sub" x="75" y="42">OS-Ken · 6653</text></g>
+  <g class="node router" transform="translate(720 275)"><rect width="120" height="60"/><text x="60" y="25">CE Router HQ</text><text class="sub" x="60" y="43">Customer Edge</text></g>
+  <g class="node cloud"><ellipse cx="860" cy="505" rx="105" ry="55"/><text x="860" y="497">MPLS L3VPN</text><text class="sub" x="860" y="516">WAN transport</text></g>
+  <g class="node router" transform="translate(720 655)"><rect width="120" height="60"/><text x="60" y="25">CE Branch</text><text class="sub" x="60" y="43">Customer Edge</text></g>
+
+  <g class="node firewall" transform="translate(600 375)"><polygon points="0,30 30,0 90,0 120,30 90,60 30,60"/><text x="60" y="27">Firewall HQ</text><text class="sub" x="60" y="43">Internet Edge</text></g>
+  <g class="node firewall" transform="translate(600 655)"><polygon points="0,30 30,0 90,0 120,30 90,60 30,60"/><text x="60" y="27">Firewall Branch</text><text class="sub" x="60" y="43">Internet Edge</text></g>
+  <g class="node switch" transform="translate(1000 470)"><rect width="120" height="70"/><text x="60" y="28">Internet Zone</text><text class="sub" x="60" y="47">Service Gateway</text></g>
+  <g class="node service" transform="translate(1200 140)"><rect width="120" height="50"/><text x="60" y="20">Zalo</text><text class="sub" x="60" y="36">Cho phép</text></g>
+  <g class="node service" transform="translate(1200 290)"><rect width="120" height="50"/><text x="60" y="20">Call App</text><text class="sub" x="60" y="36">Cho phép</text></g>
+  <g class="node blocked" transform="translate(1200 530)"><rect width="120" height="50"/><text x="60" y="20">Mạng xã hội</text><text class="sub" x="60" y="36">User thường bị chặn</text></g>
+  <g class="node service" transform="translate(1200 700)"><rect width="120" height="50"/><text x="60" y="20">Internet chung</text><text class="sub" x="60" y="36">Kiểm thử</text></g>
+
+  <text class="note" x="755" y="775">SDN Controller chỉ điều khiển OVS. CE Router, Firewall và MPLS Cloud là mô phỏng transport/security edge.</text>
+  <text class="note" x="30" y="805">Policy chính: Project A/B/C cách ly nhau; VLAN 50/60 cách ly; user thường bị chặn Social; Phòng IT được remote/support toàn hệ thống.</text>
+
+  <g class="legend" transform="translate(30 70)">
+    <line x1="0" y1="0" x2="34" y2="0" class="link"/><text x="44" y="4">Data link</text>
+    <line x1="135" y1="0" x2="169" y2="0" class="link mpls"/><text x="179" y="4">MPLS transport</text>
+    <line x1="320" y1="0" x2="354" y2="0" class="link control"/><text x="364" y="4">OpenFlow control</text>
+    <rect x="535" y="-10" width="20" height="20" fill="#fff7ed" stroke="#d97706" stroke-width="2" rx="4"/><text x="565" y="4">IT / Firewall edge</text>
+  </g>
+</svg>
