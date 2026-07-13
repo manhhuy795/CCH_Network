@@ -199,6 +199,45 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     idle_timeout=0,
                 )
 
+    def install_voice_flows(self, datapath):
+        """Cài ALLOW chủ động hai chiều cho Voice VLAN để ping/call ổn định."""
+        if not self.policy.policies.get("allow_voice", False):
+            return
+
+        voice_service = self.policy.services.get("h90")
+        if not voice_service or "ip" not in voice_service:
+            return
+
+        parser = datapath.ofproto_parser
+        normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
+        normal_actions = [parser.OFPActionOutput(normal_port)]
+        voice_network = ipaddress.ip_network(f"{voice_service['ip']}/32")
+        priority = 425 if self.policy.policies.get("voice_priority", False) else 350
+
+        for group_name, user_network in self.policy.networks.items():
+            for source_network, target_network, source_label, target_label in (
+                (user_network, voice_network, group_name, "h90"),
+                (voice_network, user_network, "h90", group_name),
+            ):
+                match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
+                    ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    priority,
+                    match,
+                    normal_actions,
+                    {
+                        "action": "ALLOW",
+                        "source": source_label,
+                        "destination": target_label,
+                        "reason": "Voice service h90 được cho phép hai chiều theo policy Call Center.",
+                    },
+                    idle_timeout=0,
+                )
+
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
         datapath = event.msg.datapath
@@ -218,6 +257,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             idle_timeout=0,
         )
         self.install_isolation_flows(datapath)
+        self.install_voice_flows(datapath)
         self.install_it_support_flows(datapath)
         self.logger.info("OVS %s đã kết nối, cài table-miss.", DPID_NAMES.get(datapath.id, datapath.id))
 

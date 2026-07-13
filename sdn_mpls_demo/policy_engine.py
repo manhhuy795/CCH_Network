@@ -106,6 +106,9 @@ class PolicyEngine:
             return self._result("deny", "Mặc định từ chối giữa các dịch vụ.", [], None)
 
         source_group = source["group"]
+        if destination["kind"] == "service" and destination["name"] == "h90":
+            return self._service_decision(source, destination)
+
         if self._is_it_support_flow(source_group, destination):
             path = self._it_support_path(source_group, destination)
             return self._result(
@@ -178,7 +181,9 @@ class PolicyEngine:
         service_name = destination["name"]
         if service_name == "h90" and self.policies["allow_voice"]:
             path = self._voice_path(source["group"])
-            return self._result("allow", "Traffic Voice được cho phép và ưu tiên.", path, None)
+            result = self._result("allow", "Traffic Voice được cho phép và ưu tiên.", path, None)
+            result["voice_priority"] = bool(self.policies.get("voice_priority", False))
+            return result
 
         firewall = "fw_branch" if source["site"] == "Branch" else "fw_hq"
         path = [*source_path, firewall, "internet", service_name]
