@@ -131,6 +131,12 @@ Terminal 2:
 
 ```bash
 cd ~/Downloads/CCH_Network
+./scripts/start_demo.sh --install
+```
+
+Các lần sau, nếu dependency đã có:
+
+```bash
 ./scripts/start_demo.sh
 ```
 

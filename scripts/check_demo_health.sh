@@ -41,3 +41,11 @@ else
 fi
 
 echo "WebSocket: kiem tra tren Dashboard bang nut Bat dau giam sat."
+echo
+echo "URL dung trong Ubuntu VM:"
+echo "  Dashboard: http://127.0.0.1:5173"
+echo "  Backend:   http://127.0.0.1:8000"
+echo
+echo "Neu FAIL, xem log:"
+echo "  tail -n 80 logs/backend.log"
+echo "  tail -n 80 logs/frontend.log"
