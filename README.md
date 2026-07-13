@@ -107,7 +107,10 @@ Ubuntu 24.04 được khuyến nghị cho module `sdn_mpls_demo`.
 
 ```bash
 sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip nodejs npm mininet openvswitch-switch iperf3 curl
+sudo apt install -y git python3 python3-venv python3-pip mininet openvswitch-switch iperf3 curl
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v
 git clone https://github.com/manhhuy795/CCH_Network.git
 cd CCH_Network
 chmod +x sdn_mpls_demo/*.sh scripts/*.sh

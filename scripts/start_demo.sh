@@ -46,7 +46,25 @@ wait_port() {
 }
 
 need_cmd python3
+need_cmd node
 need_cmd npm
+
+NODE_MAJOR="$(node -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || echo 0)"
+if [[ "$NODE_MAJOR" -lt 18 ]]; then
+  echo "Node.js hien tai qua cu: $(node -v 2>/dev/null || echo unknown)"
+  echo "React/Vite can Node.js >= 18."
+  echo
+  echo "Cai Node.js 20 tren Ubuntu:"
+  echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
+  echo "  sudo apt install -y nodejs"
+  echo "  node -v"
+  echo
+  echo "Sau do cai lai frontend dependency:"
+  echo "  cd $FRONTEND_DIR"
+  echo "  rm -rf node_modules"
+  echo "  npm install"
+  exit 1
+fi
 
 if [[ -f "$PID_FILE" ]]; then
   echo "Da co PID file: $PID_FILE"
