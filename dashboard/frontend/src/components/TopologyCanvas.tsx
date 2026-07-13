@@ -6,9 +6,9 @@ const positions: Record<string, [number, number]> = {
   access_hq_a: [270, 145], access_hq_b: [270, 225], access_hq_c: [270, 305], access_hq_it: [270, 385], voice_mgmt: [270, 465],
   core_hq: [470, 305], c0: [780, 80],
   telesale: [90, 635], backoffice: [90, 735], access_branch: [270, 685], dist_branch: [470, 685],
-  fw_hq: [660, 405], fw_branch: [660, 685],
-  ce_hq: [780, 305], mpls_cloud: [860, 505], ce_branch: [780, 685],
-  internet: [1060, 505],
+  fw_hq: [670, 475], fw_branch: [670, 745],
+  ce_hq: [820, 255], mpls_cloud: [895, 405], ce_branch: [820, 650],
+  internet: [1085, 620],
   hzalo: [1260, 165], hcall: [1260, 315], hsocial: [1260, 555], hinternet: [1260, 725],
 };
 
@@ -67,8 +67,10 @@ export default function TopologyCanvas({ links, decision, activeIndex, failedLin
         <svg className="topology-svg" viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
           <rect className="zone" x="20" y="95" width="700" height="430" /><text className="zone-label" x="35" y="117">TRỤ SỞ CHÍNH · PROJECT / IT / VOICE · FIREWALL HQ TẠI BIÊN INTERNET</text>
           <rect className="zone" x="20" y="575" width="700" height="220" /><text className="zone-label" x="35" y="597">CHI NHÁNH · TELESALE / BACKOFFICE · FIREWALL BRANCH TẠI BIÊN INTERNET</text>
-          <rect className="zone" x="740" y="210" width="245" height="585" /><text className="zone-label" x="755" y="232">WAN / MPLS L3VPN</text>
-          <rect className="zone" x="1010" y="95" width="330" height="700" /><text className="zone-label" x="1025" y="117">DỊCH VỤ / INTERNET</text>
+          <rect className="zone" x="755" y="185" width="270" height="610" /><text className="zone-label" x="770" y="207">WAN / MPLS L3VPN</text>
+          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">DỊCH VỤ / INTERNET</text>
+          <text className="zone-label" x="765" y="725">Liên site: Core/Dist → CE → MPLS → CE</text>
+          <text className="zone-label" x="765" y="745">Internet/service: qua Firewall từng site</text>
 
           {links.map((link) => {
             const from = positions[link.source]; const to = positions[link.target];

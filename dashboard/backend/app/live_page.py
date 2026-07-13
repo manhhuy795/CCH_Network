@@ -149,8 +149,8 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <text class="zone-title" x="38" y="116">TRỤ SỞ CHÍNH · FIREWALL HQ TẠI BIÊN SITE</text>
               <rect class="zone" x="20" y="535" width="720" height="340" rx="7"/>
               <text class="zone-title" x="38" y="561">CHI NHÁNH · FIREWALL BRANCH TẠI BIÊN SITE</text>
-              <rect class="zone" x="760" y="245" width="340" height="630" rx="7"/>
-              <text class="zone-title" x="778" y="271">WAN / MPLS L3VPN</text>
+              <rect class="zone" x="760" y="210" width="340" height="665" rx="7"/>
+              <text class="zone-title" x="778" y="236">WAN / MPLS L3VPN</text>
               <rect class="zone" x="1120" y="90" width="460" height="785" rx="7"/>
               <text class="zone-title" x="1138" y="116">DỊCH VỤ / INTERNET</text>
 
@@ -169,20 +169,20 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <path id="link-backoffice-access_branch" class="net-link" d="M165 760 L230 700"/>
               <path id="link-access_branch-dist_branch" class="net-link" d="M370 687 L430 687"/>
 
-              <path id="link-core_hq-ce_hq" class="net-link mpls" d="M550 300 L800 385"/>
-              <path id="link-ce_hq-mpls_cloud" class="net-link mpls" d="M940 385 L915 465"/>
-              <path id="link-mpls_cloud-ce_branch" class="net-link mpls" d="M915 535 L940 615"/>
-              <path id="link-ce_branch-dist_branch" class="net-link mpls" d="M800 615 L550 675"/>
+              <path id="link-core_hq-ce_hq" class="net-link mpls" d="M550 300 L820 285"/>
+              <path id="link-ce_hq-mpls_cloud" class="net-link mpls" d="M960 285 L950 355"/>
+              <path id="link-mpls_cloud-ce_branch" class="net-link mpls" d="M950 465 L960 655"/>
+              <path id="link-ce_branch-dist_branch" class="net-link mpls" d="M820 655 L550 687"/>
 
-              <path id="link-core_hq-fw_hq" class="net-link" d="M550 287 L600 360"/>
-              <path id="link-fw_hq-internet" class="net-link" d="M720 360 L1200 460"/>
-              <path id="link-dist_branch-fw_branch" class="net-link" d="M550 687 L600 680"/>
-              <path id="link-fw_branch-internet" class="net-link" d="M720 680 L1200 490"/>
+              <path id="link-core_hq-fw_hq" class="net-link" d="M550 307 L620 440"/>
+              <path id="link-fw_hq-internet" class="net-link" d="M740 440 L1200 600"/>
+              <path id="link-dist_branch-fw_branch" class="net-link" d="M550 707 L620 760"/>
+              <path id="link-fw_branch-internet" class="net-link" d="M740 760 L1200 630"/>
 
-              <path id="link-internet-hzalo" class="net-link" d="M1320 470 L1400 210"/>
-              <path id="link-internet-hcall" class="net-link" d="M1320 470 L1400 350"/>
-              <path id="link-internet-hsocial" class="net-link" d="M1320 470 L1400 570"/>
-              <path id="link-internet-hinternet" class="net-link" d="M1320 470 L1400 790"/>
+              <path id="link-internet-hzalo" class="net-link" d="M1320 600 L1400 210"/>
+              <path id="link-internet-hcall" class="net-link" d="M1320 600 L1400 350"/>
+              <path id="link-internet-hsocial" class="net-link" d="M1320 600 L1400 570"/>
+              <path id="link-internet-hinternet" class="net-link" d="M1320 600 L1400 790"/>
 
               <path id="link-c0-core_hq" class="net-link control" d="M930 145 L510 250"/>
               <path id="link-c0-dist_branch" class="net-link control" d="M930 145 L510 650"/>
@@ -210,14 +210,16 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <g id="dist_branch" class="node switch" transform="translate(430 650)"><rect width="120" height="75" rx="6"/><text x="60" y="29">Branch Distribution</text><text class="sub" x="60" y="49">OVS · OpenFlow 1.3</text></g>
 
               <g id="c0" class="node controller" transform="translate(850 105)"><rect width="160" height="65" rx="6"/><text x="80" y="26">SDN Controller</text><text class="sub" x="80" y="44">127.0.0.1:6653</text></g>
-              <g id="ce_hq" class="node router" transform="translate(800 355)"><rect width="140" height="60" rx="6"/><text x="70" y="25">CE Router HQ</text><text class="sub" x="70" y="43">Customer Edge</text></g>
-              <g id="mpls_cloud" class="node cloud"><ellipse cx="930" cy="500" rx="105" ry="55"/><text x="930" y="491">MPLS L3VPN Cloud</text><text class="sub" x="930" y="511">ISP quản lý · WAN transport</text></g>
-              <g id="ce_branch" class="node router" transform="translate(800 585)"><rect width="140" height="60" rx="6"/><text x="70" y="25">CE Router Branch</text><text class="sub" x="70" y="43">Customer Edge</text></g>
+              <g id="ce_hq" class="node router" transform="translate(820 255)"><rect width="140" height="60" rx="6"/><text x="70" y="25">CE Router HQ</text><text class="sub" x="70" y="43">Customer Edge</text></g>
+              <g id="mpls_cloud" class="node cloud"><ellipse cx="950" cy="410" rx="105" ry="55"/><text x="950" y="401">MPLS L3VPN Cloud</text><text class="sub" x="950" y="421">ISP quản lý · WAN transport</text></g>
+              <g id="ce_branch" class="node router" transform="translate(820 625)"><rect width="140" height="60" rx="6"/><text x="70" y="25">CE Router Branch</text><text class="sub" x="70" y="43">Customer Edge</text></g>
+              <text class="policy-text" x="780" y="760">Liên site: Core/Dist → CE → MPLS → CE. Không đi qua Firewall.</text>
+              <text class="policy-text" x="780" y="785">Internet/service: Core/Dist → Firewall site → Internet Zone.</text>
               <text class="policy-text" x="785" y="830">Controller không điều khiển CE Router hoặc MPLS Cloud.</text>
 
-              <g id="fw_hq" class="node security" transform="translate(600 330)"><polygon points="0,30 30,0 90,0 120,30 90,60 30,60"/><text x="60" y="27">Firewall HQ</text><text class="sub" x="60" y="43">HQ Internet Edge</text></g>
-              <g id="fw_branch" class="node security" transform="translate(600 650)"><polygon points="0,30 30,0 90,0 120,30 90,60 30,60"/><text x="60" y="27">Firewall Branch</text><text class="sub" x="60" y="43">Branch Internet Edge</text></g>
-              <g id="internet" class="node switch" transform="translate(1200 435)"><rect width="120" height="70" rx="6"/><text x="60" y="28">Internet Zone</text><text class="sub" x="60" y="47">Service Gateway</text></g>
+              <g id="fw_hq" class="node security" transform="translate(620 410)"><polygon points="0,30 30,0 90,0 120,30 90,60 30,60"/><text x="60" y="27">Firewall HQ</text><text class="sub" x="60" y="43">HQ Internet Edge</text></g>
+              <g id="fw_branch" class="node security" transform="translate(620 730)"><polygon points="0,30 30,0 90,0 120,30 90,60 30,60"/><text x="60" y="27">Firewall Branch</text><text class="sub" x="60" y="43">Branch Internet Edge</text></g>
+              <g id="internet" class="node switch" transform="translate(1200 565)"><rect width="120" height="70" rx="6"/><text x="60" y="28">Internet Zone</text><text class="sub" x="60" y="47">Service Gateway</text></g>
               <g id="hzalo" class="node service" transform="translate(1400 180)"><rect width="140" height="60" rx="6"/><text x="70" y="25">Zalo Service</text><text class="sub" x="70" y="43">hzalo · Cho phép</text></g>
               <g id="hcall" class="node service" transform="translate(1400 320)"><rect width="140" height="60" rx="6"/><text x="70" y="25">Call App / CRM</text><text class="sub" x="70" y="43">hcall · Cho phép</text></g>
               <g id="hsocial" class="node blocked" transform="translate(1400 540)"><rect width="140" height="60" rx="6"/><text x="70" y="25">Mạng xã hội</text><text class="sub" x="70" y="43">hsocial · Bị chặn</text></g>
@@ -302,10 +304,10 @@ const pair = () => ({
 const positions = {
   project_a:[105,160], project_b:[105,240], project_c:[105,320], it_support:[105,390], h90:[105,465],
   access_hq_a:[295,160], access_hq_b:[295,240], access_hq_c:[295,320], access_hq_it:[295,390], voice_mgmt:[295,465],
-  core_hq:[490,287], fw_hq:[660,360], fw_branch:[660,680],
-  ce_hq:[870,385], mpls_cloud:[930,500], ce_branch:[870,615],
+  core_hq:[490,287], fw_hq:[680,440], fw_branch:[680,760],
+  ce_hq:[890,285], mpls_cloud:[950,410], ce_branch:[890,655],
   telesale:[105,635], backoffice:[105,760], access_branch:[300,687], dist_branch:[490,687],
-  internet:[1260,470],
+  internet:[1260,600],
   hzalo:[1470,210], hcall:[1470,350], hsocial:[1470,570], hinternet:[1470,790],
   c0:[930,137],
 };
