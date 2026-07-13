@@ -20,18 +20,6 @@ Chạy trước:
 sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
-Dashboard chỉ dành cho IT Support. Token lab mặc định:
-
-```text
-it-support-demo
-```
-
-Đổi token khi cần:
-
-```bash
-export CCH_DASHBOARD_TOKEN='token-it-cua-ban'
-```
-
 ## Backend
 
 ```bash

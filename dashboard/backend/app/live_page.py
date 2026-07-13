@@ -1,63 +1,6 @@
 from __future__ import annotations
 
 
-LIVE_LOGIN_HTML = """<!doctype html>
-<html lang="vi">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Đăng nhập IT Support Dashboard</title>
-  <style>
-    :root { color: #172033; background: #eef2f5; font-family: Inter, "Segoe UI", system-ui, sans-serif; }
-    * { box-sizing: border-box; }
-    body { align-items: center; display: flex; justify-content: center; margin: 0; min-height: 100vh; padding: 20px; }
-    main { background: #fff; border: 1px solid #d9e1e8; border-radius: 8px; max-width: 440px; padding: 24px; width: 100%; }
-    h1 { font-size: 22px; margin: 0 0 8px; }
-    p { color: #607084; line-height: 1.45; margin: 0 0 16px; }
-    label { color: #536477; display: grid; font-size: 13px; gap: 7px; margin-bottom: 12px; }
-    input { border: 1px solid #c9d4df; border-radius: 7px; font: inherit; min-height: 42px; padding: 9px 10px; width: 100%; }
-    button { background: #087f5b; border: 1px solid #087f5b; border-radius: 7px; color: #fff; cursor: pointer; font: inherit; min-height: 42px; width: 100%; }
-    .note { background: #f8fafc; border-left: 4px solid #d97706; border-radius: 7px; font-size: 12px; margin-top: 14px; padding: 10px; }
-    .error { color: #b42318; font-size: 13px; min-height: 20px; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Dashboard chỉ dành cho IT Support</h1>
-    <p>Nhập token phòng IT để xem topology, flow OpenFlow và thực thi các bài kiểm tra bảo mật.</p>
-    <label>IT dashboard token
-      <input id="token" type="password" autocomplete="current-password" placeholder="Nhập token">
-    </label>
-    <button onclick="login()">Đăng nhập</button>
-    <div id="error" class="error"></div>
-    <div class="note">Lab mặc định dùng token <strong>it-support-demo</strong>. Khi demo nghiêm túc, đặt biến môi trường <strong>CCH_DASHBOARD_TOKEN</strong>.</div>
-  </main>
-  <script>
-    async function login() {
-      const error = document.getElementById('error');
-      error.textContent = '';
-      const token = document.getElementById('token').value;
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      });
-      const payload = await response.json();
-      if (!payload.ok) {
-        error.textContent = payload.message || 'Không đăng nhập được.';
-        return;
-      }
-      window.location.reload();
-    }
-    document.getElementById('token').addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') login();
-    });
-  </script>
-</body>
-</html>
-"""
-
-
 LIVE_DASHBOARD_HTML = """<!doctype html>
 <html lang="vi">
 <head>
@@ -137,10 +80,6 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
     select, input { background: #fff; border: 1px solid #c9d4df; border-radius: 7px; min-height: 38px; padding: 7px 8px; width: 100%; }
     .wide { grid-column: 1 / -1; }
     .actions { display: grid; gap: 7px; grid-template-columns: 1fr 1fr; margin-top: 11px; }
-    .security-scenarios { display: grid; gap: 7px; grid-template-columns: 1fr 1fr; margin-bottom: 11px; }
-    .security-scenarios button { align-items: flex-start; flex-direction: column; gap: 2px; text-align: left; }
-    .security-scenarios strong { font-size: 12px; }
-    .security-scenarios span { color: #68788a; font-size: 10px; line-height: 1.3; }
     .result { background: #f7f9fb; border-left: 4px solid #718096; border-radius: 7px; margin-top: 11px; min-height: 76px; padding: 10px; }
     .result.ok { border-color: var(--green); }
     .result.bad { border-color: var(--red); }
@@ -314,13 +253,6 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
       <section class="panel">
         <div class="panel-head"><h2>Đo kiểm và điều khiển</h2><span>Dữ liệu thật từ Mininet</span></div>
         <div class="content">
-          <div class="security-scenarios">
-            <button onclick="runScenario('h20_01','h30_01','ping')"><strong>Cách ly Project</strong><span>Dự án A → Dự án B phải fail</span></button>
-            <button onclick="runScenario('h20_01','hsocial','ping')"><strong>Chặn Social</strong><span>User thường → Social phải fail</span></button>
-            <button onclick="runScenario('h70_01','h20_01','ping')"><strong>IT Remote</strong><span>IT → Project A phải pass</span></button>
-            <button onclick="runScenario('h70_01','h20_01','block')"><strong>Chặn khẩn cấp</strong><span>Cài drop flow tạm thời</span></button>
-            <button onclick="runScenario('h70_01','h20_01','unblock')"><strong>Gỡ chặn</strong><span>Xóa drop flow tạm thời</span></button>
-          </div>
           <div class="form">
             <label>Nguồn<select id="source"></select></label>
             <label>Đích<select id="destination"></select></label>
@@ -508,13 +440,6 @@ async function loadFlows() {
   document.getElementById('flowCount').textContent = flows.length;
 }
 function runPing() { return execute('Kết quả Ping', () => post('/api/test/ping', pair())); }
-function runScenario(source, destination, action) {
-  document.getElementById('source').value = source;
-  document.getElementById('destination').value = destination;
-  if (action === 'block') return blockPair();
-  if (action === 'unblock') return unblockPair();
-  return runPing();
-}
 function runIperf(protocol) {
   const body = { ...pair(), protocol, seconds: Number(document.getElementById('seconds').value || 5) };
   return execute(`Đo băng thông ${protocol.toUpperCase()}`, () => post('/api/test/iperf', body));

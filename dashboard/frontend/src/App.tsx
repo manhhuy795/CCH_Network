@@ -1,11 +1,10 @@
-import { LogOut, RefreshCw, ShieldCheck } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, type Decision, type TestResult, type Topology } from "./api/client";
 import EventLog, { type LogEntry } from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
 import PolicyPanel from "./components/PolicyPanel";
-import SecurityDemoPanel from "./components/SecurityDemoPanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
 
@@ -26,10 +25,6 @@ export default function App() {
   const [events, setEvents] = useState<LogEntry[]>([]);
   const [failedLinks, setFailedLinks] = useState<string[]>([]);
   const [online, setOnline] = useState(0);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
-  const [loginToken, setLoginToken] = useState("");
-  const [loginError, setLoginError] = useState("");
   const timer = useRef<number>();
 
   const addEvent = (message: string, kind: LogEntry["kind"] = "info") => {
@@ -55,38 +50,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    api.authStatus()
-      .then((status) => {
-        setAuthenticated(status.ok);
-        if (status.ok) void refresh();
-      })
-      .catch(() => setAuthenticated(false))
-      .finally(() => setAuthChecked(true));
+    void refresh();
     return () => window.clearInterval(timer.current);
   }, []);
-
-  const login = async () => {
-    setLoginError("");
-    try {
-      const payload = await api.login(loginToken);
-      if (!payload.ok) {
-        setLoginError(payload.message);
-        return;
-      }
-      setAuthenticated(true);
-      await refresh();
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "Không đăng nhập được.");
-    }
-  };
-
-  const logout = async () => {
-    await api.logout().catch(() => undefined);
-    setAuthenticated(false);
-    setTopology(undefined);
-    setFlows([]);
-    setOnline(0);
-  };
 
   const animate = (path: string[]) => {
     window.clearInterval(timer.current);
@@ -99,10 +65,10 @@ export default function App() {
     }, 450);
   };
 
-  const executeAction = async (action: Action, pairSource: string, pairDestination: string) => {
+  const runAction = async (action: Action) => {
     setBusy(true);
     try {
-      const pair = { source: pairSource, destination: pairDestination };
+      const pair = { source, destination };
       let payload: TestResult;
       if (action === "ping") payload = await api.post("/api/test/ping", pair);
       else if (action === "tcp" || action === "udp") {
@@ -111,7 +77,7 @@ export default function App() {
         payload = await api.post("/api/test/call-quality", { ...pair, protocol: "udp", seconds });
       } else if (action === "simulate") {
         const simulated = await api.post<Decision & { src: string; dst: string }>("/api/simulate/path", pair);
-        payload = { ok: simulated.action === "allow", message: `Mô phỏng ${pairSource} → ${pairDestination}`, decision: simulated, raw: simulated.reason };
+        payload = { ok: simulated.action === "allow", message: `Mô phỏng ${source} → ${destination}`, decision: simulated, raw: simulated.reason };
       } else {
         payload = await api.post(action === "block" ? "/api/live/block" : "/api/live/unblock", pair);
       }
@@ -133,18 +99,6 @@ export default function App() {
     }
   };
 
-  const runAction = (action: Action) => executeAction(action, source, destination);
-
-  const runScenario = async (scenario: {
-    source: string;
-    destination: string;
-    action: "ping" | "simulate" | "block" | "unblock";
-  }) => {
-    setSource(scenario.source);
-    setDestination(scenario.destination);
-    await executeAction(scenario.action, scenario.source, scenario.destination);
-  };
-
   const changeLink = async (linkId: string, fail: boolean) => {
     const payload = await api.post<{ message: string; failed_links: string[] }>(
       fail ? "/api/link/fail" : "/api/link/recover",
@@ -154,33 +108,6 @@ export default function App() {
     addEvent(payload.message, fail ? "deny" : "allow");
   };
 
-  if (!authChecked) {
-    return <main><section><div className="panel-body">Đang kiểm tra quyền truy cập dashboard IT...</div></section></main>;
-  }
-
-  if (!authenticated) {
-    return (
-      <main className="login-layout">
-        <section className="login-card">
-          <div className="section-title"><h2>Dashboard chỉ dành cho IT Support</h2><span>RBAC demo</span></div>
-          <div className="panel-body">
-            <p>Nhập token phòng IT để xem topology, flow OpenFlow và thực thi các bài kiểm tra bảo mật.</p>
-            <label>IT dashboard token
-              <input type="password" value={loginToken} onChange={(event) => setLoginToken(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") void login(); }} placeholder="it-support-demo" />
-            </label>
-            <button className="primary" onClick={() => void login()}><ShieldCheck size={16} />Đăng nhập IT</button>
-            {loginError && <div className="result-box bad"><strong>Không đăng nhập được</strong><p>{loginError}</p></div>}
-            <div className="explanation">
-              <h3>Token lab</h3>
-              <p>Mặc định: <strong>it-support-demo</strong>. Có thể đổi bằng biến môi trường <strong>CCH_DASHBOARD_TOKEN</strong>.</p>
-            </div>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main>
       <header>
@@ -188,10 +115,7 @@ export default function App() {
           <h1>Giám sát Hybrid MPLS L3VPN + SDN Call Center CCH</h1>
           <p>SDN điều khiển OVS tại edge; MPLS L3VPN vận chuyển traffic giữa HQ và Branch.</p>
         </div>
-        <div className="header-actions">
-          <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
-          <button onClick={() => void logout()}><LogOut size={16} />Đăng xuất IT</button>
-        </div>
+        <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
       </header>
 
       <div className="summary">
@@ -211,7 +135,6 @@ export default function App() {
           <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
             busy={busy} result={result} onSource={setSource} onDestination={setDestination}
             onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
-          <SecurityDemoPanel busy={busy} onRun={(scenario) => void runScenario(scenario)} />
           <MetricsPanel metrics={metrics} />
           <PolicyPanel policies={policies} />
           <EventLog entries={events} />

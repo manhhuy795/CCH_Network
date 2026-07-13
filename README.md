@@ -122,19 +122,6 @@ Terminal 3:
 ./dashboard/run_live_dashboard.sh
 ```
 
-Dashboard mặc định chỉ cho IT Support vào bằng token:
-
-```text
-it-support-demo
-```
-
-Muốn đổi token trước khi chạy dashboard:
-
-```bash
-export CCH_DASHBOARD_TOKEN='token-it-cua-ban'
-./dashboard/run_live_dashboard.sh
-```
-
 Terminal 4:
 
 ```bash
@@ -157,8 +144,6 @@ tới các user và service. Dropdown vẫn cho chọn từng user thật. Chứ
 - Flow table từ 8 OVS.
 - Block/unblock OpenFlow tạm thời.
 - Link failure/reroute logic phục vụ demo.
-- Demo bảo mật trực quan: cách ly Project, chặn Social Media, IT remote
-  support, chặn/gỡ chặn OpenFlow khẩn cấp.
 
 ## Cleanup
 

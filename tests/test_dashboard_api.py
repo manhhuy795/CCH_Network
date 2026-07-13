@@ -38,20 +38,6 @@ def test_dashboard_serves_live_web_page():
 
     client = TestClient(app)
 
-    login_page = client.get("/")
-    assert login_page.status_code == 200
-    assert "Dashboard chỉ dành cho IT Support" in login_page.text
-
-    blocked = client.get("/api/topology")
-    assert blocked.status_code == 401
-
-    bad_login = client.post("/auth/login", json={"token": "wrong-token"})
-    assert bad_login.status_code == 401
-
-    login = client.post("/auth/login", json={"token": "it-support-demo"})
-    assert login.status_code == 200
-    assert login.json()["ok"] is True
-
     response = client.get("/")
     html = response.text
 
@@ -72,6 +58,9 @@ def test_dashboard_serves_live_web_page():
     assert "Phòng IT" in html
     assert 'id="link-it_support-access_hq_it"' in html
     assert "BẢO MẬT / INTERNET EDGE" not in html
+
+    topology = client.get("/api/topology")
+    assert topology.status_code == 200
 
 
 def test_dashboard_policy_decision_explains_allow_and_deny():

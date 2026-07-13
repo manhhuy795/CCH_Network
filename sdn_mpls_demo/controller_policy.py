@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import threading
+import ipaddress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -150,6 +151,54 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 )
         self.logger.info("Đã cài isolation flow chủ động priority 400 trên %s.", switch_name)
 
+    def install_it_support_flows(self, datapath):
+        """Cài ALLOW chủ động cho VLAN IT để remote/support đi ổn định qua mọi OVS."""
+        if not self.policy.policies.get("allow_it_support_full_access", False):
+            return
+
+        parser = datapath.ofproto_parser
+        normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
+        normal_actions = [parser.OFPActionOutput(normal_port)]
+        it_network = self.policy.networks.get("it_support")
+        if not it_network:
+            return
+
+        destinations: list[tuple[str, str]] = [
+            (name, str(network))
+            for name, network in self.policy.networks.items()
+            if name != "it_support"
+        ]
+        destinations.extend(
+            (name, f"{service['ip']}/32")
+            for name, service in self.policy.services.items()
+            if "ip" in service
+        )
+
+        for destination_name, destination_prefix in destinations:
+            destination_network = ipaddress.ip_network(destination_prefix)
+            for source_network, target_network, source_label, target_label in (
+                (it_network, destination_network, "it_support", destination_name),
+                (destination_network, it_network, destination_name, "it_support"),
+            ):
+                match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
+                    ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    450,
+                    match,
+                    normal_actions,
+                    {
+                        "action": "ALLOW",
+                        "source": source_label,
+                        "destination": target_label,
+                        "reason": "IT Support full access: remote/helpdesk được ưu tiên cho phép.",
+                    },
+                    idle_timeout=0,
+                )
+
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
         datapath = event.msg.datapath
@@ -169,6 +218,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             idle_timeout=0,
         )
         self.install_isolation_flows(datapath)
+        self.install_it_support_flows(datapath)
         self.logger.info("OVS %s đã kết nối, cài table-miss.", DPID_NAMES.get(datapath.id, datapath.id))
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
