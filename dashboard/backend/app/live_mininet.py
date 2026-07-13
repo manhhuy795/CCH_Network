@@ -124,7 +124,7 @@ def topology_payload() -> dict[str, Any]:
                     "ip": service["ip"],
                 }
             )
-    nodes.append({"id": "h90", "label": "Voice Service", "type": "service", "ip": ENGINE.services["h90"]["ip"]})
+    nodes.append({"id": "h90", "label": ENGINE.services["h90"]["label"], "type": "service", "ip": ENGINE.services["h90"]["ip"]})
 
     links = [
         {

@@ -66,7 +66,11 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .topology-link.control { stroke: #8b5cf6; stroke-dasharray: 7 6; }
 .topology-link.allow { stroke: #0d9b68; stroke-width: 6; }
 .topology-link.deny, .topology-link.failed { stroke: #dc2626; stroke-dasharray: 10 7; stroke-width: 6; }
+.ping-map { pointer-events: none; stroke-linecap: round; stroke-width: 3.5; }
+.ping-map.allow { stroke: #0d9b68; stroke-opacity: .58; }
+.ping-map.deny { stroke: #dc2626; stroke-dasharray: 8 7; stroke-opacity: .72; }
 .topology-node rect { fill: #fff; stroke: #8da0b4; stroke-width: 2; }
+.topology-node.selectable { cursor: pointer; }
 .topology-node.user rect { fill: #eef6ff; stroke: #4b86c5; }
 .topology-node.switch rect { fill: #ecfdf5; stroke: #15966b; }
 .topology-node.router rect { fill: #eff6ff; stroke: #3974b8; }
@@ -76,6 +80,7 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .topology-node text { fill: #172033; font-size: 11px; font-weight: 650; text-anchor: middle; }
 .topology-node .node-subtitle { fill: #68788a; font-size: 9px; font-weight: 500; }
 .topology-node.current rect { stroke: #0d9b68; stroke-width: 5; }
+.topology-node.selected rect { stroke: #111827; stroke-width: 4; }
 .deny-mark line { stroke: #dc2626; stroke-linecap: round; stroke-width: 9; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 12px; }
 .legend span { color: #66768a; font-size: 11px; }
@@ -85,6 +90,12 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .legend i.mpls { background: #7765a8; }
 .link-controls { display: flex; gap: 6px; }
 .link-controls select { max-width: 220px; }
+.ping-policy-card { border-top: 1px solid #e1e7ed; display: grid; gap: 5px; padding: 10px 12px; }
+.ping-policy-card strong { font-size: 13px; }
+.ping-policy-card p, .ping-policy-card div { color: #607084; font-size: 12px; line-height: 1.4; }
+.ping-policy-card span { font-weight: 750; }
+.ping-policy-card .ok { color: #087f5b; }
+.ping-policy-card .bad { color: #c92a2a; }
 table { border-collapse: collapse; min-width: 1200px; width: 100%; }
 th, td { border-bottom: 1px solid #e7edf2; font-size: 11px; padding: 7px; text-align: left; vertical-align: top; }
 th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }

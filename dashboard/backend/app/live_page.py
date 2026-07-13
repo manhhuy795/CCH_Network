@@ -196,7 +196,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
               <g id="project_b" class="node user" transform="translate(45 215)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án B</text><text class="sub" x="60" y="35">20 user · VLAN 30</text></g>
               <g id="project_c" class="node user" transform="translate(45 295)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Dự án C</text><text class="sub" x="60" y="35">20 user · VLAN 40</text></g>
               <g id="it_support" class="node user" transform="translate(45 365)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Phòng IT</text><text class="sub" x="60" y="35">4 user · VLAN 70</text></g>
-              <g id="h90" class="node service" transform="translate(45 440)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice VLAN</text><text class="sub" x="60" y="35">h90 · VLAN 90 · .10</text></g>
+              <g id="h90" class="node service" transform="translate(45 440)"><rect width="120" height="50" rx="5"/><text x="60" y="19">Voice/PBX</text><text class="sub" x="60" y="35">Cfono/Gphone · h90</text></g>
               <g id="access_hq_a" class="node switch" transform="translate(225 137)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-A</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_b" class="node switch" transform="translate(225 217)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-B</text><text class="sub" x="70" y="34">Open vSwitch</text></g>
               <g id="access_hq_c" class="node switch" transform="translate(225 297)"><rect width="140" height="46" rx="5"/><text x="70" y="19">Access HQ-C</text><text class="sub" x="70" y="34">Open vSwitch</text></g>

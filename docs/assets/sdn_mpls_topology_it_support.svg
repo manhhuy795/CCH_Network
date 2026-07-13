@@ -82,7 +82,7 @@
   <g class="node user" transform="translate(30 200)"><rect width="120" height="50"/><text x="60" y="20">Dự án B</text><text class="sub" x="60" y="36">20 user · VLAN 30</text></g>
   <g class="node user" transform="translate(30 280)"><rect width="120" height="50"/><text x="60" y="20">Dự án C</text><text class="sub" x="60" y="36">20 user · VLAN 40</text></g>
   <g class="node it" transform="translate(30 360)"><rect width="120" height="50"/><text x="60" y="20">Phòng IT</text><text class="sub" x="60" y="36">4 user · VLAN 70</text></g>
-  <g class="node service" transform="translate(30 440)"><rect width="120" height="50"/><text x="60" y="20">Voice Service</text><text class="sub" x="60" y="36">h90 · VLAN 90</text></g>
+  <g class="node service" transform="translate(30 440)"><rect width="120" height="50"/><text x="60" y="20">Voice/PBX</text><text class="sub" x="60" y="36">Cfono/Gphone · h90</text></g>
 
   <g class="node switch" transform="translate(210 120)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-A</text><text class="sub" x="60" y="36">Open vSwitch</text></g>
   <g class="node switch" transform="translate(210 200)"><rect width="120" height="50"/><text x="60" y="20">Access HQ-B</text><text class="sub" x="60" y="36">Open vSwitch</text></g>

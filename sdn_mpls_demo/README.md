@@ -36,6 +36,21 @@ HQ user     → HQ Core → Firewall HQ → Internet Zone
 Branch user → Branch Distribution → Firewall Branch → Internet Zone
 ```
 
+## Lưu ý cho Cfono/Gphone/softphone
+
+Trong thực tế agent thường cài Cfono, Gphone hoặc softphone trực tiếp trên máy.
+Vì vậy lab không hiểu "Voice" là mở ping ngang giữa các máy agent. Mô hình đúng là:
+
+- Máy user được đi tới cụm `h90` mô phỏng Voice/PBX/SIP-RTP service.
+- Máy user được đi tới Call App/CRM nếu policy cho phép.
+- Project A/B/C vẫn bị cách ly với nhau.
+- Telesale/BackOffice vẫn bị cách ly.
+- Internet/service bên ngoài không được chủ động ping vào máy nội bộ.
+
+Nếu triển khai thật, cần thay `h90` bằng IP/FQDN PBX/SIP proxy/SBC và port thật của
+Cfono/Gphone, ví dụ SIP TLS, RTP media range, HTTPS API của Call App. Không nên mở
+full access giữa các VLAN user chỉ vì máy có cài softphone.
+
 ## Ubuntu VM mới - copy/paste từ đầu
 
 Dùng Ubuntu 24.04 LTS. Nếu vừa tạo máy ảo mới, mở Terminal 1 và chạy nguyên
