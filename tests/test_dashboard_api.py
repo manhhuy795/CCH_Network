@@ -591,3 +591,17 @@ def test_readme_documents_automation_and_sdn_runtime_boundaries():
     assert "vars/network_model.yml" in readme
     assert "generated Cisco config khong duoc load vao OVS" in readme
     assert "khong dung de dung Mininet" in readme
+
+
+def test_legacy_sdn_demo_is_clearly_marked():
+    repo_root = Path(__file__).resolve().parents[1]
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    legacy = (repo_root / "sdn_demo" / "LEGACY_README.md").read_text(encoding="utf-8")
+    sdn_demo_readme = (repo_root / "sdn_demo" / "README.md").read_text(encoding="utf-8")
+
+    assert "Demo chinh thuc dung cho bao ve" in readme
+    assert "`sdn_mpls_demo/`" in readme
+    assert "`sdn_demo/` la demo legacy" in readme
+    assert "Khong dung `sdn_demo/` trong buoi bao ve chinh" in legacy
+    assert "sdn_mpls_demo/" in legacy
+    assert "legacy" in sdn_demo_readme.lower()

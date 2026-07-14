@@ -1,5 +1,9 @@
 # Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO
 
+> **Demo chinh thuc dung cho bao ve:** `sdn_mpls_demo/`.
+> `sdn_demo/` la demo legacy, khong dung trong buoi bao ve chinh de tranh nham entry point.
+
+
 ## Simulation Honesty
 
 - `fw_hq` va `fw_branch` trong SDN/Mininet demo la **Internet Edge Boundary** chay bang Linux router namespace.
