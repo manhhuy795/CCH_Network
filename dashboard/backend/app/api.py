@@ -80,15 +80,14 @@ def api_live_unblock(payload: HostPair):
 
 @router.post("/policy/apply")
 def api_policy_apply():
-    return {"ok": True, "message": "Policy nằm trong sdn_mpls_demo/policy.yml. Khởi động lại controller để áp dụng."}
+    return {"ok": False, "message": "Dung /api/policy/toggle de ghi policy.yml atomic va yeu cau controller reload."}
 
 
 @router.post("/policy/toggle")
 def api_policy_toggle(payload: PolicyToggleRequest):
     try:
-        policies = toggle_policy(payload.key, payload.enabled)
-        return {"ok": True, "message": "Đã cập nhật trạng thái hiển thị policy trên dashboard.", "policies": policies}
-    except KeyError as exc:
+        return toggle_policy(payload.key, payload.enabled)
+    except (KeyError, ValueError) as exc:
         return {"ok": False, "message": str(exc)}
 
 
@@ -103,7 +102,7 @@ def api_simulate_path(payload: HostPair, request: Request):
                 "src": payload.source,
                 "dst": payload.destination,
                 "action": "deny",
-                "reason": "Không có đường đi hợp lệ do liên kết đang bị lỗi.",
+                "reason": "Khong co duong di hop le do lien ket dang bi loi.",
                 "path": path[: index + 1],
                 "blocked_at": left,
                 "failed_link": f"{left}-{right}",
@@ -114,22 +113,22 @@ def api_simulate_path(payload: HostPair, request: Request):
         "dst": payload.destination,
         **decision,
         "mode": "logical_architecture",
-        "note": "Đường logic phục vụ minh họa; kết quả ping/iperf vẫn lấy trực tiếp từ Mininet/OVS.",
+        "note": "Duong logic phuc vu minh hoa; ket qua ping/iperf van lay truc tiep tu Mininet/OVS.",
     }
 
 
 @router.post("/link/update")
 def api_link_update(payload: LinkUpdateRequest):
-    return {"ok": True, "message": "Có thể thay đổi bandwidth/delay/loss bằng TCLink trong Mininet.", "link": payload.model_dump()}
+    return {"ok": True, "message": "Co the thay doi bandwidth/delay/loss bang TCLink trong Mininet.", "link": payload.model_dump()}
 
 
 @router.post("/link/fail")
 def api_link_fail(payload: LinkStateRequest, request: Request):
     failed_links(request).add(payload.link_id)
-    return {"ok": True, "message": f"Đã mô phỏng lỗi liên kết {payload.link_id}.", "failed_links": sorted(failed_links(request))}
+    return {"ok": True, "message": f"Da mo phong loi lien ket {payload.link_id}.", "failed_links": sorted(failed_links(request))}
 
 
 @router.post("/link/recover")
 def api_link_recover(payload: LinkStateRequest, request: Request):
     failed_links(request).discard(payload.link_id)
-    return {"ok": True, "message": f"Đã khôi phục liên kết {payload.link_id}.", "failed_links": sorted(failed_links(request))}
+    return {"ok": True, "message": f"Da khoi phuc lien ket {payload.link_id}.", "failed_links": sorted(failed_links(request))}

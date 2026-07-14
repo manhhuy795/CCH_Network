@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socket
 import threading
 import ipaddress
 from datetime import datetime, timezone
@@ -33,6 +34,8 @@ POLICY_FILE = Path(os.environ.get("SDN_POLICY_FILE", BASE_DIR / "policy.yml"))
 RUNTIME_DIR = BASE_DIR / "runtime"
 FLOWS_FILE = RUNTIME_DIR / "installed_flows.json"
 EVENTS_FILE = RUNTIME_DIR / "events.jsonl"
+ADMIN_SOCKET = Path(os.environ.get("CCH_OSKEN_ADMIN_SOCKET", "/tmp/cch_osken_admin.sock"))
+ADMIN_TOKEN = os.environ.get("CCH_OSKEN_ADMIN_TOKEN", "cch-local-admin-token")
 
 NETWORK_MODEL = load_network_model()
 DPID_NAMES = dpid_name_map(NETWORK_MODEL)
@@ -71,9 +74,11 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
         self.policy = PolicyEngine(POLICY_FILE)
         self.mac_to_port: dict[int, dict[str, int]] = {}
+        self.datapaths: dict[int, Any] = {}
         self.installed_flows: list[dict[str, Any]] = []
         self.file_lock = threading.Lock()
         self._write_flows()
+        self._start_admin_socket()
         self.logger.info("Đã nạp policy SDN từ %s", POLICY_FILE)
 
     def _write_flows(self) -> None:
@@ -91,6 +96,106 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         self._write_flows()
         with EVENTS_FILE.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    def _start_admin_socket(self) -> None:
+        if not hasattr(socket, "AF_UNIX"):
+            self.logger.warning("Unix Domain Socket khong kha dung; bo qua controller admin interface.")
+            return
+        thread = threading.Thread(target=self._admin_socket_loop, name="cch-osken-admin", daemon=True)
+        thread.start()
+
+    def _admin_socket_loop(self) -> None:
+        try:
+            if ADMIN_SOCKET.exists():
+                ADMIN_SOCKET.unlink()
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            server.bind(str(ADMIN_SOCKET))
+            ADMIN_SOCKET.chmod(0o600)
+            server.listen(5)
+        except OSError as exc:
+            self.logger.error("Khong mo duoc admin socket %s: %s", ADMIN_SOCKET, exc)
+            return
+
+        self.logger.info("Controller admin socket dang lang nghe tai %s", ADMIN_SOCKET)
+        while True:
+            connection, _addr = server.accept()
+            with connection:
+                try:
+                    request = json.loads(connection.recv(65536).decode("utf-8"))
+                    response = self._handle_admin_request(request)
+                except Exception as exc:  # noqa: BLE001
+                    response = {"ok": False, "message": f"Loi controller admin: {exc}"}
+                connection.sendall(json.dumps(response, ensure_ascii=False).encode("utf-8"))
+
+    def _handle_admin_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        if request.get("token") != ADMIN_TOKEN:
+            return {"ok": False, "message": "Token noi bo khong hop le."}
+        if request.get("action") != "reload_policy":
+            return {"ok": False, "message": "Lenh admin khong duoc ho tro."}
+        return self.reload_policy()
+
+    def _delete_cookie(self, datapath, cookie: int) -> None:
+        parser = datapath.ofproto_parser
+        ofproto = datapath.ofproto
+        datapath.send_msg(
+            parser.OFPFlowMod(
+                datapath=datapath,
+                command=ofproto.OFPFC_DELETE,
+                cookie=cookie,
+                cookie_mask=0xFFFFFFFFFFFFFFFF,
+                out_port=ofproto.OFPP_ANY,
+                out_group=ofproto.OFPG_ANY,
+                match=parser.OFPMatch(),
+            )
+        )
+        switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
+        self._record(
+            switch=switch_name,
+            switch_role=SWITCH_ROLES.get(switch_name, "unknown"),
+            priority=0,
+            match="cookie-delete",
+            action="DELETE",
+            source="*",
+            destination="*",
+            reason="Reload policy: xoa flow cu theo cookie.",
+            policy="policy_reload",
+            cookie=f"0x{cookie:x}",
+            enforcement_switch=switch_name,
+        )
+
+    def reload_policy(self) -> dict[str, Any]:
+        old_policies = dict(self.policy.policies)
+        new_policy = PolicyEngine(POLICY_FILE)
+        changed = [
+            key for key, value in new_policy.policies.items()
+            if old_policies.get(key) != value
+        ]
+        cookies = sorted({
+            value for key, value in POLICY_COOKIES.items()
+            if key not in {"runtime"} and value
+        })
+        flows_removed = 0
+        for datapath in list(self.datapaths.values()):
+            for cookie in cookies:
+                self._delete_cookie(datapath, cookie)
+                flows_removed += 1
+
+        self.policy = new_policy
+        before = len(self.installed_flows)
+        updated_switches: list[str] = []
+        for datapath in list(self.datapaths.values()):
+            switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
+            self.install_policy_flows(datapath)
+            updated_switches.append(switch_name)
+        flows_installed = max(0, len(self.installed_flows) - before)
+        return {
+            "ok": True,
+            "message": "Policy da reload va reconcile OpenFlow theo cookie.",
+            "policies_reloaded": len(changed),
+            "flows_removed": flows_removed,
+            "flows_installed": flows_installed,
+            "switches_updated": sorted(updated_switches),
+        }
 
     def add_flow(self, datapath, priority, match, actions, metadata, idle_timeout=180, hard_timeout=0):
         parser = datapath.ofproto_parser
@@ -408,9 +513,16 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                             idle_timeout=0,
                         )
 
+    def install_policy_flows(self, datapath) -> None:
+        self.install_isolation_flows(datapath)
+        self.install_service_policy_flows(datapath)
+        self.install_voice_flows(datapath)
+        self.install_it_support_flows(datapath)
+
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
         datapath = event.msg.datapath
+        self.datapaths[datapath.id] = datapath
         parser = datapath.ofproto_parser
         actions = [
             parser.OFPActionOutput(
@@ -426,10 +538,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             {"action": "PACKET_IN", "reason": "Table-miss gửi gói đầu tiên lên controller."},
             idle_timeout=0,
         )
-        self.install_isolation_flows(datapath)
-        self.install_service_policy_flows(datapath)
-        self.install_voice_flows(datapath)
-        self.install_it_support_flows(datapath)
+        self.install_policy_flows(datapath)
         self.logger.info("OVS %s đã kết nối, cài table-miss.", DPID_NAMES.get(datapath.id, datapath.id))
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)

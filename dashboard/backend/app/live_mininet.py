@@ -52,6 +52,11 @@ CLUSTER_DENY_TARGETS = {
     "it_support": (),
 }
 
+
+def reload_policy_engine() -> None:
+    global ENGINE
+    ENGINE = PolicyEngine(POLICY_FILE)
+
 INFRA_NODES = [
     ("c0", NETWORK_MODEL["infrastructure"]["c0"]["label"], "controller", NETWORK_MODEL["infrastructure"]["c0"].get("subtitle", "")),
     *(

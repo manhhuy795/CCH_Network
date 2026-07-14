@@ -22,6 +22,7 @@ export default function App() {
   const [destination, setDestination] = useState("h90");
   const [seconds, setSeconds] = useState(5);
   const [busy, setBusy] = useState(false);
+  const [policyBusy, setPolicyBusy] = useState(false);
   const [result, setResult] = useState<TestResult>();
   const [decision, setDecision] = useState<Decision>();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -112,6 +113,20 @@ export default function App() {
     addEvent(payload.message, fail ? "deny" : "allow");
   };
 
+  const togglePolicy = async (key: string, enabled: boolean) => {
+    setPolicyBusy(true);
+    try {
+      const payload = await api.post<{ ok: boolean; message: string; policies?: Record<string, unknown> }>("/api/policy/toggle", { key, enabled });
+      addEvent(payload.message, payload.ok ? "allow" : "deny");
+      if (!payload.ok) return;
+      await refresh();
+    } catch (error) {
+      addEvent(error instanceof Error ? error.message : "Không áp dụng được policy.", "deny");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
   const totalEndpoints = (topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5);
   const tabs: Array<[Tab, string]> = [["operate", "Vận hành"], ["policy", "Chính sách & OpenFlow"], ["logs", "Nhật ký"]];
 
@@ -163,7 +178,7 @@ export default function App() {
       {tab === "policy" && (
         <div className="dashboard-grid">
           <div className="main-column">
-            <PolicyPanel policies={policies} />
+            <PolicyPanel policies={policies} onToggle={(key, enabled) => void togglePolicy(key, enabled)} busy={policyBusy} />
             <FlowTable flows={flows} />
           </div>
           <aside>

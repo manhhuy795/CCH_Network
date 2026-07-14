@@ -148,3 +148,33 @@ def test_manual_block_uses_cookie_and_single_enforcement_switch():
     assert 'del-flows", switch, f"cookie=0x{cookie:x}/{COOKIE_MASK}"' in source
     assert 'del-flows", switch, match' not in source
     assert "for switch in CONTROLLED_SWITCHES:" not in source.split("def temporary_block", 1)[1].split("def live_status", 1)[0]
+
+
+def test_policy_toggle_rolls_back_when_controller_admin_is_unavailable():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app import policy as policy_module
+
+    before = policy_module.POLICY_FILE.read_text(encoding="utf-8")
+    current = policy_module._load_policy_file()["policies"]["block_social_media"]
+    result = policy_module.toggle_policy("block_social_media", not current)
+    after = policy_module.POLICY_FILE.read_text(encoding="utf-8")
+
+    assert result["ok"] is False
+    assert "rollback" in result["message"].lower()
+    assert before == after
+
+
+def test_controller_admin_reload_reconciles_flows_by_cookie():
+    repo_root = Path(__file__).resolve().parents[1]
+    controller = (repo_root / "sdn_mpls_demo" / "controller_policy.py").read_text(encoding="utf-8")
+
+    assert "ADMIN_SOCKET" in controller
+    assert "ADMIN_TOKEN" in controller
+    assert "reload_policy" in controller
+    assert "cookie_mask=0xFFFFFFFFFFFFFFFF" in controller
+    assert "self._delete_cookie(datapath, cookie)" in controller
+    assert "self.install_policy_flows(datapath)" in controller
+    assert "self.datapaths[datapath.id] = datapath" in controller
