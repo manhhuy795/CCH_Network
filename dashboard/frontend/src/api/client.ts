@@ -1,5 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL ||
   `${window.location.protocol}//${window.location.hostname}:8000`;
+const OPERATOR_TOKEN_KEY = "cch_operator_token";
 
 export type Host = {
   name: string;
@@ -114,21 +115,54 @@ export type ClusterDetailResult = {
   cases: ClusterCase[];
 };
 
+export type AuthStatus = {
+  operator_auth_required: boolean;
+  operator_token_configured: boolean;
+  token_header: string;
+  role: string;
+};
+
+export function getOperatorToken() {
+  return window.localStorage.getItem(OPERATOR_TOKEN_KEY) || "";
+}
+
+export function setOperatorToken(token: string) {
+  const trimmed = token.trim();
+  if (trimmed) window.localStorage.setItem(OPERATOR_TOKEN_KEY, trimmed);
+  else window.localStorage.removeItem(OPERATOR_TOKEN_KEY);
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getOperatorToken();
+  return token ? { "X-CCH-Operator-Token": token } : {};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, options);
-  if (!response.ok) throw new Error(`Máy chủ trả về HTTP ${response.status}`);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = typeof payload.detail === "string" ? payload.detail : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail || `May chu tra ve HTTP ${response.status}`);
+  }
   return response.json() as Promise<T>;
 }
 
+
 export const api = {
   topology: () => request<Topology>("/api/topology"),
+  authStatus: () => request<AuthStatus>("/api/auth/status"),
   policies: () => request<Record<string, unknown>>("/api/policies"),
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),
   status: () => request<Record<string, unknown>>("/api/live/status"),
   post: <T>(path: string, body: object) =>
     request<T>(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     }),
 };

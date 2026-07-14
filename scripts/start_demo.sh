@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/logs"
 PID_FILE="$LOG_DIR/demo.pids"
+OPERATOR_TOKEN_FILE="$LOG_DIR/operator.token"
 BACKEND_DIR="$ROOT_DIR/dashboard/backend"
 FRONTEND_DIR="$ROOT_DIR/dashboard/frontend"
 BACKEND_VENV="$BACKEND_DIR/.venv"
@@ -14,6 +15,17 @@ if [[ "${1:-}" == "--install" ]]; then
 fi
 
 mkdir -p "$LOG_DIR"
+
+if [[ -z "${CCH_DASHBOARD_OPERATOR_TOKEN:-}" ]]; then
+  if [[ ! -s "$OPERATOR_TOKEN_FILE" ]]; then
+    python3 - <<'PY' > "$OPERATOR_TOKEN_FILE"
+import secrets
+print(secrets.token_urlsafe(24))
+PY
+    chmod 600 "$OPERATOR_TOKEN_FILE"
+  fi
+  export CCH_DASHBOARD_OPERATOR_TOKEN="$(cat "$OPERATOR_TOKEN_FILE")"
+fi
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -140,6 +152,9 @@ VM_IPS="$(hostname -I 2>/dev/null | xargs || true)"
 
 echo
 echo "Da khoi dong dashboard."
+echo "IT operator token:"
+echo "  $CCH_DASHBOARD_OPERATOR_TOKEN"
+echo "Nhap token nay vao o IT token tren dashboard de ping/iperf/block/link fail/policy toggle."
 echo "Mo trong Ubuntu VM:"
 echo "  Dashboard: http://127.0.0.1:5173"
 echo "  Backend:   http://127.0.0.1:8000"

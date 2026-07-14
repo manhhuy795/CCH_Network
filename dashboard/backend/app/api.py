@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from . import mininet_control
 from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
+from .security import auth_status, require_operator
 from .topology import get_topology
 
 
 router = APIRouter(prefix="/api")
+operator_required = Depends(require_operator)
 
 
 def failed_link_ids() -> list[str]:
@@ -29,6 +31,11 @@ def api_topology():
     return get_topology()
 
 
+@router.get("/auth/status")
+def api_auth_status():
+    return auth_status()
+
+
 @router.get("/policies")
 def api_policies():
     return get_policy_payload()
@@ -44,7 +51,7 @@ def api_metrics_current(request: Request):
     return current_metrics()
 
 
-@router.post("/metrics/pair")
+@router.post("/metrics/pair", dependencies=[operator_required])
 def api_metrics_pair(payload: HostPair):
     return pair_realtime_metrics(payload.source, payload.destination)
 
@@ -54,42 +61,42 @@ def api_live_status():
     return live_status()
 
 
-@router.post("/test/ping")
+@router.post("/test/ping", dependencies=[operator_required])
 def api_test_ping(payload: HostPair):
     return run_ping(payload.source, payload.destination)
 
 
-@router.post("/test/iperf")
+@router.post("/test/iperf", dependencies=[operator_required])
 def api_test_iperf(payload: IperfRequest):
     return run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds)
 
 
-@router.post("/test/call-quality")
+@router.post("/test/call-quality", dependencies=[operator_required])
 def api_test_call_quality(payload: IperfRequest):
     return run_call_quality(payload.source, payload.destination, payload.seconds)
 
 
-@router.post("/test/cluster-detail")
+@router.post("/test/cluster-detail", dependencies=[operator_required])
 def api_test_cluster_detail(payload: ClusterTestRequest):
     return cluster_detail_test(payload.cluster, payload.seconds)
 
 
-@router.post("/live/block")
+@router.post("/live/block", dependencies=[operator_required])
 def api_live_block(payload: HostPair):
     return temporary_block(payload.source, payload.destination, block=True)
 
 
-@router.post("/live/unblock")
+@router.post("/live/unblock", dependencies=[operator_required])
 def api_live_unblock(payload: HostPair):
     return temporary_block(payload.source, payload.destination, block=False)
 
 
-@router.post("/policy/apply")
+@router.post("/policy/apply", dependencies=[operator_required])
 def api_policy_apply():
     return {"ok": False, "message": "Dung /api/policy/toggle de ghi policy.yml atomic va yeu cau controller reload."}
 
 
-@router.post("/policy/toggle")
+@router.post("/policy/toggle", dependencies=[operator_required])
 def api_policy_toggle(payload: PolicyToggleRequest):
     try:
         return toggle_policy(payload.key, payload.enabled)
@@ -97,7 +104,7 @@ def api_policy_toggle(payload: PolicyToggleRequest):
         return {"ok": False, "message": str(exc)}
 
 
-@router.post("/simulate/path")
+@router.post("/simulate/path", dependencies=[operator_required])
 def api_simulate_path(payload: HostPair):
     decision = policy_decision(payload.source, payload.destination)
     path = decision.get("path", [])
@@ -129,19 +136,19 @@ def api_simulate_path(payload: HostPair):
     }
 
 
-@router.post("/link/update")
+@router.post("/link/update", dependencies=[operator_required])
 def api_link_update(payload: LinkUpdateRequest):
     return {"ok": True, "message": "Co the thay doi bandwidth/delay/loss bang TCLink trong Mininet.", "link": payload.model_dump()}
 
 
-@router.post("/link/fail")
+@router.post("/link/fail", dependencies=[operator_required])
 def api_link_fail(payload: LinkStateRequest):
     result = mininet_control.set_link_state(payload.link_id, "down")
     result["failed_links"] = failed_link_ids()
     return result
 
 
-@router.post("/link/recover")
+@router.post("/link/recover", dependencies=[operator_required])
 def api_link_recover(payload: LinkStateRequest):
     result = mininet_control.set_link_state(payload.link_id, "up")
     result["failed_links"] = failed_link_ids()

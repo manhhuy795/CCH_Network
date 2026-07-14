@@ -25,6 +25,10 @@ header {
   align-items: center; display: flex; gap: 16px; justify-content: space-between;
   margin-bottom: 12px; padding: 15px 18px;
 }
+.header-actions { align-items: end; display: flex; gap: 10px; }
+.token-box { display: grid; gap: 4px; min-width: 210px; }
+.token-box span { color: #667085; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.token-box input { border: 1px solid #cbd5e1; border-radius: 7px; font-size: 13px; min-height: 35px; padding: 8px 10px; }
 h1 { font-size: 23px; margin: 0 0 4px; }
 h2 { font-size: 16px; margin: 0; }
 h3 { font-size: 14px; margin: 0 0 6px; }

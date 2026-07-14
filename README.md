@@ -160,6 +160,8 @@ Các lần sau, nếu dependency đã có:
 ./scripts/start_demo.sh
 ```
 
+Dashboard se in `IT operator token` ra terminal va luu trong `logs/operator.token`. Nhap token nay vao o `IT token` tren web de chay ping that, iperf, block/unblock, link fail/recover va policy toggle.
+
 Mở dashboard:
 
 ```text

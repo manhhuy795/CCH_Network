@@ -237,9 +237,11 @@ def test_live_link_control_uses_mininet_agent_not_backend_state():
     assert all(link["status"] == "up" for link in topology["links"])
 
 
-def test_link_fail_endpoint_requires_live_mininet_agent():
+def test_link_fail_endpoint_requires_live_mininet_agent(monkeypatch):
     pytest.importorskip("fastapi")
     pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "link-secret")
 
     repo_root = Path(__file__).resolve().parents[1]
     backend_root = repo_root / "dashboard" / "backend"
@@ -250,7 +252,11 @@ def test_link_fail_endpoint_requires_live_mininet_agent():
 
     client = TestClient(app)
 
-    response = client.post("/api/link/fail", json={"link_id": "core_hq-ce_hq"})
+    response = client.post(
+        "/api/link/fail",
+        json={"link_id": "core_hq-ce_hq"},
+        headers={"X-CCH-Operator-Token": "link-secret"},
+    )
     payload = response.json()
 
     assert response.status_code == 200
@@ -416,3 +422,44 @@ def test_privileged_mininet_operations_are_split_into_control_agent():
 
     assert "command not in ALLOWED_CONTROL_COMMANDS" in topology_source
     assert "re.fullmatch" in topology_source
+
+
+def test_operator_actions_require_it_token(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "phase18-secret")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+
+    status_response = client.get("/api/auth/status")
+    assert status_response.status_code == 200
+    assert status_response.json()["operator_token_configured"] is True
+
+    denied = client.post("/api/test/ping", json={"source": "h20_01", "destination": "h90"})
+    assert denied.status_code == 403
+    assert "IT operator" in denied.text
+
+    allowed = client.post(
+        "/api/test/ping",
+        json={"source": "h20_01", "destination": "h90"},
+        headers={"X-CCH-Operator-Token": "phase18-secret"},
+    )
+    assert allowed.status_code == 200
+
+    client_source = (repo_root / "dashboard" / "frontend" / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+    app_source = (repo_root / "dashboard" / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    start_script = (repo_root / "scripts" / "start_demo.sh").read_text(encoding="utf-8")
+
+    assert "X-CCH-Operator-Token" in client_source
+    assert "localStorage" in client_source
+    assert "IT token" in app_source
+    assert "secrets.token_urlsafe" in start_script
+    assert "cch-it-demo-token" not in start_script

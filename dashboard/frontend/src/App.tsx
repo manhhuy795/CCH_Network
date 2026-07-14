@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { api, type Decision, type TestResult, type Topology } from "./api/client";
+import { api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type TestResult, type Topology } from "./api/client";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog, { type LogEntry } from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
@@ -32,6 +32,8 @@ export default function App() {
   const [online, setOnline] = useState(0);
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
   const [websocketOnline, setWebsocketOnline] = useState(false);
+  const [operatorToken, setOperatorTokenState] = useState(getOperatorToken());
+  const [authStatus, setAuthStatus] = useState<AuthStatus>();
   const timer = useRef<number>();
 
   const addEvent = (message: string, kind: LogEntry["kind"] = "info") => {
@@ -43,19 +45,25 @@ export default function App() {
 
   const refresh = async () => {
     try {
-      const [topologyData, policyData, flowData, status] = await Promise.all([
-        api.topology(), api.policies(), api.flows(), api.status(),
+      const [topologyData, policyData, flowData, status, auth] = await Promise.all([
+        api.topology(), api.policies(), api.flows(), api.status(), api.authStatus(),
       ]);
       setTopology(topologyData);
       setFailedLinks(topologyData.links.filter((link) => link.status === "down").map((link) => link.id));
       setPolicies(policyData);
       setFlows(flowData.flows);
       setRuntime(status);
+      setAuthStatus(auth);
       const hosts = (status.hosts || {}) as Record<string, boolean>;
       setOnline(Object.values(hosts).filter(Boolean).length);
     } catch (error) {
       addEvent(error instanceof Error ? error.message : "Không tải được dữ liệu dashboard.", "deny");
     }
+  };
+
+  const saveOperatorToken = (value: string) => {
+    setOperatorTokenState(value);
+    setOperatorToken(value);
   };
 
   useEffect(() => {
@@ -139,7 +147,18 @@ export default function App() {
           <h1>Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy cho Call Center BPO</h1>
           <p>OS-Ken điều khiển Open vSwitch tại SDN Edge; MPLS Logic Cloud chỉ mô phỏng WAN transport giữa HQ và Branch.</p>
         </div>
-        <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
+        <div className="header-actions">
+          <label className="token-box">
+            <span>IT token</span>
+            <input
+              value={operatorToken}
+              onChange={(event) => saveOperatorToken(event.target.value)}
+              placeholder={authStatus?.operator_token_configured ? "Nhap operator token" : "Backend chua cau hinh token"}
+              type="password"
+            />
+          </label>
+          <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Lam moi</button>
+        </div>
       </header>
 
       <div className="tabs">
