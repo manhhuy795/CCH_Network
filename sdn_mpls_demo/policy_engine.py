@@ -131,6 +131,14 @@ class PolicyEngine:
             return self._service_decision(source, destination)
 
         destination_group = destination["group"]
+        if source_group != IT_SUPPORT_GROUP and destination_group == IT_SUPPORT_GROUP:
+            return self._result(
+                "deny",
+                "User thuong khong duoc chu dong truy cap VLAN IT Support.",
+                self._path_to_core_hq(source_group),
+                "core_hq",
+            )
+
         if (
             self.policies["isolate_hq_projects"]
             and source_group in HQ_PROJECTS
@@ -272,3 +280,10 @@ class PolicyEngine:
                 destination_group,
             ]
         return list(reversed(PolicyEngine._intersite_path(destination_group, source_group)))
+
+    @staticmethod
+    def _path_to_core_hq(source_group: str) -> list[str]:
+        source_path = GROUP_PATHS[source_group]
+        if source_group in BRANCH_GROUPS:
+            return [*source_path, "ce_branch", "mpls_cloud", "ce_hq", "core_hq"]
+        return source_path

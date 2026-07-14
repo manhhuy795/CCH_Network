@@ -79,12 +79,23 @@ def test_phase28_runtime_regressions_for_it_least_privilege():
     engine = PolicyEngine(policy_path)
 
     assert engine.decide_packet("h70_01", "h20_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
+    assert engine.decide_packet("h70_01", "h30_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
+    assert engine.decide_packet("h70_01", "h50_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
     assert engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+    assert engine.decide_packet("h30_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+    assert engine.decide_packet("h50_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
     assert engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REPLY)["action"] == "allow"
+
+    assert engine.decide_packet("h70_01", "hcall", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
+    assert engine.decide_packet("h70_01", "h90", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
 
     social = engine.decide_packet("h70_01", "hsocial", icmp_type=ICMP_ECHO_REQUEST)
     assert social["action"] == "deny"
     assert social["blocked_at"] == "core_hq"
+
+    user_to_it = engine.decide_packet("h50_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)
+    assert user_to_it["blocked_at"] == "core_hq"
+    assert "VLAN IT Support" in user_to_it["reason"]
 
 
 def test_internet_cannot_initiate_ping_to_inside_users():
