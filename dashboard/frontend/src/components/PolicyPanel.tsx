@@ -1,7 +1,7 @@
 const labels: Record<string, string> = {
   isolate_hq_projects: "Cach ly cac du an tai HQ",
   isolate_branch_vlan_50_60: "Cach ly VLAN 50 va VLAN 60",
-  allow_voice: "Cho phep Voice Service",
+  allow_voice: "Cho phep PBX/SBC Voice Service",
   allow_zalo: "Cho phep Zalo",
   allow_call_app: "Cho phep Call App / CRM",
   allow_general_internet: "Cho phep General Internet",

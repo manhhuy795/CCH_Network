@@ -106,6 +106,29 @@ def test_call_quality_score_uses_call_center_thresholds():
     assert good["thresholds"]["rtt_ms"] == 150
     assert bad["passed"] is False
     assert bad["mos"] < good["mos"]
+    assert "khong phai cuoc goi SIP/RTP hoan chinh" in good["estimation_note"]
+
+
+def test_voice_softphone_wording_is_estimation_not_real_sip_call():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import estimate_voice_quality
+
+    frontend_test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+    metrics_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "MetricsPanel.tsx").read_text(encoding="utf-8")
+    controller = (repo_root / "sdn_mpls_demo" / "controller_policy.py").read_text(encoding="utf-8")
+
+    live_mininet = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
+    quality = estimate_voice_quality(rtt_ms=40, jitter_ms=4, packet_loss_percent=0)
+
+    assert "khong phai cuoc goi SIP/RTP hoan chinh" in quality["estimation_note"]
+    assert "PBX/SBC Voice Service" in live_mininet
+    assert "Softphone Cfone/Gphone" in live_mininet
+    assert "Uoc luong chat luong thoai" in frontend_test_panel
+    assert "MOS/R-factor la uoc luong" in metrics_panel
+    assert "QoS dam bao" not in controller
 
 
 def test_cluster_detail_configuration_covers_main_groups():

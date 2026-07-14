@@ -31,7 +31,7 @@ export default function ClusterDetailPanel() {
     <section>
       <div className="section-title">
         <h2>Test Chi Tiết Theo Cụm</h2>
-        <span>Voice, app, Internet, segmentation</span>
+        <span>Voice estimation, app, Internet, segmentation</span>
       </div>
       <div className="panel-body">
         <div className="form-grid">
@@ -50,7 +50,7 @@ export default function ClusterDetailPanel() {
         {result && (
           <div className={`cluster-result ${result.ok ? "ok" : "bad"}`}>
             <strong>{result.message}</strong>
-            <p>{result.softphone_note}</p>
+            <p>{result.voice_estimation_note || result.softphone_note}</p>
             <div className="score-line"><span>Score</span><b>{result.score}%</b><span>{result.passed}/{result.total}</span></div>
             <div className="case-list">
               {result.cases.map((item) => (

@@ -52,13 +52,13 @@ vars/network_model.yml
 | IT Support | 70 | 172.16.70.0/24 | 10 |
 | Telesale | 50 | 172.16.50.0/24 | 20 |
 | BackOffice | 60 | 172.16.60.0/24 | 20 |
-| Voice Service | 90 | 172.16.90.10 | service |
+| PBX/SBC Voice Service | 90 | 172.16.90.10 | service |
 
 Tổng user thật trong Mininet: **110**.
 
 Service mô phỏng:
 
-- `h90`: Voice Service, `172.16.90.10`
+- `h90`: PBX/SBC Voice Service, `172.16.90.10`
 - `hzalo`: Zalo Service, `172.16.200.10`
 - `hcall`: Call App / CRM, `172.16.201.10`
 - `hsocial`: Social Media, `172.16.202.10`

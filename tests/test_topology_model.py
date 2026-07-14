@@ -26,6 +26,7 @@ def test_network_model_is_single_source_of_truth():
     assert model["host_groups"]["telesale"]["count"] == 20
     assert model["host_groups"]["backoffice"]["count"] == 20
     assert model["host_groups"]["it_support"]["count"] == 10
+    assert model["services"]["h90"]["label"] == "PBX/SBC Voice Service"
     assert len(hosts) == len(set(hosts))
     assert len(ips) == len(set(ips))
     assert "voice_access" in controlled_switches(model)

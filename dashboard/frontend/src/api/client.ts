@@ -107,6 +107,7 @@ export type ClusterDetailResult = {
   message: string;
   verdict: string;
   softphone_note: string;
+  voice_estimation_note?: string;
   cases: ClusterCase[];
 };
 

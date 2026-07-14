@@ -75,7 +75,7 @@ export default function TestPanel(props: Props) {
           <button className="primary" disabled={props.busy} onClick={() => props.onRun("ping")}><Activity size={16} />Kiem tra Ping</button>
           <button disabled={props.busy} onClick={() => props.onRun("tcp")}><Gauge size={16} />Throughput TCP</button>
           <button disabled={props.busy} onClick={() => props.onRun("udp")}><Gauge size={16} />Jitter UDP</button>
-          <button disabled={props.busy} onClick={() => props.onRun("quality")}><PhoneCall size={16} />Chat luong thoai</button>
+          <button disabled={props.busy} onClick={() => props.onRun("quality")}><PhoneCall size={16} />Uoc luong chat luong thoai</button>
           <button disabled={props.busy} onClick={() => props.onRun("simulate")}><Network size={16} />Mo phong path</button>
         </div>
         <h3 className="button-group-title">Dieu khien SDN</h3>

@@ -78,7 +78,7 @@ host_groups:
 
 services:
   h90:
-    label: "Voice Service"
+    label: "PBX/SBC Voice Service"
     ip: "172.16.90.10"
     subnet: "172.16.90.0/24"
     gateway: "172.16.90.1"

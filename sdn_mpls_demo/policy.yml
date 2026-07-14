@@ -19,7 +19,7 @@ policies:
   intersite_via_mpls_l3vpn: true
   intersite_allow: []
   softphone_model:
-    note: "Cfono/Gphone/softphone la ung dung tren may agent; user VLAN chi duoc di toi Voice Service, Call App va dich vu duoc phep."
+    note: "Cfone/Gphone/softphone la ung dung tren may agent; agent van nam trong VLAN du an va chi duoc di toi PBX/SBC Voice Service, Call App va dich vu duoc phep."
     signaling_examples: ["SIP UDP/TCP 5060", "SIP TLS 5061"]
     media_examples: ["RTP/RTCP UDP range theo PBX/SBC thuc te"]
     production_warning: "Lab nay mo phong SDN policy, khong thay the kiem thu SIP registration, call setup, one-way audio, NAT/SBC va QoS that."

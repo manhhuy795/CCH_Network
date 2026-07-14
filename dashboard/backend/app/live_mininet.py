@@ -497,6 +497,7 @@ def estimate_voice_quality(rtt_ms: float, jitter_ms: float, packet_loss_percent:
         "mos": mos,
         "rating": "Tốt - phù hợp cho cuộc gọi" if passed else "Cần theo dõi chất lượng cuộc gọi",
         "passed": passed,
+        "estimation_note": "MOS/R-factor duoc uoc luong tu RTT, packet loss va jitter; khong phai cuoc goi SIP/RTP hoan chinh.",
         "checks": checks,
         "thresholds": {"rtt_ms": 150, "jitter_ms": 30, "packet_loss_percent": 1, "mos": 4.0},
     }
@@ -566,7 +567,7 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
     cases: list[dict[str, Any]] = []
 
     voice_payload = call_quality(source, "h90", seconds=seconds)
-    cases.append(_case_result("Softphone Cfono/Gphone -> PBX/SBC/SIP-RTP", "voice", "allow", voice_payload))
+    cases.append(_case_result("Softphone Cfone/Gphone -> PBX/SBC Voice Service", "voice", "allow", voice_payload))
 
     if "hcall" in CLUSTER_ALLOW_TARGETS[cluster]:
         cases.append(_case_result("Call App/CRM TCP throughput", "application", "allow", iperf(source, "hcall", "tcp", seconds)))
@@ -600,6 +601,11 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
         "message": f"{label}: {verdict} ({passed}/{total}, {score}%).",
         "cases": cases,
         "verdict": verdict,
+        "voice_estimation_note": (
+            "Cfone/Gphone la softphone tren may agent; agent van nam trong VLAN du an. "
+            "h90 dai dien PBX/SBC Voice Service. MOS/R-factor duoc uoc luong tu RTT, "
+            "packet loss va jitter; khong phai cuoc goi SIP/RTP hoan chinh."
+        ),
         "softphone_note": (
             "Cfono/Gphone là softphone cài trên máy agent: lab chỉ cho user VLAN đi tới "
             "cụm PBX/SBC/SIP-RTP và Call App cần thiết. Không mở ping ngang giữa "

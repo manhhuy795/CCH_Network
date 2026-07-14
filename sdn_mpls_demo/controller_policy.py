@@ -414,7 +414,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 )
 
     def install_voice_flows(self, datapath):
-        """Cài ALLOW chủ động hai chiều cho Voice VLAN để ping/call ổn định."""
+        """Cai ALLOW chu dong hai chieu cho PBX/SBC Voice reachability; day chua phai QoS hoan chinh."""
         if not self.policy.policies.get("allow_voice", False):
             return
 
