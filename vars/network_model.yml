@@ -109,41 +109,49 @@ services:
 switches:
   access_hq_a:
     label: "Access HQ-A"
+    role: "access"
     site: "HQ"
     controlled: true
     dpid: "0000000000000001"
   access_hq_b:
     label: "Access HQ-B"
+    role: "access"
     site: "HQ"
     controlled: true
     dpid: "0000000000000002"
   access_hq_c:
     label: "Access HQ-C"
+    role: "access"
     site: "HQ"
     controlled: true
     dpid: "0000000000000003"
   voice_access:
     label: "Voice Access"
+    role: "access"
     site: "HQ"
     controlled: true
     dpid: "0000000000000004"
   core_hq:
     label: "HQ Core SDN/L3"
+    role: "hq_core"
     site: "HQ"
     controlled: true
     dpid: "0000000000000005"
   access_branch:
     label: "Branch Access"
+    role: "access"
     site: "Branch"
     controlled: true
     dpid: "0000000000000006"
   dist_branch:
     label: "Branch Distribution SDN/L3"
+    role: "branch_distribution"
     site: "Branch"
     controlled: true
     dpid: "0000000000000007"
   access_hq_it:
     label: "Access HQ-IT"
+    role: "access"
     site: "HQ"
     controlled: true
     dpid: "0000000000000008"

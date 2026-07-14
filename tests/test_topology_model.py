@@ -162,6 +162,24 @@ def test_controller_is_real_osken_openflow_13_app():
     ).read_text(encoding="utf-8")
 
 
+def test_controller_enforces_drop_policies_only_at_core_and_distribution():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+
+    assert model["switches"]["core_hq"]["role"] == "hq_core"
+    assert model["switches"]["dist_branch"]["role"] == "branch_distribution"
+    assert model["switches"]["access_hq_a"]["role"] == "access"
+    assert model["switches"]["access_branch"]["role"] == "access"
+    assert 'switch_name == "core_hq" and self.policy.policies["isolate_hq_projects"]' in controller
+    assert 'switch_name == "dist_branch" and self.policy.policies["isolate_branch_vlan_50_60"]' in controller
+    assert 'Khong cai isolation DROP tren %s; access OVS chi transit/local switching.' in controller
+    assert 'switch_name == ENFORCEMENT_SWITCH_BY_GROUP[group_name]' in controller
+    assert '"policy": "social_media_block"' in controller
+    assert '"policy": "reactive_policy_drop"' in controller
+    assert '"policy": "transit_to_enforcement"' in controller
+    assert "POLICY INSTALLED switch=%s role=%s policy=%s priority=%s" in controller
+
+
 def test_topology_runner_auto_starts_and_waits_for_controller():
     runner = (REPO_ROOT / "sdn_mpls_demo" / "run_topology.sh").read_text(encoding="utf-8")
 
