@@ -1,5 +1,5 @@
 metadata:
-  name: "Hybrid MPLS L3VPN + SDN Edge Policy Demo for Call Center BPO"
+  name: "Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy for Call Center BPO"
   description: "Source of truth cho topology, IP plan, host inventory va dashboard."
   openflow_version: "1.3"
   controller: "127.0.0.1:6653"
@@ -10,7 +10,7 @@ sites:
   branch:
     label: "Chi nhanh Branch"
   wan:
-    label: "WAN / MPLS L3VPN"
+    label: "WAN / MPLS L3VPN Logic"
   internet:
     label: "Dich vu Internet"
 
@@ -159,7 +159,8 @@ infrastructure:
     label: "CE Router Branch"
     type: "router"
   mpls_cloud:
-    label: "MPLS L3VPN Cloud"
+    label: "MPLS L3VPN Logic Cloud"
+    subtitle: "Mo phong logic WAN transport giua HQ va Branch"
     type: "wan"
   fw_hq:
     label: "Firewall HQ"

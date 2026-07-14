@@ -119,8 +119,8 @@ export default function App() {
     <main>
       <header>
         <div>
-          <h1>Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO</h1>
-          <p>OS-Ken điều khiển Open vSwitch tại SDN Edge; MPLS L3VPN chỉ là WAN transport giữa HQ và Branch.</p>
+          <h1>Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy cho Call Center BPO</h1>
+          <p>OS-Ken điều khiển Open vSwitch tại SDN Edge; MPLS Logic Cloud chỉ mô phỏng WAN transport giữa HQ và Branch.</p>
         </div>
         <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
       </header>

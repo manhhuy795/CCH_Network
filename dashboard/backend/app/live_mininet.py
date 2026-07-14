@@ -50,13 +50,13 @@ CLUSTER_DENY_TARGETS = {
 }
 
 INFRA_NODES = [
-    ("c0", NETWORK_MODEL["infrastructure"]["c0"]["label"], "controller"),
+    ("c0", NETWORK_MODEL["infrastructure"]["c0"]["label"], "controller", NETWORK_MODEL["infrastructure"]["c0"].get("subtitle", "")),
     *(
-        (name, switch["label"], "switch")
+        (name, switch["label"], "switch", switch.get("subtitle", ""))
         for name, switch in NETWORK_MODEL["switches"].items()
     ),
     *(
-        (name, node["label"], node["type"])
+        (name, node["label"], node["type"], node.get("subtitle", ""))
         for name, node in NETWORK_MODEL["infrastructure"].items()
         if name != "c0"
     ),
@@ -104,7 +104,10 @@ def topology_payload() -> dict[str, Any]:
         nodes.append(item)
         groups.append(item)
 
-    nodes.extend({"id": node_id, "label": label, "type": node_type} for node_id, label, node_type in INFRA_NODES)
+    nodes.extend(
+        {"id": node_id, "label": label, "type": node_type, "subtitle": subtitle}
+        for node_id, label, node_type, subtitle in INFRA_NODES
+    )
     for service_name, service in ENGINE.services.items():
         if service_name != "h90":
             nodes.append(

@@ -5,7 +5,12 @@ Dự án gồm hai phần:
 - **Network Automation**: dùng YAML, Jinja2, Python và Ansible để sinh, kiểm tra, backup/deploy/rollback cấu hình mạng.
 - **SDN runtime demo**: dùng Mininet, Open vSwitch, OS-Ken Controller và OpenFlow 1.3 để demo SDN Edge Policy cho Call Center BPO.
 
-MPLS L3VPN trong module SDN là mô phỏng logic WAN transport, không phải MPLS provider-grade hoàn chỉnh. Firewall hiện là Linux router mô phỏng Internet Edge nếu chưa cấu hình nftables/iptables thật.
+MPLS L3VPN trong module SDN là **MPLS L3VPN Logic Cloud**: mô phỏng logic WAN transport giữa HQ và Branch, không phải MPLS provider-grade hoàn chỉnh. Firewall hiện là Linux router mô phỏng Internet Edge nếu chưa cấu hình nftables/iptables thật.
+
+Phân biệt rõ hai track:
+
+- **Network Automation track**: mô tả kiến trúc doanh nghiệp có CE/MPLS L3VPN ở mức thiết kế và cấu hình mẫu.
+- **SDN Mininet track**: mô phỏng logic WAN transport; không triển khai PE/P core, VRF, RD/RT, MP-BGP, LDP hoặc MPLS label forwarding thật.
 
 ## Source Of Truth
 
@@ -60,7 +65,7 @@ Service mô phỏng:
 ```text
 HQ Core SDN
 → CE Router HQ
-→ MPLS L3VPN Cloud
+→ MPLS L3VPN Logic Cloud
 → CE Router Branch
 → Branch Distribution SDN
 ```
@@ -88,7 +93,7 @@ Controller chỉ điều khiển 8 Open vSwitch:
 - `access_branch`
 - `dist_branch`
 
-Controller không điều khiển CE Router, Firewall hoặc MPLS Cloud.
+Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cloud.
 
 ## Policy
 

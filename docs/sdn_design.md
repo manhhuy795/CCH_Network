@@ -25,7 +25,7 @@ SDN không thay thế và không điều khiển MPLS Core. MPLS L3VPN đóng va
 transport giữa HQ và Branch:
 
 ```text
-HQ Core → CE HQ → MPLS L3VPN Cloud → CE Branch → Branch Distribution
+HQ Core → CE HQ → MPLS L3VPN Logic Cloud → CE Branch → Branch Distribution
 ```
 
 Trong lab, CE/MPLS là namespace/bridge mô phỏng đường vận chuyển, không phải

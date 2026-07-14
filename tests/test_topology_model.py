@@ -126,6 +126,21 @@ def test_only_expected_ovs_are_controller_managed():
     assert 'dpid="00000000000000f2"' in topology
 
 
+def test_mpls_is_labeled_as_logic_simulation_not_provider_core():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    frontend = (REPO_ROOT / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    sdn_readme = (REPO_ROOT / "sdn_mpls_demo" / "README.md").read_text(encoding="utf-8")
+
+    assert model["infrastructure"]["mpls_cloud"]["label"] == "MPLS L3VPN Logic Cloud"
+    assert "Mo phong logic WAN transport" in model["infrastructure"]["mpls_cloud"]["subtitle"]
+    assert "WAN / MPLS L3VPN LOGIC" in frontend
+    assert "PE/P core, VRF, RD/RT, MP-BGP, LDP" in readme
+    assert "MPLS L3VPN Logic Cloud" in sdn_readme
+    assert "ce_hq" not in frontend.split("HQ OpenFlow Domain", 1)[1].split("].map", 1)[0]
+    assert "mpls_cloud" not in frontend.split("OpenFlow Control Bus", 1)[1].split("].map", 1)[0]
+
+
 def test_controller_is_real_osken_openflow_13_app():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 

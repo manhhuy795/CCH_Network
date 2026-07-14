@@ -7,8 +7,8 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 ## Phạm vi đúng
 
 - SDN điều khiển OVS tại access, core, distribution và service edge.
-- MPLS L3VPN đóng vai trò WAN transport logic giữa HQ và Branch.
-- CE Router, Firewall và MPLS Cloud là namespace/bridge mô phỏng, không chịu
+- MPLS L3VPN Logic Cloud đóng vai trò WAN transport logic giữa HQ và Branch.
+- CE Router, Firewall và MPLS L3VPN Logic Cloud là namespace/bridge mô phỏng, không chịu
   sự điều khiển của SDN Controller.
 - Không triển khai MPLS provider-grade, MP-BGP, PE/P core hoặc IPSec CE-to-CE.
 
@@ -25,7 +25,7 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 Đường liên site:
 
 ```text
-Branch Distribution → CE Router Branch → MPLS L3VPN Cloud
+Branch Distribution → CE Router Branch → MPLS L3VPN Logic Cloud
 → CE Router HQ → HQ Core SDN
 ```
 

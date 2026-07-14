@@ -47,7 +47,8 @@ function labelMap(topology?: Topology) {
     const id = String(node.id);
     const title = String(node.label || id);
     let subtitle = "";
-    if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
+    if (node.subtitle) subtitle = String(node.subtitle);
+    else if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
     else if (node.type === "firewall") subtitle = "Mô phỏng Internet Edge";
     else if (node.type === "wan") subtitle = "WAN transport";
@@ -90,7 +91,7 @@ export default function TopologyCanvas(props: Props) {
         <svg className="topology-svg" viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
           <rect className="zone" x="20" y="95" width="705" height="430" /><text className="zone-label" x="35" y="117">TRỤ SỞ CHÍNH HQ</text>
           <rect className="zone" x="20" y="575" width="705" height="220" /><text className="zone-label" x="35" y="597">CHI NHÁNH BRANCH</text>
-          <rect className="zone" x="755" y="185" width="285" height="610" /><text className="zone-label" x="770" y="207">WAN / MPLS L3VPN</text>
+          <rect className="zone" x="755" y="185" width="285" height="610" /><text className="zone-label" x="770" y="207">WAN / MPLS L3VPN LOGIC</text>
           <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">DỊCH VỤ INTERNET</text>
 
           {props.links.map((link) => {

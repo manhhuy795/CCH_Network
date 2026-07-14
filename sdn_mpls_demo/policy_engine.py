@@ -148,7 +148,7 @@ class PolicyEngine:
             if {source_group, destination_group} == {rule["source_group"], rule["destination_group"]}:
                 return self._result(
                     "allow",
-                    "Traffic lien site di qua MPLS L3VPN Cloud. SDN Controller chi dieu khien OVS o hai dau mang.",
+                    "Traffic lien site di qua MPLS L3VPN Logic Cloud. SDN Controller chi dieu khien OVS o hai dau mang.",
                     self._intersite_path(source_group, destination_group),
                     None,
                 )
