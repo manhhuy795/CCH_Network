@@ -10,7 +10,7 @@ all:
           ansible_host: 10.255.10.12
         hq-access-c:
           ansible_host: 10.255.10.13
-        hq-voice-mgmt:
+        hq-voice-access:
           ansible_host: 10.255.10.14
         hq-ce-router:
           ansible_host: 10.255.10.15

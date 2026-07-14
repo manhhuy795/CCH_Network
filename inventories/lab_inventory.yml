@@ -18,10 +18,10 @@ all:
           ansible_host: 192.0.2.13
           ansible_network_os: cisco.ios.ios
           device_role: access_switch
-        hq-voice-mgmt:
+        hq-voice-access:
           ansible_host: 192.0.2.14
           ansible_network_os: cisco.ios.ios
-          device_role: voice_mgmt_switch
+          device_role: voice_access_switch
         hq-ce-router:
           ansible_host: 192.0.2.15
           ansible_network_os: cisco.ios.ios

@@ -18,7 +18,7 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 |---|---:|
 | User Dự án A/B/C | 60 |
 | User Telesale/BackOffice | 40 |
-| User Phòng IT Support | 4 |
+| User Phòng IT Support | 10 |
 | Voice/Zalo/Call App/Social/Internet | 5 |
 | OVS được OS-Ken điều khiển | 8 |
 

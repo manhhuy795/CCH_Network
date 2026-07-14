@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from scripts.network_model import build_host_inventory, controlled_switches, load_network_model
+from scripts.network_model import build_host_inventory, controlled_switches, load_network_model, validate_network_model
 from sdn_mpls_demo.policy_engine import PolicyEngine
 
 
@@ -29,10 +29,31 @@ def test_network_model_is_single_source_of_truth():
     assert len(hosts) == len(set(hosts))
     assert len(ips) == len(set(ips))
     assert "voice_access" in controlled_switches(model)
+    assert validate_network_model(model) == []
 
     policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))
     assert "host_groups" not in policy
     assert "services" not in policy
+
+    lab_inventory = (REPO_ROOT / "inventories" / "lab_inventory.yml").read_text(encoding="utf-8")
+    production_inventory = (REPO_ROOT / "inventories" / "production_inventory.example.yml").read_text(encoding="utf-8")
+    assert "hq-voice-access" in lab_inventory
+    assert "voice_access_switch" in lab_inventory
+    assert "hq-voice-access" in production_inventory
+    assert "hq-voice-mgmt" not in lab_inventory
+    assert "voice_mgmt_switch" not in lab_inventory
+    assert "hq-voice-mgmt" not in production_inventory
+
+
+def test_network_model_validation_catches_inventory_drift():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    model["host_groups"]["it_support"]["count"] = 4
+
+    errors = validate_network_model(model)
+
+    assert any("110 user hosts" in error for error in errors)
+    assert any("115 endpoints" in error for error in errors)
+    assert any("IT Support" in error for error in errors)
 
 
 def test_hybrid_topology_has_one_hundred_ten_users_and_five_services():

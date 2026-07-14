@@ -9,6 +9,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.common import load_vars
+from scripts.network_model import load_network_model, validate_network_model
 
 
 EXPECTED_HQ_ISOLATION = {
@@ -36,6 +37,7 @@ def _all_route_entries(routes: dict[str, Any]) -> list[tuple[str, str, str]]:
 
 def validate_all(config: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    errors.extend(validate_network_model(load_network_model()))
 
     vlan_ids = [int(vlan["id"]) for vlan in config.get("vlans", [])]
     duplicates = sorted({vlan_id for vlan_id in vlan_ids if vlan_ids.count(vlan_id) > 1})
