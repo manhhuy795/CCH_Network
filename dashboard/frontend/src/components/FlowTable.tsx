@@ -1,5 +1,16 @@
 import { useMemo, useState } from "react";
 
+function flowText(flow: Record<string, unknown>, key: string, fallback = "*") {
+  return String(flow[key] ?? fallback);
+}
+
+function actionLabel(action: unknown) {
+  if (action === "ALLOW") return "ALLOW - cho đi";
+  if (action === "DROP") return "DROP - chặn";
+  if (action === "PACKET_IN") return "PACKET_IN - hỏi controller";
+  return String(action ?? "");
+}
+
 export default function FlowTable({ flows }: { flows: Array<Record<string, unknown>> }) {
   const [details, setDetails] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -18,8 +29,11 @@ export default function FlowTable({ flows }: { flows: Array<Record<string, unkno
   return (
     <section>
       <div className="section-title">
-        <div><h2>Bảng luồng OpenFlow dễ đọc</h2><span>{visible.length}/{flows.length} flow đọc từ OVS</span></div>
-        <button onClick={() => setDetails((value) => !value)}>{details ? "Ẩn chi tiết OpenFlow" : "Xem chi tiết OpenFlow"}</button>
+        <div><h2>Bảng luồng OpenFlow</h2><span>{visible.length}/{flows.length} flow đang đọc trực tiếp từ OVS</span></div>
+        <button onClick={() => setDetails((value) => !value)}>{details ? "Ẩn match/action thô" : "Xem match/action thô"}</button>
+      </div>
+      <div className="openflow-note">
+        OpenFlow là luật controller ghi xuống Open vSwitch: gói nào được chuyển tiếp, gói nào bị chặn, và mỗi flow đã đi bao nhiêu packet/byte.
       </div>
       <div className="flow-filters">
         <select value={filter} onChange={(event) => setFilter(event.target.value)}>
@@ -37,23 +51,24 @@ export default function FlowTable({ flows }: { flows: Array<Record<string, unkno
         <table>
           <thead>
             <tr>
-              <th>Switch</th><th>Luồng</th><th>Quyết định</th><th>Số gói</th><th>Số byte</th><th>Lý do</th>
+              <th>OVS</th><th>Nguồn</th><th>Đích</th><th>Hành động</th><th>Packet</th><th>Byte</th><th>Ý nghĩa</th>
               {details && <><th>Priority</th><th>Match</th><th>Actions</th></>}
             </tr>
           </thead>
           <tbody>
             {visible.map((flow, index) => (
               <tr key={index}>
-                <td>{String(flow.switch ?? "")}</td>
-                <td>{String(flow.match ?? `${flow.source ?? "*"} → ${flow.destination ?? "*"}`)}</td>
-                <td><span className={`pill ${flow.action === "ALLOW" ? "allow" : "deny"}`}>{String(flow.action)}</span></td>
-                <td>{String(flow.packets ?? 0)}</td>
-                <td>{String(flow.bytes ?? 0)}</td>
+                <td><strong>{flowText(flow, "switch", "")}</strong></td>
+                <td>{flowText(flow, "source")}</td>
+                <td>{flowText(flow, "destination")}</td>
+                <td><span className={`pill ${flow.action === "ALLOW" ? "allow" : "deny"}`}>{actionLabel(flow.action)}</span></td>
+                <td>{Number(flow.packets ?? 0).toLocaleString("vi-VN")}</td>
+                <td>{Number(flow.bytes ?? 0).toLocaleString("vi-VN")}</td>
                 <td>{String(flow.reason ?? "")}</td>
                 {details && <><td>{String(flow.priority ?? 0)}</td><td>{String(flow.raw_match ?? "")}</td><td>{String(flow.raw_action ?? "")}</td></>}
               </tr>
             ))}
-            {visible.length === 0 && <tr><td colSpan={details ? 9 : 6}>Chưa đọc được flow hoặc bộ lọc không có kết quả.</td></tr>}
+            {visible.length === 0 && <tr><td colSpan={details ? 10 : 7}>Chưa đọc được flow hoặc bộ lọc không có kết quả.</td></tr>}
           </tbody>
         </table>
       </div>

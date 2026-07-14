@@ -140,7 +140,7 @@ export default function App() {
         <div className="operate-grid">
           <div className="main-column">
             <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
-              failedLinks={failedLinks} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
+              failedLinks={failedLinks} source={source} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
               onSource={setSource} onDestination={setDestination} />
           </div>
           <aside>

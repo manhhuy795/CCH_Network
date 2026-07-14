@@ -1,5 +1,5 @@
 import { Activity, Ban, Gauge, Network, PhoneCall, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Host, TestResult } from "../api/client";
 
 type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
@@ -27,6 +27,10 @@ function HostSelect({ label, value, hosts, onChange }: { label: string; value: s
     const needle = query.trim().toLowerCase();
     return needle ? hosts.filter((host) => hostText(host).includes(needle)) : hosts;
   }, [hosts, query]);
+  useEffect(() => {
+    if (!filtered.length) return;
+    if (!filtered.some((host) => host.name === value)) onChange(filtered[0].name);
+  }, [filtered, value, onChange]);
   const groups = useMemo(() => {
     const data = new Map<string, Host[]>();
     filtered.forEach((host) => {
@@ -38,7 +42,7 @@ function HostSelect({ label, value, hosts, onChange }: { label: string; value: s
   return (
     <label>{label}
       <input placeholder="Tìm hostname, IP, project, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} />
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <select value={filtered.some((host) => host.name === value) ? value : filtered[0]?.name ?? ""} onChange={(event) => onChange(event.target.value)}>
         {groups.map(([group, items]) => (
           <optgroup label={group} key={group}>
             {items.map((host) => <option value={host.name} key={host.name}>{host.label} · {host.name} · {host.ip}</option>)}

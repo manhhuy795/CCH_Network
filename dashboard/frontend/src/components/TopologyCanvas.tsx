@@ -1,5 +1,5 @@
 import { RotateCcw, Unplug } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Decision, Host, Link, Topology } from "../api/client";
 
 const positions: Record<string, [number, number]> = {
@@ -27,6 +27,7 @@ type Props = {
   decision?: Decision;
   activeIndex: number;
   failedLinks: string[];
+  source: string;
   onFail: (linkId: string) => void;
   onRecover: (linkId: string) => void;
   onSource: (value: string) => void;
@@ -61,6 +62,10 @@ export default function TopologyCanvas(props: Props) {
   const labels = useMemo(() => labelMap(props.topology), [props.topology]);
   const selectableNodes = useMemo(() => Object.keys(props.topology?.policy_map || {}), [props.topology]);
   const [selectedNode, setSelectedNode] = useState("project_a");
+  useEffect(() => {
+    const sourceHost = props.topology?.hosts.find((host) => host.name === props.source);
+    if (sourceHost?.group) setSelectedNode(sourceHost.group);
+  }, [props.source, props.topology]);
   const selectedPosition = positions[selectedNode];
   const selectedPolicy = props.topology?.policy_map?.[selectedNode];
   const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];

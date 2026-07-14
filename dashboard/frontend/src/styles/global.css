@@ -119,6 +119,7 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .case.ok { border-left-color: #087f5b; }
 .case.bad { border-left-color: #c92a2a; }
 .case span, .case small { color: #607084; font-size: 11px; line-height: 1.35; }
+.openflow-note { border-bottom: 1px solid #e7edf2; color: #4b5d73; font-size: 12px; line-height: 1.45; padding: 10px 12px; }
 table { border-collapse: collapse; min-width: 1200px; width: 100%; }
 .flow-filters { display: grid; gap: 8px; grid-template-columns: 220px 1fr; padding: 10px 12px; }
 th, td { border-bottom: 1px solid #e7edf2; font-size: 11px; padding: 7px; text-align: left; vertical-align: top; }
