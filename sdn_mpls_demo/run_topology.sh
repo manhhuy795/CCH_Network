@@ -49,8 +49,10 @@ cleanup_stale_network() {
     hqa-eth99 core-eth01 hqb-eth99 core-eth02 hqc-eth99 core-eth03
     hqi-eth99 core-eth07
     voice-eth99 core-eth04 br-eth99 dist-eth01 core-eth05
-    mpls-eth01 mpls-eth02 dist-eth02 core-eth06 inet-eth01
-    dist-eth03 inet-eth02
+    hq_l3-eth0 hq_l3-eth1 hq_l3-eth2 ce_hq-eth0 ce_hq-eth1
+    mpls-eth01 mpls-eth02 dist-eth02 branch_l3-eth0 branch_l3-eth1
+    branch_l3-eth2 ce_branch-eth0 ce_branch-eth1 fw_hq-eth0 fw_hq-eth1
+    fw_branch-eth0 fw_branch-eth1 inet-eth01 inet-eth02
   )
   local bridges=(
     access_hq_a access_hq_b access_hq_c access_hq_it voice_access core_hq
@@ -68,7 +70,7 @@ cleanup_stale_network() {
       sudo ip link delete "$interface" >/dev/null 2>&1 || true
     done
   done
-  for index in $(seq -w 1 4); do
+  for index in $(seq -w 1 10); do
     interface="$(printf 'h70-u%02d' "$index")"
     sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
     sudo ip link delete "$interface" >/dev/null 2>&1 || true

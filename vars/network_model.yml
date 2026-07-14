@@ -128,7 +128,7 @@ switches:
     controlled: true
     dpid: "0000000000000004"
   core_hq:
-    label: "HQ Core SDN"
+    label: "HQ Core SDN/L3"
     site: "HQ"
     controlled: true
     dpid: "0000000000000005"
@@ -138,7 +138,7 @@ switches:
     controlled: true
     dpid: "0000000000000006"
   dist_branch:
-    label: "Branch Distribution SDN"
+    label: "Branch Distribution SDN/L3"
     site: "Branch"
     controlled: true
     dpid: "0000000000000007"

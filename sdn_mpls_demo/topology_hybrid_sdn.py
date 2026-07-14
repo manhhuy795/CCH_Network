@@ -212,47 +212,60 @@ def configure_router_interface(node, interface, addresses):
 
 
 def configure_routing(net, policy):
+    hq_l3 = net.get("hq_l3_gateway")
+    branch_l3 = net.get("branch_l3_gateway")
     ce_hq = net.get("ce_hq")
     ce_branch = net.get("ce_branch")
     fw_hq = net.get("fw_hq")
     fw_branch = net.get("fw_branch")
 
     configure_router_interface(
-        ce_hq,
-        "ce_hq-eth0",
+        hq_l3,
+        "hq_l3-eth0",
         [
             "172.16.20.1/24",
             "172.16.30.1/24",
             "172.16.40.1/24",
             "172.16.70.1/24",
             "172.16.90.1/24",
-            "10.255.20.1/30",
         ],
     )
+    configure_router_interface(hq_l3, "hq_l3-eth1", ["10.255.20.1/30"])
+    configure_router_interface(hq_l3, "hq_l3-eth2", ["10.255.22.1/30"])
+    configure_router_interface(ce_hq, "ce_hq-eth0", ["10.255.20.2/30"])
     configure_router_interface(ce_hq, "ce_hq-eth1", ["10.255.10.1/29"])
+
     configure_router_interface(
-        ce_branch,
-        "ce_branch-eth0",
-        ["172.16.50.1/24", "172.16.60.1/24", "10.255.21.1/30"],
+        branch_l3,
+        "branch_l3-eth0",
+        ["172.16.50.1/24", "172.16.60.1/24"],
     )
+    configure_router_interface(branch_l3, "branch_l3-eth1", ["10.255.21.1/30"])
+    configure_router_interface(branch_l3, "branch_l3-eth2", ["10.255.23.1/30"])
+    configure_router_interface(ce_branch, "ce_branch-eth0", ["10.255.21.2/30"])
     configure_router_interface(ce_branch, "ce_branch-eth1", ["10.255.10.2/29"])
 
-    configure_router_interface(fw_hq, "fw_hq-eth0", ["10.255.20.2/30"])
+    configure_router_interface(fw_hq, "fw_hq-eth0", ["10.255.22.2/30"])
     configure_router_interface(fw_hq, "fw_hq-eth1", ["10.255.30.1/24"])
-    configure_router_interface(fw_branch, "fw_branch-eth0", ["10.255.21.2/30"])
+    configure_router_interface(fw_branch, "fw_branch-eth0", ["10.255.23.2/30"])
     configure_router_interface(fw_branch, "fw_branch-eth1", ["10.255.30.2/24"])
 
     for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
+        add_route(hq_l3, prefix, "10.255.20.2")
         add_route(ce_hq, prefix, "10.255.10.2")
     for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
+        add_route(branch_l3, prefix, "10.255.21.2")
         add_route(ce_branch, prefix, "10.255.10.1")
-    add_route(ce_hq, "172.16.200.0/22", "10.255.20.2")
-    add_route(ce_branch, "172.16.200.0/22", "10.255.21.2")
+        add_route(ce_hq, prefix, "10.255.20.1")
+    for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
+        add_route(ce_branch, prefix, "10.255.21.1")
+    add_route(hq_l3, "0.0.0.0/0", "10.255.22.2")
+    add_route(branch_l3, "0.0.0.0/0", "10.255.23.2")
 
     for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
-        add_route(fw_hq, prefix, "10.255.20.1")
+        add_route(fw_hq, prefix, "10.255.22.1")
     for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
-        add_route(fw_branch, prefix, "10.255.21.1")
+        add_route(fw_branch, prefix, "10.255.23.1")
 
     service_transit = {
         name: service["transit_ip"]
@@ -347,6 +360,8 @@ def build_topology():
         services[service_name] = net.addHost(service_name, ip=None)
         net.addLink(services[service_name], internet, cls=TCLink, bw=100, delay="4ms")
 
+    hq_l3 = net.addHost("hq_l3_gateway", cls=LinuxRouter, ip=None)
+    branch_l3 = net.addHost("branch_l3_gateway", cls=LinuxRouter, ip=None)
     ce_hq = net.addHost("ce_hq", cls=LinuxRouter, ip=None)
     ce_branch = net.addHost("ce_branch", cls=LinuxRouter, ip=None)
     fw_hq = net.addHost("fw_hq", cls=LinuxRouter, ip=None)
@@ -408,8 +423,13 @@ def build_topology():
     )
 
     net.addLink(
-        switches["core_hq"], ce_hq,
-        intfName1="core-eth05", intfName2="ce_hq-eth0",
+        switches["core_hq"], hq_l3,
+        intfName1="core-eth05", intfName2="hq_l3-eth0",
+        cls=TCLink, bw=1000, delay="1ms",
+    )
+    net.addLink(
+        hq_l3, ce_hq,
+        intfName1="hq_l3-eth1", intfName2="ce_hq-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
@@ -423,14 +443,19 @@ def build_topology():
         cls=TCLink, bw=100, delay="10ms",
     )
     net.addLink(
-        switches["dist_branch"], ce_branch,
-        intfName1="dist-eth02", intfName2="ce_branch-eth0",
+        switches["dist_branch"], branch_l3,
+        intfName1="dist-eth02", intfName2="branch_l3-eth0",
+        cls=TCLink, bw=1000, delay="1ms",
+    )
+    net.addLink(
+        branch_l3, ce_branch,
+        intfName1="branch_l3-eth1", intfName2="ce_branch-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
 
     net.addLink(
-        switches["core_hq"], fw_hq,
-        intfName1="core-eth06", intfName2="fw_hq-eth0",
+        hq_l3, fw_hq,
+        intfName1="hq_l3-eth2", intfName2="fw_hq-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
@@ -439,8 +464,8 @@ def build_topology():
         cls=TCLink, bw=100, delay="5ms",
     )
     net.addLink(
-        switches["dist_branch"], fw_branch,
-        intfName1="dist-eth03", intfName2="fw_branch-eth0",
+        branch_l3, fw_branch,
+        intfName1="branch_l3-eth2", intfName2="fw_branch-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(

@@ -72,10 +72,14 @@ def test_hybrid_topology_has_one_hundred_ten_users_and_five_services():
 def test_topology_forces_intersite_path_through_ce_and_mpls():
     source = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
-    assert 'switches["core_hq"], ce_hq,' in source
+    assert 'net.addHost("hq_l3_gateway", cls=LinuxRouter, ip=None)' in source
+    assert 'net.addHost("branch_l3_gateway", cls=LinuxRouter, ip=None)' in source
+    assert 'switches["core_hq"], hq_l3,' in source
+    assert "hq_l3, ce_hq," in source
     assert "ce_hq, mpls_cloud," in source
     assert "ce_branch, mpls_cloud," in source
-    assert 'switches["dist_branch"], ce_branch,' in source
+    assert 'switches["dist_branch"], branch_l3,' in source
+    assert "branch_l3, ce_branch," in source
     assert 'net.addLink(switches["dist_branch"], switches["core_hq"]' not in source
     assert 'intfName2=f"{group[\'prefix\']}-u{index:02d}"' in source
     assert 'intfName1="br-eth99"' in source
@@ -85,6 +89,25 @@ def test_topology_forces_intersite_path_through_ce_and_mpls():
     assert explicit_interfaces
     assert all(len(name) <= 15 for name in explicit_interfaces)
     assert all("-eth" in name for name in explicit_interfaces)
+
+
+def test_l3_gateways_own_user_gateways_and_ce_only_routes_wan():
+    source = TOPOLOGY_PATH.read_text(encoding="utf-8")
+
+    assert 'configure_router_interface(\n        hq_l3,\n        "hq_l3-eth0",' in source
+    assert '"172.16.20.1/24"' in source
+    assert '"172.16.30.1/24"' in source
+    assert '"172.16.40.1/24"' in source
+    assert '"172.16.70.1/24"' in source
+    assert '"172.16.90.1/24"' in source
+    assert 'configure_router_interface(\n        branch_l3,\n        "branch_l3-eth0",' in source
+    assert '["172.16.50.1/24", "172.16.60.1/24"]' in source
+    assert 'configure_router_interface(ce_hq, "ce_hq-eth0", ["10.255.20.2/30"])' in source
+    assert 'configure_router_interface(ce_branch, "ce_branch-eth0", ["10.255.21.2/30"])' in source
+    assert 'add_route(hq_l3, "0.0.0.0/0", "10.255.22.2")' in source
+    assert 'add_route(branch_l3, "0.0.0.0/0", "10.255.23.2")' in source
+    assert 'configure_router_interface(ce_hq,\n        "ce_hq-eth0"' not in source
+    assert 'configure_router_interface(ce_branch,\n        "ce_branch-eth0"' not in source
 
 
 def test_only_expected_ovs_are_controller_managed():
@@ -137,6 +160,9 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "cleanup_stale_network" in runner
     assert "hqa-core" in runner
     assert "hqa-eth99" in runner
+    assert "hq_l3-eth0" in runner
+    assert "branch_l3-eth0" in runner
+    assert "seq -w 1 10" in runner
 
 
 def test_osken_version_keeps_controller_cli():
