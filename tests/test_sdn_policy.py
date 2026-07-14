@@ -74,6 +74,19 @@ def test_it_support_is_least_privilege_not_full_access():
     assert return_to_it["path"] == ["project_a", "access_hq_a", "core_hq", "access_hq_it", "it_support"]
 
 
+def test_phase28_runtime_regressions_for_it_least_privilege():
+    policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
+    engine = PolicyEngine(policy_path)
+
+    assert engine.decide_packet("h70_01", "h20_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
+    assert engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+    assert engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REPLY)["action"] == "allow"
+
+    social = engine.decide_packet("h70_01", "hsocial", icmp_type=ICMP_ECHO_REQUEST)
+    assert social["action"] == "deny"
+    assert social["blocked_at"] == "core_hq"
+
+
 def test_internet_cannot_initiate_ping_to_inside_users():
     policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
     engine = PolicyEngine(policy_path)

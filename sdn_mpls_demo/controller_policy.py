@@ -56,6 +56,7 @@ POLICY_COOKIES = {
     "voice": 0x1200,
     "it_support": 0x1300,
     "it_support_return": 0x1301,
+    "it_inbound_block": 0x1302,
     "reactive_policy_drop": 0x1000,
     "transit_to_enforcement": 0x1100,
     "internet_inbound_block": 0x1100,
@@ -301,6 +302,11 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         parser = datapath.ofproto_parser
         normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
         normal_actions = [parser.OFPActionOutput(normal_port)]
+        switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
+        if switch_name != "core_hq":
+            self.logger.info("Khong cai IT Support policy tren %s; core_hq la enforcement point.", switch_name)
+            return
+
         it_network = self.policy.networks.get("it_support")
         if not it_network:
             return
@@ -324,6 +330,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             ):
                 match = parser.OFPMatch(
                     eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=1,
+                    icmpv4_type=ICMP_ECHO_REQUEST,
                     ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
                     ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
                 )
@@ -337,8 +345,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "source": source_label,
                         "destination": target_label,
                         "policy": "it_support",
-                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
-                        "reason": "IT Support co quyen remote/support co kiem soat theo policy.",
+                        "enforcement_switch": switch_name,
+                        "reason": "IT Support chi duoc khoi tao ICMP echo-request de remote/support co kiem soat.",
                     },
                     idle_timeout=0,
                 )
@@ -359,8 +367,30 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "source": target_label,
                         "destination": source_label,
                         "policy": "it_support_return",
-                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
+                        "enforcement_switch": switch_name,
                         "reason": "Chi cho phep ICMP echo-reply ve IT cho phien IT khoi tao.",
+                    },
+                    idle_timeout=0,
+                )
+                inbound_request_match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=1,
+                    icmpv4_type=ICMP_ECHO_REQUEST,
+                    ipv4_src=(str(target_network.network_address), str(target_network.netmask)),
+                    ipv4_dst=(str(source_network.network_address), str(source_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    455,
+                    inbound_request_match,
+                    [],
+                    {
+                        "action": "DROP",
+                        "source": target_label,
+                        "destination": source_label,
+                        "policy": "it_inbound_block",
+                        "enforcement_switch": switch_name,
+                        "reason": "User thuong khong duoc chu dong ping vao VLAN IT Support.",
                     },
                     idle_timeout=0,
                 )
@@ -372,6 +402,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             ):
                 match = parser.OFPMatch(
                     eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=1,
+                    icmpv4_type=ICMP_ECHO_REQUEST,
                     ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
                     ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
                 )
@@ -385,8 +417,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "source": source_label,
                         "destination": target_label,
                         "policy": "it_support",
-                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
-                        "reason": "IT Support co quyen kiem tra dich vu quan tri duoc khai bao.",
+                        "enforcement_switch": switch_name,
+                        "reason": "IT Support chi duoc ping kiem tra dich vu quan tri duoc khai bao.",
                     },
                     idle_timeout=0,
                 )
@@ -407,8 +439,36 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "source": target_label,
                         "destination": source_label,
                         "policy": "it_support_return",
-                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
+                        "enforcement_switch": switch_name,
                         "reason": "Chi cho phep ICMP echo-reply ve IT cho phien IT khoi tao.",
+                    },
+                    idle_timeout=0,
+                )
+
+        social = self.policy.services.get("hsocial", {})
+        if self.policy.policies.get("block_social_media", False) and "ip" in social:
+            social_network = ipaddress.ip_network(f"{social['ip']}/32")
+            for source_network, target_network, source_label, target_label in (
+                (it_network, social_network, "it_support", "hsocial"),
+                (social_network, it_network, "hsocial", "it_support"),
+            ):
+                match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
+                    ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    460,
+                    match,
+                    [],
+                    {
+                        "action": "DROP",
+                        "source": source_label,
+                        "destination": target_label,
+                        "policy": "hq_social_block",
+                        "enforcement_switch": switch_name,
+                        "reason": "Block Social Media ca IT Support; IT management khong duoc bypass social policy.",
                     },
                     idle_timeout=0,
                 )
