@@ -78,7 +78,10 @@ export type RealtimeMetric = {
   packet_loss_percent?: number;
   jitter_ms?: number;
   throughput_mbps: number;
-  byte_count: number;
+  flow_packets: number;
+  flow_bytes: number;
+  byte_count?: number;
+  status: "monitoring" | "idle" | "error";
   message?: string;
 };
 

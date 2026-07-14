@@ -695,16 +695,18 @@ def current_metrics() -> dict[str, Any]:
     }
 
 
-def pair_flow_bytes(source: str, destination: str) -> int:
+def pair_flow_counters(source: str, destination: str) -> dict[str, int]:
     payload = ovs_flows()
-    total = 0
+    total_bytes = 0
+    total_packets = 0
     for flow in payload["flows"]:
         if (
             (flow.get("source") == source and flow.get("destination") == destination)
             or (flow.get("source") == destination and flow.get("destination") == source)
         ):
-            total += int(flow.get("bytes") or 0)
-    return total
+            total_bytes += int(flow.get("bytes") or 0)
+            total_packets += int(flow.get("packets") or 0)
+    return {"bytes": total_bytes, "packets": total_packets}
 
 
 def pair_realtime_metrics(
@@ -716,7 +718,8 @@ def pair_realtime_metrics(
     timestamp = time.time()
     ping_payload = ping(source, destination, count=2)
     result = ping_payload.get("result", {})
-    byte_count = pair_flow_bytes(source, destination)
+    counters = pair_flow_counters(source, destination)
+    byte_count = counters["bytes"]
     throughput_mbps = 0.0
     if previous_bytes is not None and previous_time is not None and timestamp > previous_time:
         delta_bytes = max(0, byte_count - previous_bytes)
@@ -730,8 +733,11 @@ def pair_realtime_metrics(
         "packet_loss_percent": result.get("packet_loss_percent"),
         "jitter_ms": result.get("jitter_ms"),
         "throughput_mbps": throughput_mbps,
+        "flow_packets": counters["packets"],
+        "flow_bytes": byte_count,
         "byte_count": byte_count,
         "previous_byte_count": previous_bytes,
+        "status": "monitoring",
         "message": ping_payload.get("message"),
         "decision": ping_payload.get("decision"),
     }

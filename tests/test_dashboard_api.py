@@ -296,3 +296,34 @@ def test_ping_result_preserves_backend_packet_path_contract():
         assert field in client_source
     assert "Enforce:" in panel_source
     assert "Failed link:" in panel_source
+
+
+def test_realtime_metrics_contract_uses_pair_and_flow_delta():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import pair_realtime_metrics
+
+    live_source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
+    main_source = (repo_root / "dashboard" / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    realtime_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "RealtimePanel.tsx").read_text(encoding="utf-8")
+    client_source = (repo_root / "dashboard" / "frontend" / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+
+    payload = pair_realtime_metrics("h20_01", "h90", previous_bytes=0, previous_time=1)
+
+    for field in ("source", "destination", "timestamp", "delay_ms", "packet_loss_percent", "jitter_ms", "throughput_mbps", "flow_packets", "flow_bytes", "status"):
+        assert field in payload
+        assert field in client_source
+    assert payload["source"] == "h20_01"
+    assert payload["destination"] == "h90"
+    assert payload["status"] == "monitoring"
+
+    pair_body = live_source.split("def pair_realtime_metrics", 1)[1].split("def manual_block_cookie", 1)[0]
+    assert "delta_bytes = max(0, byte_count - previous_bytes)" in pair_body
+    assert "throughput_mbps = round((delta_bytes * 8) / (timestamp - previous_time) / 1_000_000, 4)" in pair_body
+    assert "iperf(" not in pair_body
+    assert "flow_bytes" in main_source
+    assert "setHistory([])" in realtime_panel
+    assert "slice(-60)" in realtime_panel
+    assert "Math.random" not in realtime_panel

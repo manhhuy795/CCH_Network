@@ -117,6 +117,7 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .cluster-result p { font-size: 12px; }
 .score-line { align-items: center; display: flex; justify-content: space-between; border: 1px solid #dfe6ed; border-radius: 7px; padding: 8px; }
 .score-line b { font-size: 18px; }
+.realtime-note { color: #607084; font-size: 12px; margin-top: 8px; }
 .case-list { display: grid; gap: 6px; max-height: 300px; overflow: auto; }
 .case { background: #fff; border: 1px solid #e3e9ef; border-left: 4px solid #718096; border-radius: 7px; display: grid; gap: 3px; padding: 8px; }
 .case.ok { border-left-color: #087f5b; }

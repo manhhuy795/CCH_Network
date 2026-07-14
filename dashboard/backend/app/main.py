@@ -49,7 +49,7 @@ async def ws_metrics(websocket: WebSocket):
     while True:
         if source and destination:
             payload = pair_realtime_metrics(source, destination, previous_bytes, previous_time)
-            previous_bytes = int(payload.get("byte_count") or 0)
+            previous_bytes = int(payload.get("flow_bytes") or 0)
             previous_time = time.time()
             await websocket.send_json(payload)
         else:
