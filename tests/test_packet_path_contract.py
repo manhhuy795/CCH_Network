@@ -134,3 +134,26 @@ def test_it_support_return_path_is_reply_only():
     reply = policy.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REPLY)
     assert reply["action"] == "allow"
     assert reply["path"] == ["project_a", "access_hq_a", "core_hq", "access_hq_it", "it_support"]
+
+
+def test_phase27_required_packet_path_matrix():
+    policy = engine()
+
+    cases = {
+        ("h20_01", "h30_01"): "core_hq",
+        ("h50_01", "h60_01"): "dist_branch",
+        ("h20_01", "hsocial"): "core_hq",
+        ("h50_01", "hsocial"): "dist_branch",
+    }
+    for pair, blocked_at in cases.items():
+        decision = policy.decide(*pair)
+        assert_stops_at(decision, blocked_at)
+
+    assert "fw_hq" in policy.decide("h20_01", "hcall")["path"]
+    assert "fw_branch" in policy.decide("h50_01", "hcall")["path"]
+    intersite = policy.decide("h50_01", "h20_01")
+    assert intersite["path"] == ["telesale", "access_branch", "dist_branch"]
+    for allowed_cross_site in (policy.decide("h50_01", "h90"), policy.decide("h70_01", "h50_01")):
+        assert "ce_branch" in allowed_cross_site["path"]
+        assert "mpls_cloud" in allowed_cross_site["path"]
+        assert "ce_hq" in allowed_cross_site["path"]

@@ -46,6 +46,28 @@ def test_network_model_is_single_source_of_truth():
     assert "hq-voice-mgmt" not in production_inventory
 
 
+def test_phase27_static_source_of_truth_contract():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    hosts = build_host_inventory(model)
+    users = [host for host in hosts.values() if host["kind"] == "user"]
+    services = [host for host in hosts.values() if host["kind"] == "service"]
+    all_ips = [host["ip"] for host in hosts.values()]
+    source_files = [
+        REPO_ROOT / "vars" / "network_model.yml",
+        REPO_ROOT / "sdn_mpls_demo" / "policy.yml",
+        REPO_ROOT / "dashboard" / "backend" / "app" / "live_mininet.py",
+    ]
+
+    assert len(users) == 110
+    assert len(hosts) == 115
+    assert len(services) == 5
+    assert model["host_groups"]["it_support"]["count"] == 10
+    assert model["services"]["h90"]["switch"] == "voice_access"
+    assert "voice_access" in controlled_switches(model)
+    assert len(all_ips) == len(set(all_ips))
+    assert not any("172.10." in path.read_text(encoding="utf-8") for path in source_files)
+
+
 def test_network_model_validation_catches_inventory_drift():
     model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
     model["host_groups"]["it_support"]["count"] = 4
@@ -198,6 +220,26 @@ def test_controller_enforces_drop_policies_only_at_core_and_distribution():
     assert "POLICY INSTALLED switch=%s role=%s policy=%s priority=%s" in controller
 
 
+def test_phase27_controller_flow_placement_contract():
+    controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+
+    core_section = controller.split('switch_name == "core_hq"', 1)[1].split('if switch_name == "dist_branch"', 1)[0]
+    branch_section = controller.split('switch_name == "dist_branch"', 1)[1].split('self.logger.info("Khong cai isolation DROP', 1)[0]
+
+    assert "hq_project_isolation" in controller
+    assert "branch_isolation" in controller
+    assert "hq_social_block" in controller
+    assert "branch_social_block" in controller
+    assert "400," in controller
+    assert "390," in controller
+    assert "POLICY_COOKIES = {" in controller
+    assert "POLICY_COOKIES.get(policy_id" in controller
+    assert "access_hq_a" not in core_section
+    assert "access_hq_b" not in core_section
+    assert "access_hq_c" not in core_section
+    assert "access_branch" not in branch_section
+
+
 def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 
@@ -241,6 +283,27 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "hq_l3-eth0" in runner
     assert "branch_l3-eth0" in runner
     assert "seq -w 1 10" in runner
+
+
+def test_phase27_live_link_and_policy_reload_hooks_exist():
+    topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
+    controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+    api = (REPO_ROOT / "dashboard" / "backend" / "app" / "api.py").read_text(encoding="utf-8")
+    mininet_control = (REPO_ROOT / "dashboard" / "backend" / "app" / "mininet_control.py").read_text(encoding="utf-8")
+    policy_module = (REPO_ROOT / "dashboard" / "backend" / "app" / "policy.py").read_text(encoding="utf-8")
+
+    assert "self.net.configLinkStatus(left, right, state)" in topology
+    assert "left_intf.isUp()" in topology
+    assert "right_intf.isUp()" in topology
+    assert 'request_agent("LINK_DOWN"' not in mininet_control
+    assert '"LINK_UP" if state == "up" else "LINK_DOWN"' in mininet_control
+    assert "mininet_control.set_link_state(payload.link_id, \"down\")" in api
+    assert "mininet_control.set_link_state(payload.link_id, \"up\")" in api
+    assert "reload_policy" in controller
+    assert "self._delete_cookie(datapath, cookie)" in controller
+    assert "install_policy_flows(datapath)" in controller
+    assert "toggle_policy" in policy_module
+    assert "rollback" in policy_module
 
 
 def test_osken_version_keeps_controller_cli():

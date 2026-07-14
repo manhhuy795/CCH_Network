@@ -60,7 +60,13 @@ def require_operator(
         if scheme.lower() == "bearer":
             provided = value.strip()
 
-    if not provided or not secrets.compare_digest(provided, expected):
+    if not provided:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Can IT operator token de thuc hien thao tac nay.",
+        )
+
+    if not secrets.compare_digest(provided, expected):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Chi IT operator co token hop le moi duoc thuc hien thao tac nay.",

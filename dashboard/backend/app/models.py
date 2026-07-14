@@ -2,12 +2,22 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+SAFE_ID_PATTERN = r"^[A-Za-z0-9_.:-]+$"
 
 
 class HostPair(BaseModel):
-    source: str = Field(..., examples=["h20_01"])
-    destination: str = Field(..., examples=["hcall"])
+    source: str = Field(..., pattern=SAFE_ID_PATTERN, examples=["h20_01"])
+    destination: str = Field(..., pattern=SAFE_ID_PATTERN, examples=["hcall"])
+
+    @field_validator("source", "destination")
+    @classmethod
+    def reject_shell_metacharacters(cls, value: str) -> str:
+        if any(item in value for item in (";", "&", "|", "$", "`", "\\", "/", "\n", "\r")):
+            raise ValueError("endpoint id contains unsafe characters")
+        return value
 
 
 class IperfRequest(HostPair):
@@ -21,19 +31,19 @@ class ClusterTestRequest(BaseModel):
 
 
 class PolicyToggleRequest(BaseModel):
-    key: str
+    key: str = Field(..., pattern=SAFE_ID_PATTERN)
     enabled: bool
 
 
 class LinkUpdateRequest(BaseModel):
-    link_id: str
+    link_id: str = Field(..., pattern=SAFE_ID_PATTERN)
     bandwidth_mbps: float | None = None
     delay_ms: float | None = None
     loss_percent: float | None = None
 
 
 class LinkStateRequest(BaseModel):
-    link_id: str
+    link_id: str = Field(..., pattern=SAFE_ID_PATTERN)
 
 
 class ApiMessage(BaseModel):

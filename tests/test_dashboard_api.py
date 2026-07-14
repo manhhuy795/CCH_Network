@@ -444,8 +444,8 @@ def test_operator_actions_require_it_token(monkeypatch):
     assert status_response.json()["operator_token_configured"] is True
 
     denied = client.post("/api/test/ping", json={"source": "h20_01", "destination": "h90"})
-    assert denied.status_code == 403
-    assert "IT operator" in denied.text
+    assert denied.status_code == 401
+    assert "IT operator token" in denied.text
 
     allowed = client.post(
         "/api/test/ping",
@@ -463,6 +463,53 @@ def test_operator_actions_require_it_token(monkeypatch):
     assert "IT token" in app_source
     assert "secrets.token_urlsafe" in start_script
     assert "cch-it-demo-token" not in start_script
+
+
+def test_phase27_security_rejects_bad_tokens_hosts_and_injection(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "operator-secret")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+
+    no_token = client.post("/api/live/block", json={"source": "h20_01", "destination": "h90"})
+    assert no_token.status_code == 401
+
+    wrong_token = client.post(
+        "/api/live/block",
+        json={"source": "h20_01", "destination": "h90"},
+        headers={"X-CCH-Operator-Token": "user-token"},
+    )
+    assert wrong_token.status_code == 403
+
+    injection = client.post(
+        "/api/test/ping",
+        json={"source": "h20_01;touch /tmp/pwned", "destination": "h90"},
+        headers={"X-CCH-Operator-Token": "operator-secret"},
+    )
+    assert injection.status_code == 422
+
+    bad_link = client.post(
+        "/api/link/fail",
+        json={"link_id": "core_hq-ce_hq;rm -rf /"},
+        headers={"X-CCH-Operator-Token": "operator-secret"},
+    )
+    assert bad_link.status_code == 422
+
+    main_source = (repo_root / "dashboard" / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    models_source = (repo_root / "dashboard" / "backend" / "app" / "models.py").read_text(encoding="utf-8")
+    assert 'websocket.query_params.get("source")' in main_source
+    assert 'websocket.query_params.get("destination")' in main_source
+    assert "SAFE_ID_PATTERN" in models_source
+    assert "reject_shell_metacharacters" in models_source
 
 
 def test_cors_is_restricted_to_dashboard_origins():
