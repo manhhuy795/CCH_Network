@@ -327,3 +327,49 @@ def test_realtime_metrics_contract_uses_pair_and_flow_delta():
     assert "setHistory([])" in realtime_panel
     assert "slice(-60)" in realtime_panel
     assert "Math.random" not in realtime_panel
+
+
+def test_iperf_sessions_are_isolated_and_concurrency_limited():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app import live_mininet
+
+    live_source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
+    iperf_body = live_source.split("def iperf(", 1)[1].split("def estimate_voice_quality", 1)[0]
+
+    assert "pkill" not in iperf_body
+    assert "dashboard_iperf3.log" not in iperf_body
+    assert "session_id" in iperf_body
+    assert '"port": port' in iperf_body
+    assert '"duration": seconds' in iperf_body
+    assert '["kill", "-TERM", server_pid]' in iperf_body
+    assert "iperf3 -s -1 -p {port}" in iperf_body
+    assert "_destination_lock(destination)" in iperf_body
+
+    with live_mininet._IPERF_GLOBAL_LOCK:
+        live_mininet._IPERF_ACTIVE_SESSIONS.clear()
+        live_mininet._IPERF_PORT_CURSOR = 0
+
+    sessions = []
+    try:
+        for index in range(live_mininet.IPERF_MAX_CONCURRENT):
+            registered, session = live_mininet._register_iperf_session(
+                f"h20_{index + 1:02d}",
+                f"h90_{index + 1:02d}",
+                "tcp",
+                5,
+            )
+            assert registered is True
+            sessions.append(session)
+
+        registered, rejected = live_mininet._register_iperf_session("h20_99", "h90", "tcp", 5)
+        assert registered is False
+        assert rejected["ok"] is False
+        assert "phien iperf" in rejected["message"]
+        assert len({session["port"] for session in sessions}) == live_mininet.IPERF_MAX_CONCURRENT
+        assert live_mininet._destination_lock("h90") is live_mininet._destination_lock("h90")
+    finally:
+        for session in sessions:
+            live_mininet._finish_iperf_session(session["session_id"])

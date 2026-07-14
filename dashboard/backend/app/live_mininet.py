@@ -5,7 +5,9 @@ import math
 import re
 import shutil
 import subprocess
+import threading
 import time
+import uuid
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +27,16 @@ ENGINE = PolicyEngine(POLICY_FILE)
 CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
 MANUAL_BLOCK_COOKIE_BASE = 0x9000
 COOKIE_MASK = "0xffffffffffffffff"
+IPERF_SESSION_DIR = "/tmp/cch_iperf"
+IPERF_BASE_PORT = 5201
+IPERF_PORT_SPAN = 200
+IPERF_MAX_CONCURRENT = 4
+IPERF_SESSION_TTL_SECONDS = 120
+
+_IPERF_GLOBAL_LOCK = threading.Lock()
+_IPERF_DESTINATION_LOCKS: dict[str, threading.Lock] = {}
+_IPERF_ACTIVE_SESSIONS: dict[str, dict[str, Any]] = {}
+_IPERF_PORT_CURSOR = 0
 
 POLICY_COOKIE_HINTS = {
     "hq_project_isolation": "0x1001",
@@ -446,7 +458,76 @@ def parse_iperf3(output: str) -> dict[str, Any]:
     }
 
 
-def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
+def _cleanup_stale_iperf_sessions(now: float | None = None) -> None:
+    reference = now if now is not None else time.time()
+    stale = [
+        session_id
+        for session_id, session in _IPERF_ACTIVE_SESSIONS.items()
+        if reference - float(session.get("started_at", reference)) > IPERF_SESSION_TTL_SECONDS
+    ]
+    for session_id in stale:
+        _IPERF_ACTIVE_SESSIONS.pop(session_id, None)
+
+
+def _destination_lock(destination: str) -> threading.Lock:
+    with _IPERF_GLOBAL_LOCK:
+        lock = _IPERF_DESTINATION_LOCKS.get(destination)
+        if lock is None:
+            lock = threading.Lock()
+            _IPERF_DESTINATION_LOCKS[destination] = lock
+        return lock
+
+
+def _register_iperf_session(source: str, destination: str, protocol: str, seconds: int) -> tuple[bool, dict[str, Any]]:
+    global _IPERF_PORT_CURSOR
+    with _IPERF_GLOBAL_LOCK:
+        _cleanup_stale_iperf_sessions()
+        if len(_IPERF_ACTIVE_SESSIONS) >= IPERF_MAX_CONCURRENT:
+            return False, {
+                "ok": False,
+                "message": f"He thong dang co {IPERF_MAX_CONCURRENT} phien iperf. Hay cho phien dang chay ket thuc.",
+            }
+
+        used_ports = {int(session["port"]) for session in _IPERF_ACTIVE_SESSIONS.values()}
+        port = None
+        for _ in range(IPERF_PORT_SPAN):
+            candidate = IPERF_BASE_PORT + _IPERF_PORT_CURSOR
+            _IPERF_PORT_CURSOR = (_IPERF_PORT_CURSOR + 1) % IPERF_PORT_SPAN
+            if candidate not in used_ports:
+                port = candidate
+                break
+        if port is None:
+            return False, {"ok": False, "message": "Khong con port iperf trong pool demo."}
+
+        session_id = uuid.uuid4().hex[:12]
+        session = {
+            "session_id": session_id,
+            "source": source,
+            "destination": destination,
+            "protocol": protocol,
+            "port": port,
+            "duration": seconds,
+            "started_at": time.time(),
+            "log_path": f"{IPERF_SESSION_DIR}/{session_id}.json",
+        }
+        _IPERF_ACTIVE_SESSIONS[session_id] = session
+        return True, session
+
+
+def _finish_iperf_session(session_id: str) -> None:
+    with _IPERF_GLOBAL_LOCK:
+        _IPERF_ACTIVE_SESSIONS.pop(session_id, None)
+
+
+def _extract_background_pid(output: str) -> str | None:
+    for line in reversed(output.splitlines()):
+        value = line.strip()
+        if value.isdigit():
+            return value
+    return None
+
+
+def _legacy_iperf_disabled(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
     destination_data = ENGINE.endpoint(destination)
     if not ENGINE.endpoint(source) or not destination_data:
         return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
@@ -456,10 +537,10 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     if not command_exists("iperf3"):
         return {"ok": False, "message": "Chưa cài iperf3. Chạy: sudo apt install -y iperf3", "raw": ""}
 
-    run_in_host(destination, ["pkill", "-f", "iperf3 -s"], timeout=5)
+    run_in_host(destination, ["true"], timeout=5)
     server_ok, server_output = run_in_host(
         destination,
-        ["sh", "-lc", "iperf3 -s -1 >/tmp/dashboard_iperf3.log 2>&1 &"],
+        ["false"],
         timeout=5,
     )
     if not server_ok:
@@ -477,6 +558,96 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
         "result": result,
         "raw": output,
     }
+
+
+def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
+    protocol = protocol.lower()
+    seconds = max(1, min(int(seconds), 30))
+    destination_data = ENGINE.endpoint(destination)
+    if not ENGINE.endpoint(source) or not destination_data:
+        return {"ok": False, "message": "Nguon hoac dich khong hop le.", "raw": ""}
+    if protocol not in {"tcp", "udp"}:
+        return {"ok": False, "message": "Protocol chi ho tro tcp hoac udp.", "raw": ""}
+
+    decision = policy_decision(source, destination)
+    if decision["action"] == "deny":
+        return {"ok": False, "message": f"Khong the do bang thong. {decision['reason']}", "decision": decision, "raw": ""}
+    if not command_exists("iperf3"):
+        return {"ok": False, "message": "Chua cai iperf3. Chay: sudo apt install -y iperf3", "raw": ""}
+
+    destination_lock = _destination_lock(destination)
+    if not destination_lock.acquire(blocking=False):
+        return {
+            "ok": False,
+            "message": f"{destination} dang co phien iperf khac. Hay cho phien do ket thuc roi thu lai.",
+            "source": source,
+            "destination": destination,
+            "protocol": protocol,
+            "duration": seconds,
+            "decision": decision,
+            "raw": "",
+        }
+
+    registered, session = _register_iperf_session(source, destination, protocol, seconds)
+    if not registered:
+        destination_lock.release()
+        return {
+            **session,
+            "source": source,
+            "destination": destination,
+            "protocol": protocol,
+            "duration": seconds,
+            "decision": decision,
+            "raw": "",
+        }
+
+    session_id = str(session["session_id"])
+    port = int(session["port"])
+    log_path = str(session["log_path"])
+    server_pid: str | None = None
+    output = ""
+    try:
+        server_command = f"mkdir -p {IPERF_SESSION_DIR} && iperf3 -s -1 -p {port} --json > {log_path} 2>&1 & echo $!"
+        server_ok, server_output = run_in_host(destination, ["sh", "-lc", server_command], timeout=5)
+        server_pid = _extract_background_pid(server_output)
+        if not server_ok or not server_pid:
+            return {
+                "ok": False,
+                "message": f"Khong khoi dong duoc iperf3 server tren {destination}.",
+                "session_id": session_id,
+                "source": source,
+                "destination": destination,
+                "protocol": protocol,
+                "port": port,
+                "duration": seconds,
+                "decision": decision,
+                "raw": server_output,
+            }
+
+        time.sleep(0.4)
+        command = ["iperf3", "-c", destination_data["ip"], "-p", str(port), "-t", str(seconds), "--json"]
+        if protocol == "udp":
+            command.extend(["-u", "-b", "20M"])
+        ok, output = run_in_host(source, command, timeout=seconds + 15)
+        result = parse_iperf3(output)
+        return {
+            "ok": ok,
+            "message": f"{source} -> {destination}: da do bang thong {protocol.upper()} theo session {session_id}",
+            "session_id": session_id,
+            "source": source,
+            "destination": destination,
+            "protocol": protocol,
+            "port": port,
+            "duration": seconds,
+            "decision": decision,
+            "result": result,
+            "raw": output,
+        }
+    finally:
+        if server_pid:
+            run_in_host(destination, ["kill", "-TERM", server_pid], timeout=3)
+        _finish_iperf_session(session_id)
+        destination_lock.release()
 
 
 def estimate_voice_quality(rtt_ms: float, jitter_ms: float, packet_loss_percent: float) -> dict[str, Any]:
