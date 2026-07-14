@@ -11,10 +11,10 @@ import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
 
 type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
-type Tab = "operate" | "policy" | "logs";
+type Tab = "overview" | "measure" | "policy" | "logs";
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("operate");
+  const [tab, setTab] = useState<Tab>("overview");
   const [topology, setTopology] = useState<Topology>();
   const [policies, setPolicies] = useState<Record<string, unknown>>({});
   const [flows, setFlows] = useState<Array<Record<string, unknown>>>([]);
@@ -34,6 +34,7 @@ export default function App() {
   const [websocketOnline, setWebsocketOnline] = useState(false);
   const [operatorToken, setOperatorTokenState] = useState(getOperatorToken());
   const [authStatus, setAuthStatus] = useState<AuthStatus>();
+  const [lastUpdated, setLastUpdated] = useState("");
   const timer = useRef<number>();
 
   const addEvent = (message: string, kind: LogEntry["kind"] = "info") => {
@@ -54,6 +55,7 @@ export default function App() {
       setFlows(flowData.flows);
       setRuntime(status);
       setAuthStatus(auth);
+      setLastUpdated(new Date().toLocaleString("vi-VN"));
       const hosts = (status.hosts || {}) as Record<string, boolean>;
       setOnline(Object.values(hosts).filter(Boolean).length);
     } catch (error) {
@@ -138,7 +140,13 @@ export default function App() {
   };
 
   const totalEndpoints = (topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5);
-  const tabs: Array<[Tab, string]> = [["operate", "Vận hành"], ["policy", "Chính sách & OpenFlow"], ["logs", "Nhật ký"]];
+  const switchCount = topology?.summary.controlled_ovs_count ?? 8;
+  const tabs: Array<[Tab, string]> = [
+    ["overview", "Tong quan"],
+    ["measure", "Do kiem mang"],
+    ["policy", "Chinh sach & OpenFlow"],
+    ["logs", "Nhat ky"],
+  ];
 
   return (
     <main>
@@ -172,7 +180,34 @@ export default function App() {
         <div><strong>{websocketOnline ? "Online" : "Idle"}</strong><span>WebSocket</span></div>
       </div>
 
-      {tab === "operate" && (
+      {tab === "overview" && (
+        <div className="overview-grid">
+          <div className="main-column">
+            <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
+              failedLinks={failedLinks} liveLinkControl={Boolean(topology?.summary.live_link_control)}
+              source={source} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
+              onSource={setSource} onDestination={setDestination} />
+          </div>
+          <aside>
+            <section>
+              <div className="section-title"><h2>Trang thai he thong</h2><span>{lastUpdated || "Chua cap nhat"}</span></div>
+              <div className="metric-grid">
+                <div className="metric"><strong>{String(runtime.controller ?? runtime.os_ken ?? "unknown")}</strong><span>OS-Ken</span></div>
+                <div className="metric"><strong>{String(runtime.mnexec ?? false)}</strong><span>Mininet</span></div>
+                <div className="metric"><strong>{String(runtime.ovs_bridge ?? false)}</strong><span>Open vSwitch</span></div>
+                <div className="metric"><strong>{websocketOnline ? "Online" : "Idle"}</strong><span>WebSocket</span></div>
+                <div className="metric"><strong>{topology?.summary.user_count ?? 110}</strong><span>User</span></div>
+                <div className="metric"><strong>{totalEndpoints}</strong><span>Endpoint</span></div>
+                <div className="metric"><strong>{switchCount}</strong><span>Switch OVS</span></div>
+                <div className="metric"><strong>{flows.length}</strong><span>OpenFlow flow</span></div>
+              </div>
+            </section>
+            <MetricsPanel metrics={metrics} />
+          </aside>
+        </div>
+      )}
+
+      {tab === "measure" && (
         <div className="operate-grid">
           <div className="main-column">
             <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}

@@ -482,3 +482,24 @@ def test_cors_is_restricted_to_dashboard_origins():
     assert cors_origins() == ["http://127.0.0.1:5173", "http://localhost:5173"]
     assert "192\\.168" in cors_origin_regex()
     assert "CCH_DASHBOARD_CORS_ORIGINS" in security_source
+
+
+def test_dashboard_is_reorganized_into_four_operational_tabs():
+    repo_root = Path(__file__).resolve().parents[1]
+    app_source = (repo_root / "dashboard" / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+    event_log = (repo_root / "dashboard" / "frontend" / "src" / "components" / "EventLog.tsx").read_text(encoding="utf-8")
+    policy_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
+
+    assert 'type Tab = "overview" | "measure" | "policy" | "logs"' in app_source
+    for label in ("Tong quan", "Do kiem mang", "Chinh sach & OpenFlow", "Nhat ky"):
+        assert label in app_source
+    for overview_item in ("OS-Ken", "Mininet", "Open vSwitch", "WebSocket", "Endpoint", "Switch OVS", "OpenFlow flow"):
+        assert overview_item in app_source
+    for measurement_item in ("Kiem tra Ping", "Throughput TCP", "Jitter UDP", "Uoc luong chat luong thoai"):
+        assert measurement_item in test_panel
+    assert "animate(payload.decision.path)" in app_source
+    assert "TopologyCanvas" in app_source
+    assert "Toggle policy ghi policy.yml atomic" in policy_panel
+    for log_item in ("Packet-In", "FlowMod", "policy reload", "link down/up", "measurement", "warning", "error"):
+        assert log_item in event_log

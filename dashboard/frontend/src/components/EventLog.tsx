@@ -8,6 +8,11 @@ export default function EventLog({ entries }: { entries: LogEntry[] }) {
   return (
     <section>
       <div className="section-title"><h2>Nhật ký sự kiện</h2><span>{entries.length} sự kiện</span></div>
+      <div className="event-categories">
+        {["Packet-In", "FlowMod", "policy reload", "link down/up", "measurement", "warning", "error"].map((item) => (
+          <span key={item}>{item}</span>
+        ))}
+      </div>
       <div className="event-log">
         {entries.length === 0 && <p>Chưa có thao tác đo kiểm.</p>}
         {entries.map((entry, index) => (
