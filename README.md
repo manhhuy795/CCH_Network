@@ -218,6 +218,17 @@ Real-time metrics:
 - Jitter từ ping/UDP probe trong phép đo chủ động.
 - Iperf3 chỉ dùng cho đo throughput chủ động, không chạy liên tục mỗi 1-2 giây.
 
+
+## Ranh Gioi Network Automation Va SDN Runtime
+
+Du an co hai track rieng, khong tron lan:
+
+- **Network Automation**: dung `vars/`, `templates/`, `inventories/`, `playbooks/`, `scripts/`, `generated_configs/` va `tests/` de quan ly YAML, validation, Jinja2, Ansible, generated Cisco/firewall config, backup/deploy/verify.
+- **SDN runtime**: dung `sdn_mpls_demo/` de chay Mininet, Open vSwitch, OS-Ken va OpenFlow 1.3 cho demo runtime.
+- **Source of truth chung**: ca hai track cung tham chieu `vars/network_model.yml` de giu nhat quan ve vai tro node, link logic, switch, firewall, CE va MPLS logic cloud.
+
+Luu y quan trong: generated Cisco config khong duoc load vao OVS va khong dung de dung Mininet. Mininet topology duoc tao bang Python trong `sdn_mpls_demo/topology_hybrid_sdn.py`; Cisco/firewall config la artifact automation de review, lab, backup/deploy tren thiet bi that hoac emulator phu hop.
+
 ## Test Trong Mininet
 
 Trong prompt `mininet>`:

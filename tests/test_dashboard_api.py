@@ -578,3 +578,16 @@ def test_policy_is_not_rendered_as_topology_node_or_overlay():
     assert "Chinh sach SDN Edge" in policy_panel
     assert "Policy:" in test_panel
     assert "decision?.reason" in test_panel
+
+
+def test_readme_documents_automation_and_sdn_runtime_boundaries():
+    repo_root = Path(__file__).resolve().parents[1]
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    for term in ("Network Automation", "YAML", "Jinja2", "Ansible", "generated Cisco/firewall config", "backup/deploy/verify"):
+        assert term in readme
+    for term in ("SDN runtime", "Mininet", "Open vSwitch", "OS-Ken", "OpenFlow 1.3"):
+        assert term in readme
+    assert "vars/network_model.yml" in readme
+    assert "generated Cisco config khong duoc load vao OVS" in readme
+    assert "khong dung de dung Mininet" in readme
