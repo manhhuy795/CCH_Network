@@ -51,7 +51,7 @@ function labelMap(topology?: Topology) {
     if (node.subtitle) subtitle = String(node.subtitle);
     else if (node.type === "user_group") subtitle = `${node.count} users - VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
-    else if (node.type === "firewall") subtitle = "Internet Edge";
+    else if (node.type === "firewall") subtitle = "Simulated policy boundary";
     else if (node.type === "wan") subtitle = "WAN transport";
     else if (node.type === "controller") subtitle = "127.0.0.1:6653";
     else if (node.ip) subtitle = String(node.ip);

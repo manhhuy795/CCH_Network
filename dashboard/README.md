@@ -1,5 +1,7 @@
 # Dashboard Hybrid MPLS L3VPN + SDN
 
+Note: `fw_hq` va `fw_branch` trong dashboard la **Internet Edge Boundary** mo phong bang Linux router namespace, khong phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
+
 Dashboard gồm:
 
 - FastAPI backend tại cổng `8000`.

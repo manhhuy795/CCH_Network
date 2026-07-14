@@ -212,7 +212,7 @@ class PolicyEngine:
         if service_name in labels:
             policy_key, label = labels[service_name]
             if self.policies[policy_key]:
-                site_label = "Firewall Branch" if source["site"] == "Branch" else "Firewall HQ"
+                site_label = "Branch Internet Edge Boundary" if source["site"] == "Branch" else "HQ Internet Edge Boundary"
                 return self._result(
                     "allow",
                     f"{label} duoc cho phep. Traffic Internet cua {source['site']} di qua {site_label}.",

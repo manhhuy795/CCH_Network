@@ -1,5 +1,11 @@
 # Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO
 
+## Simulation Honesty
+
+- `fw_hq` va `fw_branch` trong SDN/Mininet demo la **Internet Edge Boundary** chay bang Linux router namespace.
+- Chung mo phong diem breakout/policy boundary, chua phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
+- MPLS trong demo la **MPLS L3VPN Logic Cloud**, khong phai PE/P provider core hoan chinh.
+
 Dự án gồm hai phần:
 
 - **Network Automation**: dùng YAML, Jinja2, Python và Ansible để sinh, kiểm tra, backup/deploy/rollback cấu hình mạng.

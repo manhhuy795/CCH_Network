@@ -1,5 +1,11 @@
 # SDN MPLS Demo - Call Center BPO
 
+## Simulation Honesty
+
+- `fw_hq` va `fw_branch` la **Internet Edge Boundary** bang Linux router namespace.
+- Chung khong phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
+- SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
+
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 8 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.

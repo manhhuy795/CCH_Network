@@ -171,12 +171,12 @@ infrastructure:
     subtitle: "Mo phong logic WAN transport giua HQ va Branch"
     type: "wan"
   fw_hq:
-    label: "Firewall HQ"
-    subtitle: "Mo phong Internet Edge"
+    label: "HQ Internet Edge Boundary"
+    subtitle: "Mo phong firewall policy boundary; khong phai stateful firewall thiet bi"
     type: "firewall"
   fw_branch:
-    label: "Firewall Branch"
-    subtitle: "Mo phong Internet Edge"
+    label: "Branch Internet Edge Boundary"
+    subtitle: "Mo phong firewall policy boundary; khong phai stateful firewall thiet bi"
     type: "firewall"
   internet:
     label: "Internet Zone"

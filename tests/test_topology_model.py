@@ -141,6 +141,22 @@ def test_mpls_is_labeled_as_logic_simulation_not_provider_core():
     assert "mpls_cloud" not in frontend.split("OpenFlow Control Bus", 1)[1].split("].map", 1)[0]
 
 
+def test_internet_edge_boundary_is_not_claimed_as_stateful_firewall():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    sdn_readme = (REPO_ROOT / "sdn_mpls_demo" / "README.md").read_text(encoding="utf-8")
+    dashboard_readme = (REPO_ROOT / "dashboard" / "README.md").read_text(encoding="utf-8")
+    frontend_policy = (REPO_ROOT / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
+
+    assert model["infrastructure"]["fw_hq"]["label"] == "HQ Internet Edge Boundary"
+    assert model["infrastructure"]["fw_branch"]["label"] == "Branch Internet Edge Boundary"
+    assert "khong phai stateful firewall" in model["infrastructure"]["fw_hq"]["subtitle"]
+    assert "Simulation Honesty" in readme
+    assert "Internet Edge Boundary" in sdn_readme
+    assert "khong phai stateful firewall" in dashboard_readme
+    assert "Internet Edge Boundary" in frontend_policy
+
+
 def test_controller_is_real_osken_openflow_13_app():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 

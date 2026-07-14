@@ -277,12 +277,12 @@ POLICY_TESTS = (
     ("Voice", "h50_01", "h90", True, "Telesale can reach Voice via MPLS"),
     ("Voice", "h60_01", "h90", True, "BackOffice can reach Voice via MPLS"),
     ("Voice", "h70_01", "h90", True, "IT Support can reach Voice"),
-    ("Internet services", "h20_01", "hzalo", True, "Project A can use Zalo via Firewall HQ"),
-    ("Internet services", "h20_01", "hcall", True, "Project A can use Call App via Firewall HQ"),
-    ("Internet services", "h20_01", "hinternet", True, "Project A can use Internet test via Firewall HQ"),
-    ("Internet services", "h50_01", "hzalo", True, "Telesale can use Zalo via Firewall Branch"),
-    ("Internet services", "h50_01", "hcall", True, "Telesale can use Call App via Firewall Branch"),
-    ("Internet services", "h60_01", "hinternet", True, "BackOffice can use Internet test via Firewall Branch"),
+    ("Internet services", "h20_01", "hzalo", True, "Project A can use Zalo via HQ Internet Edge Boundary"),
+    ("Internet services", "h20_01", "hcall", True, "Project A can use Call App via HQ Internet Edge Boundary"),
+    ("Internet services", "h20_01", "hinternet", True, "Project A can use Internet test via HQ Internet Edge Boundary"),
+    ("Internet services", "h50_01", "hzalo", True, "Telesale can use Zalo via Branch Internet Edge Boundary"),
+    ("Internet services", "h50_01", "hcall", True, "Telesale can use Call App via Branch Internet Edge Boundary"),
+    ("Internet services", "h60_01", "hinternet", True, "BackOffice can use Internet test via Branch Internet Edge Boundary"),
     ("Social block", "h20_01", "hsocial", False, "Project A is blocked from Social Media at HQ Core SDN"),
     ("Social block", "h30_01", "hsocial", False, "Project B is blocked from Social Media at HQ Core SDN"),
     ("Social block", "h40_01", "hsocial", False, "Project C is blocked from Social Media at HQ Core SDN"),
@@ -713,7 +713,7 @@ def build_topology():
     emit()
     emit("=" * 88)
     emit(f"Topology da tao: {len(user_hosts)} user + 5 service")
-    emit("Controller quan ly 8 OVS; CE, Firewall va MPLS Cloud khong dung OpenFlow.")
+    emit("Controller quan ly 8 OVS; CE, Internet Edge Boundary va MPLS Cloud khong dung OpenFlow.")
     emit("Lenh nhanh trong mininet:")
     emit("  testpolicy      # chay bang ping policy chi tiet")
     emit("  isolationflows  # xem DROP flow priority 400")

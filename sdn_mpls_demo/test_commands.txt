@@ -17,10 +17,10 @@ isolationflows
 
 h20_01 ping -c 2 h30_01     # expected fail
 h20_01 ping -c 2 h90        # expected pass
-h20_01 ping -c 2 hzalo      # expected pass via Firewall HQ
-h20_01 ping -c 2 hcall      # expected pass via Firewall HQ
+h20_01 ping -c 2 hzalo      # expected pass via HQ Internet Edge Boundary
+h20_01 ping -c 2 hcall      # expected pass via HQ Internet Edge Boundary
 h20_01 ping -c 2 hsocial    # expected fail at HQ SDN Edge
-h50_01 ping -c 2 hcall      # expected pass via Firewall Branch
+h50_01 ping -c 2 hcall      # expected pass via Branch Internet Edge Boundary
 h50_01 ping -c 2 hsocial    # expected fail
 h50_01 ping -c 2 h20_01     # expected fail; only IT can support users across sites
 h50_01 ping -c 2 h60_01     # expected fail
