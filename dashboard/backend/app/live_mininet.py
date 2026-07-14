@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from . import repo  # Đảm bảo repository root có trong sys.path.
+from . import mininet_control
 from scripts.network_model import architecture_links, controlled_switches, load_network_model
 from sdn_mpls_demo.policy_engine import GROUP_PATHS, PolicyEngine
 
@@ -24,6 +25,36 @@ ENGINE = PolicyEngine(POLICY_FILE)
 CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
 MANUAL_BLOCK_COOKIE_BASE = 0x9000
 COOKIE_MASK = "0xffffffffffffffff"
+
+POLICY_COOKIE_HINTS = {
+    "hq_project_isolation": "0x1001",
+    "branch_isolation": "0x1002",
+    "hq_social_block": "0x1003",
+    "branch_social_block": "0x1004",
+    "allowed_services": "0x1100",
+    "voice": "0x1200",
+    "it_support": "0x1300",
+    "reactive_policy_drop": "0x1000",
+    "transit_to_enforcement": "0x1100",
+    "internet_inbound_block": "0x1100",
+    "policy_engine_default": None,
+    "link_down": None,
+}
+
+POLICY_PRIORITY_HINTS = {
+    "hq_project_isolation": 400,
+    "branch_isolation": 400,
+    "hq_social_block": 390,
+    "branch_social_block": 390,
+    "allowed_services": 330,
+    "voice": 425,
+    "it_support": 450,
+    "reactive_policy_drop": 300,
+    "transit_to_enforcement": 180,
+    "internet_inbound_block": 385,
+    "policy_engine_default": None,
+    "link_down": None,
+}
 
 CLUSTER_SOURCES = {
     "project_a": ("h20_01", "Dự án A / VLAN 20"),
@@ -202,6 +233,115 @@ def policy_decision(source: str, destination: str) -> dict[str, Any]:
     return ENGINE.decide(source, destination)
 
 
+def _endpoint_labels(name: str) -> set[str]:
+    endpoint = ENGINE.endpoint(name)
+    labels = {name}
+    if not endpoint:
+        return labels
+    labels.add(endpoint["ip"])
+    if endpoint.get("kind") == "user":
+        group_name = endpoint.get("group")
+        labels.add(group_name)
+        labels.add(ENGINE.groups[group_name]["subnet"])
+    elif endpoint.get("kind") == "service":
+        labels.add(f"{endpoint['ip']}/32")
+    return {str(item) for item in labels if item is not None}
+
+
+def _load_installed_flow_records() -> list[dict[str, Any]]:
+    try:
+        return json.loads(RUNTIME_FLOWS_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+
+def _flow_matches_endpoint(flow: dict[str, Any], source: str, destination: str, action: str) -> bool:
+    source_labels = _endpoint_labels(source)
+    destination_labels = _endpoint_labels(destination)
+    flow_source = str(flow.get("source", ""))
+    flow_destination = str(flow.get("destination", ""))
+    flow_action = str(flow.get("action", "")).upper()
+    return (
+        flow_source in source_labels
+        and flow_destination in destination_labels
+        and (not action or flow_action == action.upper())
+    )
+
+
+def _matching_runtime_flow(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any] | None:
+    flows = _load_installed_flow_records()
+    if not flows:
+        return None
+    action = "DROP" if decision.get("action") == "deny" else "ALLOW"
+    candidates = [
+        flow for flow in flows
+        if _flow_matches_endpoint(flow, source, destination, action)
+    ]
+    blocked_at = decision.get("blocked_at")
+    if blocked_at:
+        preferred = [flow for flow in candidates if flow.get("enforcement_switch") == blocked_at or flow.get("switch") == blocked_at]
+        if preferred:
+            candidates = preferred
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda item: int(item.get("priority") or 0), reverse=True)[0]
+
+
+def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str:
+    source_data = ENGINE.endpoint(source)
+    destination_data = ENGINE.endpoint(destination)
+    reason = str(decision.get("reason", "")).lower()
+    if decision.get("failed_link"):
+        return "link_down"
+    if "it support" in reason:
+        return "it_support"
+    if destination == "h90" or source == "h90":
+        return "voice"
+    if destination in {"hzalo", "hcall", "hinternet"}:
+        return "allowed_services"
+    if source_data and source_data.get("kind") == "service" and destination_data and destination_data.get("kind") == "user":
+        return "internet_inbound_block"
+    if destination == "hsocial" or source == "hsocial":
+        return "branch_social_block" if decision.get("blocked_at") == "dist_branch" else "hq_social_block"
+    if "vlan 50" in reason or "vlan 60" in reason:
+        return "branch_isolation"
+    if "vlan" in reason or "cach ly" in reason:
+        return "hq_project_isolation"
+    if decision.get("action") == "deny":
+        return "reactive_policy_drop"
+    return "policy_engine_default"
+
+
+def _fallback_enforcement_switch(decision: dict[str, Any]) -> str | None:
+    blocked_at = decision.get("blocked_at")
+    if blocked_at in CONTROLLED_SWITCHES:
+        return str(blocked_at)
+    for preferred in ("core_hq", "dist_branch"):
+        if preferred in decision.get("path", []):
+            return preferred
+    return next((node for node in decision.get("path", []) if node in CONTROLLED_SWITCHES), None)
+
+
+def enrich_decision(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(decision)
+    flow = _matching_runtime_flow(source, destination, enriched)
+    policy = flow.get("policy") if flow else _policy_hint(source, destination, enriched)
+    enriched.update(
+        {
+            "src": source,
+            "dst": destination,
+            "failed_link": enriched.get("failed_link"),
+            "enforcement_switch": (flow.get("enforcement_switch") if flow else _fallback_enforcement_switch(enriched)),
+            "policy": policy,
+            "cookie": flow.get("cookie") if flow else POLICY_COOKIE_HINTS.get(str(policy)),
+            "priority": flow.get("priority") if flow else POLICY_PRIORITY_HINTS.get(str(policy)),
+            "flow_runtime_available": bool(flow),
+            "metadata_source": "controller_runtime" if flow else "policy_engine",
+        }
+    )
+    return enriched
+
+
 def host_pid(host: str) -> str | None:
     ok, output = run_command(["pgrep", "-f", f"mininet:{host}"], timeout=5)
     return output.splitlines()[-1].strip() if ok and output else None
@@ -250,6 +390,7 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
     if not source_data or not destination_data:
         return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     decision = policy_decision(source, destination)
+    down_link = mininet_control.first_down_link(decision.get("path", []))
     ok, output = run_in_host(
         source,
         ["ping", "-c", str(count), "-W", "1", destination_data["ip"]],
@@ -257,13 +398,26 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
     )
     result = parse_ping(output)
     reachable = bool(result["reachable"])
-    if not reachable and decision["action"] == "allow":
+    if down_link and not reachable:
+        blocked_at = down_link["blocked_at"]
+        path = decision.get("path", [])
+        stop_index = path.index(blocked_at) if blocked_at in path else 0
+        decision = {
+            **decision,
+            "action": "deny",
+            "path": path[: stop_index + 1],
+            "blocked_at": blocked_at,
+            "failed_link": down_link["link_id"],
+            "reason": "Lien ket that trong Mininet dang DOWN nen packet dung tai node truoc link loi.",
+        }
+    elif not reachable and decision["action"] == "allow":
         decision = {
             **decision,
             "action": "deny",
             "blocked_at": decision["path"][-1] if decision["path"] else None,
             "reason": "Policy cho phép nhưng lab không nhận phản hồi. Hãy kiểm tra controller, flow và link Mininet.",
         }
+    decision = enrich_decision(source, destination, decision)
     return {
         "ok": ok and reachable,
         "message": f"{source} → {destination}: {'PING THÀNH CÔNG' if reachable else 'PING THẤT BẠI'}",

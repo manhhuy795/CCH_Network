@@ -228,3 +228,45 @@ def test_link_fail_endpoint_requires_live_mininet_agent():
     assert payload["ok"] is False
     assert payload["available"] is False
     assert payload["failed_links"] == []
+
+
+def test_backend_decision_schema_is_authoritative_for_animation_metadata():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import enrich_decision, policy_decision
+
+    denied = enrich_decision("h20_01", "h30_01", policy_decision("h20_01", "h30_01"))
+
+    assert denied["action"] == "deny"
+    assert denied["path"] == ["project_a", "access_hq_a", "core_hq"]
+    assert denied["blocked_at"] == "core_hq"
+    assert denied["enforcement_switch"] == "core_hq"
+    assert denied["policy"] == "hq_project_isolation"
+    assert denied["cookie"] == "0x1001"
+    assert denied["priority"] == 400
+    assert denied["flow_runtime_available"] is False
+    assert denied["metadata_source"] == "policy_engine"
+
+    voice = enrich_decision("h20_01", "h90", policy_decision("h20_01", "h90"))
+    assert voice["action"] == "allow"
+    assert voice["policy"] == "voice"
+    assert voice["cookie"] == "0x1200"
+    assert voice["priority"] == 425
+
+
+def test_ping_result_preserves_backend_packet_path_contract():
+    repo_root = Path(__file__).resolve().parents[1]
+    live_source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
+    client_source = (repo_root / "dashboard" / "frontend" / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+    panel_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+
+    ping_body = live_source.split("def ping(", 1)[1].split("def parse_iperf3", 1)[0]
+    assert "mininet_control.first_down_link(decision.get(\"path\", []))" in ping_body
+    assert "\"failed_link\": down_link[\"link_id\"]" in ping_body
+    assert "decision = enrich_decision(source, destination, decision)" in ping_body
+    for field in ("enforcement_switch", "policy", "cookie", "priority", "failed_link"):
+        assert field in client_source
+    assert "Enforce:" in panel_source
+    assert "Failed link:" in panel_source

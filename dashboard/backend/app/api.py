@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from . import mininet_control
-from .live_mininet import cluster_detail_test, current_metrics, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
+from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
@@ -106,20 +106,24 @@ def api_simulate_path(payload: HostPair):
         failed_link = down["link_id"]
         blocked_at = down["blocked_at"]
         stop_index = path.index(blocked_at) if blocked_at in path else 0
-        return {
-            "src": payload.source,
-            "dst": payload.destination,
+        decision = {
+            **decision,
             "action": "deny",
             "reason": "Khong co duong di hop le do lien ket that trong Mininet dang down.",
             "path": path[: stop_index + 1],
             "blocked_at": blocked_at,
             "failed_link": failed_link,
+        }
+        return {
+            "src": payload.source,
+            "dst": payload.destination,
+            **enrich_decision(payload.source, payload.destination, decision),
             "mode": "logical_architecture",
         }
     return {
         "src": payload.source,
         "dst": payload.destination,
-        **decision,
+        **enrich_decision(payload.source, payload.destination, decision),
         "mode": "logical_architecture",
         "note": "Duong logic phuc vu minh hoa; ket qua ping/iperf van lay truc tiep tu Mininet/OVS.",
     }

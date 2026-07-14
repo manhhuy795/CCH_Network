@@ -53,6 +53,12 @@ export type Decision = {
   path: string[];
   blocked_at?: string | null;
   failed_link?: string | null;
+  enforcement_switch?: string | null;
+  policy?: string | null;
+  cookie?: string | null;
+  priority?: number | null;
+  flow_runtime_available?: boolean;
+  metadata_source?: string;
 };
 
 export type TestResult = {

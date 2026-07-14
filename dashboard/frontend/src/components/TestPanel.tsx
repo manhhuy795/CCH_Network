@@ -34,18 +34,18 @@ function HostSelect({ label, value, hosts, onChange }: { label: string; value: s
   const groups = useMemo(() => {
     const data = new Map<string, Host[]>();
     filtered.forEach((host) => {
-      const key = `${host.site} · ${host.group_label}`;
+      const key = `${host.site} - ${host.group_label}`;
       data.set(key, [...(data.get(key) || []), host]);
     });
     return [...data.entries()];
   }, [filtered]);
   return (
     <label>{label}
-      <input placeholder="Tìm hostname, IP, project, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} />
+      <input placeholder="Tim hostname, IP, project, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} />
       <select value={filtered.some((host) => host.name === value) ? value : filtered[0]?.name ?? ""} onChange={(event) => onChange(event.target.value)}>
         {groups.map(([group, items]) => (
           <optgroup label={group} key={group}>
-            {items.map((host) => <option value={host.name} key={host.name}>{host.label} · {host.name} · {host.ip}</option>)}
+            {items.map((host) => <option value={host.name} key={host.name}>{host.label} - {host.name} - {host.ip}</option>)}
           </optgroup>
         ))}
       </select>
@@ -54,39 +54,49 @@ function HostSelect({ label, value, hosts, onChange }: { label: string; value: s
 }
 
 export default function TestPanel(props: Props) {
+  const decision = props.result?.decision;
   const confirmControl = (action: "block" | "unblock") => {
-    const verb = action === "block" ? "cài flow DROP" : "gỡ flow DROP";
-    if (window.confirm(`Bạn có chắc muốn ${verb} cho ${props.source} → ${props.destination} không?`)) {
+    const verb = action === "block" ? "cai flow DROP" : "go flow DROP";
+    if (window.confirm(`Ban co chac muon ${verb} cho ${props.source} -> ${props.destination} khong?`)) {
       props.onRun(action);
     }
   };
   return (
     <section>
-      <div className="section-title"><h2>Đo kiểm mạng</h2><span>Kết quả thật từ Mininet/OVS</span></div>
+      <div className="section-title"><h2>Do kiem mang</h2><span>Ket qua that tu Mininet/OVS</span></div>
       <div className="panel-body">
         <div className="form-grid">
-          <HostSelect label="Nguồn" value={props.source} hosts={props.hosts} onChange={props.onSource} />
-          <HostSelect label="Đích" value={props.destination} hosts={props.hosts} onChange={props.onDestination} />
-          <label className="full">Thời gian đo chủ động (giây)<input type="number" min={1} max={60} value={props.seconds} onChange={(event) => props.onSeconds(Number(event.target.value))} /></label>
+          <HostSelect label="Nguon" value={props.source} hosts={props.hosts} onChange={props.onSource} />
+          <HostSelect label="Dich" value={props.destination} hosts={props.hosts} onChange={props.onDestination} />
+          <label className="full">Thoi gian do chu dong (giay)<input type="number" min={1} max={60} value={props.seconds} onChange={(event) => props.onSeconds(Number(event.target.value))} /></label>
         </div>
-        <h3 className="button-group-title">Đo kiểm mạng</h3>
+        <h3 className="button-group-title">Do kiem mang</h3>
         <div className="action-grid">
-          <button className="primary" disabled={props.busy} onClick={() => props.onRun("ping")}><Activity size={16} />Kiểm tra Ping</button>
+          <button className="primary" disabled={props.busy} onClick={() => props.onRun("ping")}><Activity size={16} />Kiem tra Ping</button>
           <button disabled={props.busy} onClick={() => props.onRun("tcp")}><Gauge size={16} />Throughput TCP</button>
           <button disabled={props.busy} onClick={() => props.onRun("udp")}><Gauge size={16} />Jitter UDP</button>
-          <button disabled={props.busy} onClick={() => props.onRun("quality")}><PhoneCall size={16} />Chất lượng thoại</button>
-          <button disabled={props.busy} onClick={() => props.onRun("simulate")}><Network size={16} />Mô phỏng path</button>
+          <button disabled={props.busy} onClick={() => props.onRun("quality")}><PhoneCall size={16} />Chat luong thoai</button>
+          <button disabled={props.busy} onClick={() => props.onRun("simulate")}><Network size={16} />Mo phong path</button>
         </div>
-        <h3 className="button-group-title">Điều khiển SDN</h3>
+        <h3 className="button-group-title">Dieu khien SDN</h3>
         <div className="action-grid">
-          <button className="danger" disabled={props.busy} onClick={() => confirmControl("block")}><Ban size={16} />Chặn luồng</button>
-          <button disabled={props.busy} onClick={() => confirmControl("unblock")}><ShieldCheck size={16} />Gỡ chặn</button>
+          <button className="danger" disabled={props.busy} onClick={() => confirmControl("block")}><Ban size={16} />Chan luong</button>
+          <button disabled={props.busy} onClick={() => confirmControl("unblock")}><ShieldCheck size={16} />Go chan</button>
         </div>
         <div className={`result-box ${props.result?.ok ? "ok" : props.result ? "bad" : ""}`}>
-          <strong>{props.busy ? "Đang thực hiện..." : props.result?.message || "Sẵn sàng đo kiểm"}</strong>
-          <p>{props.result?.decision?.reason || "Chọn từng user cụ thể rồi chạy phép đo."}</p>
+          <strong>{props.busy ? "Dang thuc hien..." : props.result?.message || "San sang do kiem"}</strong>
+          <p>{decision?.reason || "Chon tung user cu the roi chay phep do."}</p>
+          {decision && (
+            <div className="decision-meta">
+              <span>Enforce: {decision.enforcement_switch || "n/a"}</span>
+              <span>Policy: {decision.policy || "n/a"}</span>
+              <span>Cookie: {decision.cookie || "n/a"}</span>
+              <span>Priority: {decision.priority ?? "n/a"}</span>
+              {decision.failed_link && <span>Failed link: {decision.failed_link}</span>}
+            </div>
+          )}
         </div>
-        <pre>{props.result?.raw || "Output ping/iperf3/OVS sẽ hiển thị tại đây."}</pre>
+        <pre>{props.result?.raw || "Output ping/iperf3/OVS se hien thi tai day."}</pre>
       </div>
     </section>
   );
