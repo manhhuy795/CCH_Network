@@ -463,3 +463,22 @@ def test_operator_actions_require_it_token(monkeypatch):
     assert "IT token" in app_source
     assert "secrets.token_urlsafe" in start_script
     assert "cch-it-demo-token" not in start_script
+
+
+def test_cors_is_restricted_to_dashboard_origins():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.security import cors_origin_regex, cors_origins
+
+    main_source = (repo_root / "dashboard" / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    security_source = (repo_root / "dashboard" / "backend" / "app" / "security.py").read_text(encoding="utf-8")
+
+    assert 'allow_origins=["*"]' not in main_source
+    assert 'allow_headers=["*"]' not in main_source
+    assert "allow_credentials=False" in main_source
+    assert "X-CCH-Operator-Token" in main_source
+    assert cors_origins() == ["http://127.0.0.1:5173", "http://localhost:5173"]
+    assert "192\\.168" in cors_origin_regex()
+    assert "CCH_DASHBOARD_CORS_ORIGINS" in security_source

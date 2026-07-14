@@ -12,6 +12,7 @@ from .api import router
 from .live_page import LIVE_DASHBOARD_HTML
 from .live_mininet import pair_realtime_metrics
 from .metrics import current_metrics
+from .security import cors_origin_regex, cors_origins
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -20,10 +21,11 @@ app = FastAPI(title="Hybrid MPLS + SDN Dashboard API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins(),
+    allow_origin_regex=cors_origin_regex(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CCH-Operator-Token", "Authorization"],
 )
 app.include_router(router)
 

@@ -7,6 +7,16 @@ from fastapi import Header, HTTPException, status
 
 
 TOKEN_ENV = "CCH_DASHBOARD_OPERATOR_TOKEN"
+CORS_ORIGINS_ENV = "CCH_DASHBOARD_CORS_ORIGINS"
+DEFAULT_CORS_ORIGINS = ("http://127.0.0.1:5173", "http://localhost:5173")
+DEFAULT_CORS_ORIGIN_REGEX = (
+    r"^http://("
+    r"localhost|127\.0\.0\.1|"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
+    r"):5173$"
+)
 
 
 def configured_operator_token() -> str:
@@ -20,6 +30,17 @@ def auth_status() -> dict[str, object]:
         "token_header": "X-CCH-Operator-Token",
         "role": "it_operator",
     }
+
+
+def cors_origins() -> list[str]:
+    configured = os.environ.get(CORS_ORIGINS_ENV, "").strip()
+    if not configured:
+        return list(DEFAULT_CORS_ORIGINS)
+    return [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+
+
+def cors_origin_regex() -> str:
+    return os.environ.get("CCH_DASHBOARD_CORS_ORIGIN_REGEX", DEFAULT_CORS_ORIGIN_REGEX)
 
 
 def require_operator(
