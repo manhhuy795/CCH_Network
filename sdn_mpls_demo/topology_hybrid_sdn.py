@@ -53,7 +53,8 @@ ALLOWED_CONTROL_COMMANDS = {
     "DEL_COOKIE_FLOWS",
 }
 
-DPIDS = dpid_map(load_network_model())
+NETWORK_MODEL = load_network_model()
+DPIDS = dpid_map(NETWORK_MODEL)
 
 
 LOGICAL_LINK_SEGMENTS = {

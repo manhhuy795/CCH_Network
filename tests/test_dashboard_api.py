@@ -148,8 +148,9 @@ def test_cluster_detail_configuration_covers_main_groups():
     assert "h50_01" in CLUSTER_DENY_TARGETS["project_a"]
     assert "h20_01" in CLUSTER_DENY_TARGETS["telesale"]
     assert "hcall" in CLUSTER_ALLOW_TARGETS["it_support"]
+    assert "hinternet" in CLUSTER_ALLOW_TARGETS["it_support"]
     assert "hsocial" in CLUSTER_DENY_TARGETS["it_support"]
-    assert "hinternet" in CLUSTER_DENY_TARGETS["it_support"]
+    assert "hinternet" not in CLUSTER_DENY_TARGETS["it_support"]
 
 
 def test_manual_block_uses_cookie_and_single_enforcement_switch():

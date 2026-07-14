@@ -54,9 +54,10 @@ POLICY_COOKIES = {
     "branch_social_block": 0x1004,
     "allowed_services": 0x1100,
     "voice": 0x1200,
-    "it_support": 0x1300,
-    "it_support_return": 0x1301,
-    "it_inbound_block": 0x1302,
+    "it_support": 0x1301,
+    "it_support_return": 0x1302,
+    "it_inbound_block": 0x1303,
+    "it_social_block": 0x1304,
     "reactive_policy_drop": 0x1000,
     "transit_to_enforcement": 0x1100,
     "internet_inbound_block": 0x1100,
@@ -311,16 +312,30 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         if not it_network:
             return
 
+        it_policy = self.policy.policies.get("it_support_controlled_access") or {}
+        managed_group_names = set(
+            it_policy.get(
+                "managed_user_groups",
+                ["project_a", "project_b", "project_c", "telesale", "backoffice"],
+            )
+        )
+        allowed_services = set(
+            it_policy.get(
+                "allowed_services",
+                self.policy.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"]),
+            )
+        )
+        denied_services = set(it_policy.get("denied_services", ["hsocial"]))
+
         internal_destinations: list[tuple[str, str]] = [
             (name, str(network))
             for name, network in self.policy.networks.items()
-            if name != "it_support"
+            if name in managed_group_names
         ]
-        allowed_services = set(self.policy.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"]))
         service_destinations: list[tuple[str, str]] = [
             (name, f"{service['ip']}/32")
             for name, service in self.policy.services.items()
-            if "ip" in service and name in allowed_services
+            if "ip" in service and name in allowed_services and name not in denied_services
         ]
 
         for destination_name, destination_prefix in internal_destinations:
@@ -359,7 +374,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 )
                 self.add_flow(
                     datapath,
-                    445,
+                    450,
                     return_match,
                     normal_actions,
                     {
@@ -381,7 +396,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 )
                 self.add_flow(
                     datapath,
-                    455,
+                    460,
                     inbound_request_match,
                     [],
                     {
@@ -431,7 +446,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 )
                 self.add_flow(
                     datapath,
-                    445,
+                    450,
                     return_match,
                     normal_actions,
                     {
@@ -459,16 +474,16 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 )
                 self.add_flow(
                     datapath,
-                    460,
+                    470,
                     match,
                     [],
                     {
                         "action": "DROP",
                         "source": source_label,
                         "destination": target_label,
-                        "policy": "hq_social_block",
+                        "policy": "it_social_block",
                         "enforcement_switch": switch_name,
-                        "reason": "Block Social Media ca IT Support; IT management khong duoc bypass social policy.",
+                        "reason": "IT Support khong duoc bypass chinh sach Social Media.",
                     },
                     idle_timeout=0,
                 )

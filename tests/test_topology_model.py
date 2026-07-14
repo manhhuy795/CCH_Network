@@ -240,10 +240,26 @@ def test_phase27_controller_flow_placement_contract():
     assert "access_branch" not in branch_section
 
 
+def test_runtime_policy_tests_keep_phase28_expected_matrix():
+    topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
+
+    assert "POLICY_TESTS = (" in topology
+    assert topology.count('("') >= 40
+    assert '("IT least privilege", "h20_01", "h70_01", False' in topology
+    assert '("IT least privilege", "h70_01", "hsocial", False' in topology
+    assert '("IT support", "h70_01", "h20_01", True' in topology
+    assert '("IT support", "h70_01", "h30_01", True' in topology
+    assert '("IT support", "h70_01", "h50_01", True' in topology
+    assert '("IT support", "h70_01", "hcall", True' in topology
+    assert '("IT support", "h70_01", "hsocial", True' not in topology
+    policy_tests_body = topology.split("POLICY_TESTS = (", 1)[1].split(")\n\ndef endpoint_ip", 1)[0]
+    assert policy_tests_body.count("\n    (") == 40
+
+
 def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 
-    for cookie in ("0x1001", "0x1002", "0x1003", "0x1004", "0x1100", "0x1200", "0x1300", "0x1301", "0x1302"):
+    for cookie in ("0x1001", "0x1002", "0x1003", "0x1004", "0x1100", "0x1200", "0x1301", "0x1302", "0x1303", "0x1304"):
         assert cookie in controller
     assert "cookie=cookie" in controller
     assert 'cookie=f"0x{cookie:x}"' in controller
@@ -254,29 +270,36 @@ def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     assert "branch_social_block" in controller
     assert "it_support_return" in controller
     assert "it_inbound_block" in controller
+    assert "it_social_block" in controller
 
 
 def test_controller_it_support_flows_are_least_privilege():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
     it_section = controller.split("def install_it_support_flows", 1)[1].split("def install_voice_flows", 1)[0]
 
-    assert 'allowed_services = set(self.policy.policies.get("it_support_allowed_services"' in it_section
+    assert 'it_policy = self.policy.policies.get("it_support_controlled_access") or {}' in it_section
+    assert '"allowed_services"' in it_section
+    assert '"managed_user_groups"' in it_section
+    assert '"denied_services"' in it_section
     assert 'if "ip" in service and name in allowed_services' in it_section
     assert 'if switch_name != "core_hq"' in it_section
     assert '(destination_network, it_network, destination_name, "it_support")' not in it_section
+    assert "(user_network, it_network" not in it_section
     assert "icmpv4_type=ICMP_ECHO_REQUEST" in it_section
     assert "icmpv4_type=ICMP_ECHO_REPLY" in it_section
     assert '"policy": "it_support_return"' in it_section
     assert '"policy": "it_inbound_block"' in it_section
-    assert '"policy": "hq_social_block"' in it_section
+    assert '"policy": "it_social_block"' in it_section
+    assert '"hsocial"' not in it_section.split("service_destinations", 1)[1].split("social =", 1)[0]
     assert "priority=455" not in it_section
-    assert "455," in it_section
     assert "460," in it_section
-    assert "IT management khong duoc bypass social policy" in it_section
+    assert "470," in it_section
+    assert "IT Support khong duoc bypass chinh sach Social Media" in it_section
 
 
 def test_topology_runner_auto_starts_and_waits_for_controller():
     runner = (REPO_ROOT / "sdn_mpls_demo" / "run_topology.sh").read_text(encoding="utf-8")
+    topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
     assert "controller_is_listening" in runner
     assert "run_controller.sh" in runner
@@ -291,6 +314,10 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "hq_l3-eth0" in runner
     assert "branch_l3-eth0" in runner
     assert "seq -w 1 10" in runner
+    assert 'interface="h70-u${index}"' in runner
+    assert "printf 'h70-u%02d'" not in runner
+    assert "NETWORK_MODEL = load_network_model()" in topology
+    assert "DPIDS = dpid_map(NETWORK_MODEL)" in topology
 
 
 def test_phase27_live_link_and_policy_reload_hooks_exist():

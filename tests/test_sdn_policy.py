@@ -36,6 +36,20 @@ def test_real_sdn_policy_required_allow_deny_paths():
     assert intersite_user["blocked_at"] == "dist_branch"
 
 
+def test_it_support_controlled_access_schema_is_explicit():
+    policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
+    engine = PolicyEngine(policy_path)
+    policy = engine.policies["it_support_controlled_access"]
+
+    assert policy["enabled"] is True
+    assert policy["source_group"] == "it_support"
+    assert set(policy["managed_user_groups"]) == {"project_a", "project_b", "project_c", "telesale", "backoffice"}
+    assert set(policy["allowed_services"]) == {"h90", "hzalo", "hcall", "hinternet"}
+    assert "hsocial" in policy["denied_services"]
+    assert "hsocial" not in policy["allowed_services"]
+    assert {22, 443, 3389, 5985, 5986}.issubset(set(policy["management_tcp_ports"]))
+
+
 def test_all_user_groups_can_reach_voice_service():
     policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
     engine = PolicyEngine(policy_path)
@@ -56,14 +70,12 @@ def test_it_support_is_least_privilege_not_full_access():
     assert engine.decide("h70_01", "h50_01")["action"] == "allow"
     assert engine.decide("h70_01", "hcall")["action"] == "allow"
     assert engine.decide("h70_01", "hzalo")["action"] == "allow"
+    assert engine.decide("h70_01", "hinternet")["action"] == "allow"
 
     social = engine.decide("h70_01", "hsocial")
     assert social["action"] == "deny"
     assert social["blocked_at"] == "core_hq"
-
-    general_internet = engine.decide("h70_01", "hinternet")
-    assert general_internet["action"] == "deny"
-    assert general_internet["blocked_at"] == "core_hq"
+    assert "Social Media" in social["reason"]
 
     user_to_it = engine.decide("h20_01", "h70_01")
     assert user_to_it["action"] == "deny"
@@ -88,6 +100,7 @@ def test_phase28_runtime_regressions_for_it_least_privilege():
 
     assert engine.decide_packet("h70_01", "hcall", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
     assert engine.decide_packet("h70_01", "h90", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
+    assert engine.decide_packet("h70_01", "hinternet", icmp_type=ICMP_ECHO_REQUEST)["action"] == "allow"
 
     social = engine.decide_packet("h70_01", "hsocial", icmp_type=ICMP_ECHO_REQUEST)
     assert social["action"] == "deny"

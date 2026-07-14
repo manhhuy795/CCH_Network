@@ -71,7 +71,7 @@ cleanup_stale_network() {
     done
   done
   for index in $(seq -w 1 10); do
-    interface="$(printf 'h70-u%02d' "$index")"
+    interface="h70-u${index}"
     sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
     sudo ip link delete "$interface" >/dev/null 2>&1 || true
   done

@@ -112,20 +112,15 @@ class PolicyEngine:
             return self._result("deny", "Mac dinh tu choi giua cac dich vu.", [], None)
 
         source_group = source["group"]
-        if self._is_it_support_flow(source_group, destination):
-            return self._result(
-                "allow",
-                "IT Support co quyen remote/support co kiem soat theo policy.",
-                self._it_support_path(source_group, destination),
-                None,
-            )
-        if source_group == IT_SUPPORT_GROUP and destination["kind"] == "service":
-            return self._result(
-                "deny",
-                "IT Support least privilege: chi duoc kiem tra cac dich vu quan tri duoc khai bao.",
-                GROUP_PATHS[source_group],
-                "core_hq",
-            )
+        if (
+            destination["kind"] == "service"
+            and destination["name"] == "hsocial"
+            and self.policies["block_social_media"]
+        ):
+            return self._service_decision(source, destination)
+
+        if source_group == IT_SUPPORT_GROUP:
+            return self._it_support_decision(source, destination)
 
         if destination["kind"] == "service":
             return self._service_decision(source, destination)
@@ -203,6 +198,13 @@ class PolicyEngine:
 
         if service_name == "hsocial" and self.policies["block_social_media"]:
             edge = "dist_branch" if source["site"] == "Branch" else "core_hq"
+            if source_group == IT_SUPPORT_GROUP:
+                return self._result(
+                    "deny",
+                    "IT Support khong duoc bypass chinh sach chan Social Media.",
+                    source_path,
+                    "core_hq",
+                )
             return self._result(
                 "deny",
                 "Bi chan boi chinh sach SDN Edge: Social Media khong duoc phep doi voi user thuong.",
@@ -235,15 +237,66 @@ class PolicyEngine:
             return [*source_path, "ce_branch", "mpls_cloud", "ce_hq", "core_hq", "voice_access", "h90"]
         return [*source_path, "voice_access", "h90"]
 
-    def _is_it_support_flow(self, source_group: str, destination: dict[str, Any]) -> bool:
-        allowed_services = set(self.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"]))
-        return bool(
-            self.policies.get("allow_it_support_controlled_access", False)
-            and source_group == IT_SUPPORT_GROUP
-            and (
-                destination["kind"] == "user"
-                or (destination["kind"] == "service" and destination["name"] in allowed_services)
+    def _it_support_policy(self) -> dict[str, Any]:
+        configured = self.policies.get("it_support_controlled_access") or {}
+        fallback_services = self.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"])
+        return {
+            "enabled": configured.get("enabled", self.policies.get("allow_it_support_controlled_access", False)),
+            "source_group": configured.get("source_group", IT_SUPPORT_GROUP),
+            "allow_icmp_to_managed_users": configured.get("allow_icmp_to_managed_users", True),
+            "managed_user_groups": configured.get(
+                "managed_user_groups",
+                ["project_a", "project_b", "project_c", "telesale", "backoffice"],
+            ),
+            "allowed_services": configured.get("allowed_services", fallback_services),
+            "denied_services": configured.get("denied_services", ["hsocial"]),
+            "management_tcp_ports": configured.get("management_tcp_ports", [22, 443, 3389, 5985, 5986]),
+        }
+
+    def _it_support_decision(self, source: dict[str, Any], destination: dict[str, Any]) -> dict[str, Any]:
+        policy = self._it_support_policy()
+        source_group = source["group"]
+        if not policy["enabled"] or source_group != policy["source_group"]:
+            return self._result("deny", "IT Support controlled access bi tat hoac sai source group.", GROUP_PATHS[source_group], "core_hq")
+
+        if destination["kind"] == "service":
+            service_name = destination["name"]
+            denied_services = set(policy["denied_services"])
+            allowed_services = set(policy["allowed_services"])
+            if service_name in denied_services or (service_name == "hsocial" and self.policies["block_social_media"]):
+                return self._result(
+                    "deny",
+                    "IT Support khong duoc bypass chinh sach chan Social Media.",
+                    GROUP_PATHS[source_group],
+                    "core_hq",
+                )
+            if service_name in allowed_services:
+                return self._result(
+                    "allow",
+                    "IT Support duoc kiem tra dich vu quan tri duoc khai bao theo policy.",
+                    self._it_support_path(source_group, destination),
+                    None,
+                )
+            return self._result(
+                "deny",
+                "IT Support least privilege: dich vu khong nam trong danh sach quan tri duoc phep.",
+                GROUP_PATHS[source_group],
+                "core_hq",
             )
+
+        destination_group = destination["group"]
+        if policy["allow_icmp_to_managed_users"] and destination_group in set(policy["managed_user_groups"]):
+            return self._result(
+                "allow",
+                "IT Support duoc chu dong remote/support user trong nhom managed.",
+                self._it_support_path(source_group, destination),
+                None,
+            )
+        return self._result(
+            "deny",
+            "IT Support least privilege: nhom dich khong nam trong managed_user_groups.",
+            GROUP_PATHS[source_group],
+            "core_hq",
         )
 
     def _it_support_path(self, source_group: str, destination: dict[str, Any]) -> list[str]:

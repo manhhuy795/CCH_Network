@@ -44,9 +44,10 @@ POLICY_COOKIE_HINTS = {
     "branch_social_block": "0x1004",
     "allowed_services": "0x1100",
     "voice": "0x1200",
-    "it_support": "0x1300",
-    "it_support_return": "0x1301",
-    "it_inbound_block": "0x1302",
+    "it_support": "0x1301",
+    "it_support_return": "0x1302",
+    "it_inbound_block": "0x1303",
+    "it_social_block": "0x1304",
     "reactive_policy_drop": "0x1000",
     "transit_to_enforcement": "0x1100",
     "internet_inbound_block": "0x1100",
@@ -62,8 +63,9 @@ POLICY_PRIORITY_HINTS = {
     "allowed_services": 330,
     "voice": 425,
     "it_support": 450,
-    "it_support_return": 445,
-    "it_inbound_block": 455,
+    "it_support_return": 450,
+    "it_inbound_block": 460,
+    "it_social_block": 470,
     "reactive_policy_drop": 300,
     "transit_to_enforcement": 180,
     "internet_inbound_block": 385,
@@ -86,7 +88,7 @@ CLUSTER_ALLOW_TARGETS = {
     "project_c": ("h90", "hzalo", "hcall", "hinternet"),
     "telesale": ("h90", "hzalo", "hcall", "hinternet"),
     "backoffice": ("h90", "hzalo", "hcall", "hinternet"),
-    "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hzalo", "hcall"),
+    "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hzalo", "hcall", "hinternet"),
 }
 
 CLUSTER_DENY_TARGETS = {
@@ -95,7 +97,7 @@ CLUSTER_DENY_TARGETS = {
     "project_c": ("h20_01", "h30_01", "h50_01", "h60_01", "hsocial"),
     "telesale": ("h20_01", "h30_01", "h40_01", "h60_01", "hsocial"),
     "backoffice": ("h50_01", "h20_01", "h30_01", "h40_01", "hsocial"),
-    "it_support": ("hsocial", "hinternet"),
+    "it_support": ("hsocial",),
 }
 
 
@@ -298,6 +300,10 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
     reason = str(decision.get("reason", "")).lower()
     if decision.get("failed_link"):
         return "link_down"
+    if (source == "h70_01" or destination == "h70_01") and (source == "hsocial" or destination == "hsocial"):
+        return "it_social_block"
+    if destination == "h70_01" and decision.get("action") == "deny":
+        return "it_inbound_block"
     if "least privilege" in reason and decision.get("action") == "deny":
         return "reactive_policy_drop"
     if "it support" in reason:
