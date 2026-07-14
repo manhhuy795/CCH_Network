@@ -4,7 +4,6 @@ import json
 import math
 import re
 import shutil
-import subprocess
 import threading
 import time
 import uuid
@@ -125,16 +124,6 @@ def now_iso() -> str:
 def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
 
-
-def run_command(command: list[str], timeout: int = 20) -> tuple[bool, str]:
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=timeout)
-        output = ((result.stdout or "") + (result.stderr or "")).strip()
-        return result.returncode == 0, output
-    except FileNotFoundError:
-        return False, f"Không tìm thấy lệnh: {command[0]}"
-    except subprocess.TimeoutExpired:
-        return False, "Lệnh bị quá thời gian. Hãy kiểm tra Mininet/OVS có đang chạy không."
 
 
 def topology_payload() -> dict[str, Any]:
@@ -358,26 +347,6 @@ def enrich_decision(source: str, destination: str, decision: dict[str, Any]) -> 
     return enriched
 
 
-def host_pid(host: str) -> str | None:
-    ok, output = run_command(["pgrep", "-f", f"mininet:{host}"], timeout=5)
-    return output.splitlines()[-1].strip() if ok and output else None
-
-
-def run_in_host(host: str, command: list[str], timeout: int = 20) -> tuple[bool, str]:
-    pid = host_pid(host)
-    if not pid:
-        return False, f"Không tìm thấy namespace Mininet của {host}. Hãy chạy sdn_mpls_demo/run_topology.sh trước."
-    base = ["mnexec", "-a", pid, *command]
-    ok, output = run_command(base, timeout=timeout)
-    if ok:
-        return ok, output
-    if "Operation not permitted" in output or "permission" in output.lower():
-        sudo_ok, sudo_output = run_command(["sudo", "-n", *base], timeout=timeout)
-        if sudo_ok:
-            return sudo_ok, sudo_output
-        return False, output + "\nBackend cần quyền truy cập namespace Mininet. Hãy chạy dashboard bằng sudo."
-    return ok, output
-
 
 def parse_ping(output: str) -> dict[str, Any]:
     result: dict[str, Any] = {"raw": output}
@@ -407,11 +376,7 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
         return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     decision = policy_decision(source, destination)
     down_link = mininet_control.first_down_link(decision.get("path", []))
-    ok, output = run_in_host(
-        source,
-        ["ping", "-c", str(count), "-W", "1", destination_data["ip"]],
-        timeout=count + 7,
-    )
+    ok, output = mininet_control.ping(source, destination_data["ip"], count)
     result = parse_ping(output)
     reachable = bool(result["reachable"])
     if down_link and not reachable:
@@ -527,38 +492,6 @@ def _extract_background_pid(output: str) -> str | None:
     return None
 
 
-def _legacy_iperf_disabled(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
-    destination_data = ENGINE.endpoint(destination)
-    if not ENGINE.endpoint(source) or not destination_data:
-        return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
-    decision = policy_decision(source, destination)
-    if decision["action"] == "deny":
-        return {"ok": False, "message": f"Không thể đo băng thông. {decision['reason']}", "decision": decision, "raw": ""}
-    if not command_exists("iperf3"):
-        return {"ok": False, "message": "Chưa cài iperf3. Chạy: sudo apt install -y iperf3", "raw": ""}
-
-    run_in_host(destination, ["true"], timeout=5)
-    server_ok, server_output = run_in_host(
-        destination,
-        ["false"],
-        timeout=5,
-    )
-    if not server_ok:
-        return {"ok": False, "message": f"Không khởi động được iperf3 server trên {destination}.", "raw": server_output}
-    time.sleep(0.4)
-    command = ["iperf3", "-c", destination_data["ip"], "-t", str(seconds), "--json"]
-    if protocol == "udp":
-        command.extend(["-u", "-b", "20M"])
-    ok, output = run_in_host(source, command, timeout=seconds + 15)
-    result = parse_iperf3(output)
-    return {
-        "ok": ok,
-        "message": f"{source} → {destination}: đã đo băng thông {protocol.upper()}",
-        "decision": decision,
-        "result": result,
-        "raw": output,
-    }
-
 
 def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
     protocol = protocol.lower()
@@ -572,8 +505,6 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     decision = policy_decision(source, destination)
     if decision["action"] == "deny":
         return {"ok": False, "message": f"Khong the do bang thong. {decision['reason']}", "decision": decision, "raw": ""}
-    if not command_exists("iperf3"):
-        return {"ok": False, "message": "Chua cai iperf3. Chay: sudo apt install -y iperf3", "raw": ""}
 
     destination_lock = _destination_lock(destination)
     if not destination_lock.acquire(blocking=False):
@@ -607,8 +538,7 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     server_pid: str | None = None
     output = ""
     try:
-        server_command = f"mkdir -p {IPERF_SESSION_DIR} && iperf3 -s -1 -p {port} --json > {log_path} 2>&1 & echo $!"
-        server_ok, server_output = run_in_host(destination, ["sh", "-lc", server_command], timeout=5)
+        server_ok, server_output = mininet_control.start_iperf_server(destination, port, log_path)
         server_pid = _extract_background_pid(server_output)
         if not server_ok or not server_pid:
             return {
@@ -625,10 +555,7 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
             }
 
         time.sleep(0.4)
-        command = ["iperf3", "-c", destination_data["ip"], "-p", str(port), "-t", str(seconds), "--json"]
-        if protocol == "udp":
-            command.extend(["-u", "-b", "20M"])
-        ok, output = run_in_host(source, command, timeout=seconds + 15)
+        ok, output = mininet_control.run_iperf_client(source, destination_data["ip"], port, protocol, seconds)
         result = parse_iperf3(output)
         return {
             "ok": ok,
@@ -645,7 +572,7 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
         }
     finally:
         if server_pid:
-            run_in_host(destination, ["kill", "-TERM", server_pid], timeout=3)
+            mininet_control.kill_pid(destination, server_pid)
         _finish_iperf_session(session_id)
         destination_lock.release()
 
@@ -827,7 +754,7 @@ def ovs_flows() -> dict[str, Any]:
     raw_outputs = []
     live_switches = []
     for switch in CONTROLLED_SWITCHES:
-        ok, output = run_command(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch], timeout=8)
+        ok, output = mininet_control.dump_flows(switch)
         if not ok:
             continue
         live_switches.append(switch)
@@ -943,28 +870,18 @@ def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any
     success = True
     switch = manual_enforcement_switch(source, destination)
     cookie = manual_block_cookie(source, destination)
-    exists, output = run_command(["ovs-vsctl", "br-exists", switch], timeout=4)
+    exists, output = mininet_control.bridge_exists(switch)
     if not exists:
         return {"ok": False, "message": f"Khong tim thay OVS enforcement {switch}.", "raw": output}
     if not block:
-        command = ["ovs-ofctl", "-O", "OpenFlow13", "del-flows", switch, f"cookie=0x{cookie:x}/{COOKIE_MASK}"]
-        ok, output = run_command(command, timeout=8)
+        ok, output = mininet_control.delete_cookie_flows(switch, cookie, COOKIE_MASK)
         return {
             "ok": ok,
             "message": f"Da go chan tam thoi {source} <-> {destination} tai {switch} bang cookie 0x{cookie:x}.",
             "raw": output,
         }
     for src_ip, dst_ip in ((source_data["ip"], destination_data["ip"]), (destination_data["ip"], source_data["ip"])):
-        match = f"ip,nw_src={src_ip},nw_dst={dst_ip}"
-        command = [
-            "ovs-ofctl",
-            "-O",
-            "OpenFlow13",
-            "add-flow",
-            switch,
-            f"cookie=0x{cookie:x},priority=500,{match},actions=drop",
-        ]
-        ok, output = run_command(command, timeout=8)
+        ok, output = mininet_control.add_manual_drop(switch, cookie, src_ip, dst_ip)
         success = success and ok
         outputs.append(output)
     verb = "chan" if block else "go chan"
@@ -972,19 +889,17 @@ def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any
 
 
 def live_status() -> dict[str, Any]:
-    bridges = {}
-    for switch in CONTROLLED_SWITCHES:
-        bridges[switch] = run_command(["ovs-vsctl", "br-exists", switch], timeout=3)[0]
-    ok, process_list = run_command(["pgrep", "-af", "mininet:"], timeout=5)
-    hosts = {
-        name: bool(ok and re.search(rf"mininet:{re.escape(name)}(?:\s|$)", process_list))
-        for name in ENGINE.hosts
-    }
+    status = mininet_control.live_status()
+    if status.get("ok"):
+        return status
     return {
-        "ovs_bridge": any(bridges.values()),
-        "bridges": bridges,
+        "ok": False,
+        "available": False,
+        "message": status.get("message", "Mininet control agent chua san sang."),
+        "ovs_bridge": False,
+        "bridges": {switch: False for switch in CONTROLLED_SWITCHES},
         "mnexec": command_exists("mnexec"),
         "iperf3": command_exists("iperf3"),
-        "hosts": hosts,
-        "user_hosts_online": sum(hosts[name] for name, data in ENGINE.hosts.items() if data["kind"] == "user"),
+        "hosts": {name: False for name in ENGINE.hosts},
+        "user_hosts_online": 0,
     }

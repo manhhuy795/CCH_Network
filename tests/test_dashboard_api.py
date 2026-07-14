@@ -171,8 +171,8 @@ def test_manual_block_uses_cookie_and_single_enforcement_switch():
     assert flow["cookie"] == "0x1001"
 
     source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
-    assert 'del-flows", switch, f"cookie=0x{cookie:x}/{COOKIE_MASK}"' in source
-    assert 'del-flows", switch, match' not in source
+    assert "mininet_control.delete_cookie_flows(switch, cookie, COOKIE_MASK)" in source
+    assert "mininet_control.add_manual_drop(switch, cookie, src_ip, dst_ip)" in source
     assert "for switch in CONTROLLED_SWITCHES:" not in source.split("def temporary_block", 1)[1].split("def live_status", 1)[0]
 
 
@@ -228,6 +228,9 @@ def test_live_link_control_uses_mininet_agent_not_backend_state():
     assert "GET_INTERFACE_MAP" in topology_source
     assert "self.net.configLinkStatus(left, right, state)" in topology_source
     assert "MininetControlAgent(net, policy)" in topology_source
+    assert '"LINK_DOWN"' in client_source
+    assert '"LINK_UP"' in client_source
+    assert "return request_agent(command, link_id=link_id)" in client_source
 
     topology = get_topology()
     assert topology["summary"]["live_link_control"] is False
@@ -344,8 +347,9 @@ def test_iperf_sessions_are_isolated_and_concurrency_limited():
     assert "session_id" in iperf_body
     assert '"port": port' in iperf_body
     assert '"duration": seconds' in iperf_body
-    assert '["kill", "-TERM", server_pid]' in iperf_body
-    assert "iperf3 -s -1 -p {port}" in iperf_body
+    assert "mininet_control.start_iperf_server(destination, port, log_path)" in iperf_body
+    assert "mininet_control.run_iperf_client(source, destination_data[\"ip\"], port, protocol, seconds)" in iperf_body
+    assert "mininet_control.kill_pid(destination, server_pid)" in iperf_body
     assert "_destination_lock(destination)" in iperf_body
 
     with live_mininet._IPERF_GLOBAL_LOCK:
@@ -373,3 +377,42 @@ def test_iperf_sessions_are_isolated_and_concurrency_limited():
     finally:
         for session in sessions:
             live_mininet._finish_iperf_session(session["session_id"])
+
+
+def test_privileged_mininet_operations_are_split_into_control_agent():
+    repo_root = Path(__file__).resolve().parents[1]
+
+    live_source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
+    control_source = (repo_root / "dashboard" / "backend" / "app" / "mininet_control.py").read_text(encoding="utf-8")
+    topology_source = (repo_root / "sdn_mpls_demo" / "topology_hybrid_sdn.py").read_text(encoding="utf-8")
+
+    assert "subprocess" not in live_source
+    assert "mnexec" not in live_source.replace('"mnexec": command_exists("mnexec")', "")
+    assert "ovs-ofctl" not in live_source
+    assert "ovs-vsctl" not in live_source
+    assert "shell=True" not in live_source
+    assert "raw shell" not in control_source.lower()
+
+    ping_body = live_source.split("def ping(", 1)[1].split("def parse_iperf3", 1)[0]
+    flows_body = live_source.split("def ovs_flows(", 1)[1].split("def current_metrics", 1)[0]
+    block_body = live_source.split("def temporary_block", 1)[1].split("def live_status", 1)[0]
+
+    assert "mininet_control.ping(" in ping_body
+    assert "mininet_control.dump_flows(switch)" in flows_body
+    assert "mininet_control.add_manual_drop" in block_body
+    assert "mininet_control.delete_cookie_flows" in block_body
+
+    for command in (
+        "PING",
+        "START_IPERF_SERVER",
+        "RUN_IPERF_CLIENT",
+        "KILL_PID",
+        "DUMP_FLOWS",
+        "OVS_BR_EXISTS",
+        "ADD_MANUAL_DROP",
+        "DEL_COOKIE_FLOWS",
+    ):
+        assert f'"{command}"' in topology_source
+
+    assert "command not in ALLOWED_CONTROL_COMMANDS" in topology_source
+    assert "re.fullmatch" in topology_source

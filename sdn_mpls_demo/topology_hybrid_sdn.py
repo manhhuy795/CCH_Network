@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 import re
+import shutil
 import socket
 import threading
 import unicodedata
@@ -41,6 +42,15 @@ ALLOWED_CONTROL_COMMANDS = {
     "LINK_UP",
     "GET_HOST_STATUS",
     "GET_INTERFACE_MAP",
+    "LIVE_STATUS",
+    "PING",
+    "START_IPERF_SERVER",
+    "RUN_IPERF_CLIENT",
+    "KILL_PID",
+    "DUMP_FLOWS",
+    "OVS_BR_EXISTS",
+    "ADD_MANUAL_DROP",
+    "DEL_COOKIE_FLOWS",
 }
 
 DPIDS = dpid_map(load_network_model())
@@ -140,12 +150,137 @@ class MininetControlAgent:
             return self._host_status()
         if command == "GET_INTERFACE_MAP":
             return self._interface_map(request.get("link_id"))
+        if command == "LIVE_STATUS":
+            return self._live_status()
+        if command == "PING":
+            return self._ping(request)
+        if command == "START_IPERF_SERVER":
+            return self._start_iperf_server(request)
+        if command == "RUN_IPERF_CLIENT":
+            return self._run_iperf_client(request)
+        if command == "KILL_PID":
+            return self._kill_pid(request)
+        if command == "DUMP_FLOWS":
+            return self._dump_flows(request.get("switch"))
+        if command == "OVS_BR_EXISTS":
+            return self._bridge_exists(request.get("switch"))
+        if command == "ADD_MANUAL_DROP":
+            return self._add_manual_drop(request)
+        if command == "DEL_COOKIE_FLOWS":
+            return self._delete_cookie_flows(request)
         link_id = str(request.get("link_id", ""))
         if command == "LINK_DOWN":
             return self._set_link(link_id, "down")
         if command == "LINK_UP":
             return self._set_link(link_id, "up")
         return {"ok": False, "message": f"Unhandled command: {command}"}
+
+    def _node(self, name: str):
+        if not isinstance(name, str):
+            return None
+        try:
+            return self.net.get(name)
+        except KeyError:
+            return None
+
+    def _switch_name(self, value) -> str | None:
+        switch = str(value or "")
+        return switch if switch in DPIDS else None
+
+    def _ip(self, value) -> str | None:
+        try:
+            return str(ipaddress.ip_address(str(value)))
+        except ValueError:
+            return None
+
+    def _port(self, value) -> int | None:
+        try:
+            port = int(value)
+        except (TypeError, ValueError):
+            return None
+        return port if 1024 <= port <= 65535 else None
+
+    def _duration(self, value) -> int:
+        try:
+            seconds = int(value)
+        except (TypeError, ValueError):
+            return 5
+        return max(1, min(seconds, 30))
+
+    def _ping(self, request: dict) -> dict:
+        source = str(request.get("source", ""))
+        destination_ip = self._ip(request.get("destination_ip"))
+        count = max(1, min(int(request.get("count", 3)), 10))
+        node = self._node(source)
+        if not node or not destination_ip:
+            return {"ok": False, "message": "PING request khong hop le.", "raw": ""}
+        output = node.cmd(f"ping -c {count} -W 1 {destination_ip}")
+        return {"ok": " 0% packet loss" in output or " 0.0% packet loss" in output, "raw": output}
+
+    def _start_iperf_server(self, request: dict) -> dict:
+        destination = str(request.get("destination", ""))
+        port = self._port(request.get("port"))
+        log_path = str(request.get("log_path", ""))
+        node = self._node(destination)
+        if not node or port is None or not re.fullmatch(r"/tmp/cch_iperf/[0-9a-f]{12}\.json", log_path):
+            return {"ok": False, "message": "START_IPERF_SERVER request khong hop le.", "raw": ""}
+        output = node.cmd(f"mkdir -p /tmp/cch_iperf && iperf3 -s -1 -p {port} --json > {log_path} 2>&1 & echo $!")
+        return {"ok": bool(re.search(r"\d+", output)), "raw": output}
+
+    def _run_iperf_client(self, request: dict) -> dict:
+        source = str(request.get("source", ""))
+        destination_ip = self._ip(request.get("destination_ip"))
+        port = self._port(request.get("port"))
+        protocol = str(request.get("protocol", "tcp")).lower()
+        seconds = self._duration(request.get("seconds", 5))
+        node = self._node(source)
+        if not node or not destination_ip or port is None or protocol not in {"tcp", "udp"}:
+            return {"ok": False, "message": "RUN_IPERF_CLIENT request khong hop le.", "raw": ""}
+        udp = " -u -b 20M" if protocol == "udp" else ""
+        output = node.cmd(f"iperf3 -c {destination_ip} -p {port} -t {seconds} --json{udp}")
+        return {"ok": '"end"' in output, "raw": output}
+
+    def _kill_pid(self, request: dict) -> dict:
+        host = str(request.get("host", ""))
+        pid = str(request.get("pid", ""))
+        node = self._node(host)
+        if not node or not re.fullmatch(r"\d+", pid):
+            return {"ok": False, "message": "KILL_PID request khong hop le.", "raw": ""}
+        output = node.cmd(f"kill -TERM {pid} 2>/dev/null || true")
+        return {"ok": True, "raw": output}
+
+    def _dump_flows(self, switch_value) -> dict:
+        switch = self._switch_name(switch_value)
+        node = self._node(switch) if switch else None
+        if not node:
+            return {"ok": False, "message": "Switch khong hop le.", "raw": ""}
+        output = node.cmd(f"ovs-ofctl -O OpenFlow13 dump-flows {switch}")
+        return {"ok": True, "raw": output}
+
+    def _bridge_exists(self, switch_value) -> dict:
+        switch = self._switch_name(switch_value)
+        return {"ok": bool(switch and self._node(switch)), "switch": switch}
+
+    def _add_manual_drop(self, request: dict) -> dict:
+        switch = self._switch_name(request.get("switch"))
+        node = self._node(switch) if switch else None
+        src_ip = self._ip(request.get("source_ip"))
+        dst_ip = self._ip(request.get("destination_ip"))
+        cookie = str(request.get("cookie", ""))
+        if not node or not src_ip or not dst_ip or not re.fullmatch(r"0x[0-9a-fA-F]+", cookie):
+            return {"ok": False, "message": "ADD_MANUAL_DROP request khong hop le.", "raw": ""}
+        flow = f"cookie={cookie},priority=500,ip,nw_src={src_ip},nw_dst={dst_ip},actions=drop"
+        output = node.cmd(f"ovs-ofctl -O OpenFlow13 add-flow {switch} '{flow}'")
+        return {"ok": True, "raw": output}
+
+    def _delete_cookie_flows(self, request: dict) -> dict:
+        switch = self._switch_name(request.get("switch"))
+        node = self._node(switch) if switch else None
+        cookie_match = str(request.get("cookie_match", ""))
+        if not node or not re.fullmatch(r"0x[0-9a-fA-F]+/0x[0-9a-fA-F]+", cookie_match):
+            return {"ok": False, "message": "DEL_COOKIE_FLOWS request khong hop le.", "raw": ""}
+        output = node.cmd(f"ovs-ofctl -O OpenFlow13 del-flows {switch} cookie={cookie_match}")
+        return {"ok": True, "raw": output}
 
     def _logical_links(self) -> list[str]:
         return [f"{source}-{target}" for source, target, _kind in self.policy.get("links", [])]
@@ -256,6 +391,25 @@ class MininetControlAgent:
             "ok": True,
             "available": True,
             "hosts": {name: name in nodes for name in self.policy.get("hosts", {})},
+        }
+
+    def _live_status(self) -> dict:
+        nodes = getattr(self.net, "nameToNode", {})
+        hosts = {name: name in nodes for name in self.policy.get("hosts", {})}
+        bridges = {switch: switch in nodes for switch in DPIDS}
+        return {
+            "ok": True,
+            "available": True,
+            "ovs_bridge": any(bridges.values()),
+            "bridges": bridges,
+            "mnexec": bool(shutil.which("mnexec")),
+            "iperf3": bool(shutil.which("iperf3")),
+            "hosts": hosts,
+            "user_hosts_online": sum(
+                1
+                for name, host in self.policy.get("hosts", {}).items()
+                if host.get("kind") == "user" and hosts.get(name)
+            ),
         }
 
     def _topology(self) -> dict:
