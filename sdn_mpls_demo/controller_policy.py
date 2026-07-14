@@ -309,17 +309,17 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             for name, network in self.policy.networks.items()
             if name != "it_support"
         ]
+        allowed_services = set(self.policy.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"]))
         service_destinations: list[tuple[str, str]] = [
             (name, f"{service['ip']}/32")
             for name, service in self.policy.services.items()
-            if "ip" in service
+            if "ip" in service and name in allowed_services
         ]
 
         for destination_name, destination_prefix in internal_destinations:
             destination_network = ipaddress.ip_network(destination_prefix)
             for source_network, target_network, source_label, target_label in (
                 (it_network, destination_network, "it_support", destination_name),
-                (destination_network, it_network, destination_name, "it_support"),
             ):
                 match = parser.OFPMatch(
                     eth_type=ether_types.ETH_TYPE_IP,
@@ -346,7 +346,6 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             destination_network = ipaddress.ip_network(destination_prefix)
             for source_network, target_network, source_label, target_label in (
                 (it_network, destination_network, "it_support", destination_name),
-                (destination_network, it_network, destination_name, "it_support"),
             ):
                 match = parser.OFPMatch(
                     eth_type=ether_types.ETH_TYPE_IP,

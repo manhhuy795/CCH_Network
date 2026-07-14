@@ -87,7 +87,8 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     assert "mpls_cloud" in support_branch["path"]
 
     support_social = policy_decision("h70_01", "hsocial")
-    assert support_social["action"] == "allow"
+    assert support_social["action"] == "deny"
+    assert support_social["blocked_at"] == "core_hq"
 
 
 def test_call_quality_score_uses_call_center_thresholds():
@@ -123,7 +124,9 @@ def test_cluster_detail_configuration_covers_main_groups():
     assert "h30_01" in CLUSTER_DENY_TARGETS["project_a"]
     assert "h50_01" in CLUSTER_DENY_TARGETS["project_a"]
     assert "h20_01" in CLUSTER_DENY_TARGETS["telesale"]
-    assert CLUSTER_DENY_TARGETS["it_support"] == ()
+    assert "hcall" in CLUSTER_ALLOW_TARGETS["it_support"]
+    assert "hsocial" in CLUSTER_DENY_TARGETS["it_support"]
+    assert "hinternet" in CLUSTER_DENY_TARGETS["it_support"]
 
 
 def test_manual_block_uses_cookie_and_single_enforcement_switch():

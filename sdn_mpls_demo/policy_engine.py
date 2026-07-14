@@ -119,6 +119,13 @@ class PolicyEngine:
                 self._it_support_path(source_group, destination),
                 None,
             )
+        if source_group == IT_SUPPORT_GROUP and destination["kind"] == "service":
+            return self._result(
+                "deny",
+                "IT Support least privilege: chi duoc kiem tra cac dich vu quan tri duoc khai bao.",
+                GROUP_PATHS[source_group],
+                "core_hq",
+            )
 
         if destination["kind"] == "service":
             return self._service_decision(source, destination)
@@ -221,11 +228,13 @@ class PolicyEngine:
         return [*source_path, "voice_access", "h90"]
 
     def _is_it_support_flow(self, source_group: str, destination: dict[str, Any]) -> bool:
+        allowed_services = set(self.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"]))
         return bool(
             self.policies.get("allow_it_support_controlled_access", False)
+            and source_group == IT_SUPPORT_GROUP
             and (
-                source_group == IT_SUPPORT_GROUP
-                or (destination["kind"] == "user" and destination["group"] == IT_SUPPORT_GROUP)
+                destination["kind"] == "user"
+                or (destination["kind"] == "service" and destination["name"] in allowed_services)
             )
         )
 
@@ -248,8 +257,7 @@ class PolicyEngine:
                     destination_group,
                 ]
             return [*source_path, GROUP_PATHS[destination_group][1], destination_group]
-
-        return list(reversed(self._it_support_path(IT_SUPPORT_GROUP, {"kind": "user", "group": source_group})))
+        return GROUP_PATHS.get(source_group, [])
 
     @staticmethod
     def _intersite_path(source_group: str, destination_group: str) -> list[str]:

@@ -195,6 +195,16 @@ def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     assert "branch_social_block" in controller
 
 
+def test_controller_it_support_flows_are_least_privilege():
+    controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+    it_section = controller.split("def install_it_support_flows", 1)[1].split("def install_voice_flows", 1)[0]
+
+    assert 'allowed_services = set(self.policy.policies.get("it_support_allowed_services"' in it_section
+    assert 'if "ip" in service and name in allowed_services' in it_section
+    assert '(destination_network, it_network, destination_name, "it_support")' not in it_section
+    assert "hsocial" not in it_section
+
+
 def test_topology_runner_auto_starts_and_waits_for_controller():
     runner = (REPO_ROOT / "sdn_mpls_demo" / "run_topology.sh").read_text(encoding="utf-8")
 

@@ -12,6 +12,7 @@ policies:
   allow_general_internet: true
   block_social_media: true
   allow_it_support_controlled_access: true
+  it_support_allowed_services: ["h90", "hzalo", "hcall"]
   voice_flow_priority: true
   steer_hq_internet_to: "fw_hq"
   steer_branch_internet_to: "fw_branch"

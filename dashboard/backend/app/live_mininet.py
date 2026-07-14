@@ -71,7 +71,7 @@ CLUSTER_ALLOW_TARGETS = {
     "project_c": ("h90", "hzalo", "hcall", "hinternet"),
     "telesale": ("h90", "hzalo", "hcall", "hinternet"),
     "backoffice": ("h90", "hzalo", "hcall", "hinternet"),
-    "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hcall", "hsocial"),
+    "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hzalo", "hcall"),
 }
 
 CLUSTER_DENY_TARGETS = {
@@ -80,7 +80,7 @@ CLUSTER_DENY_TARGETS = {
     "project_c": ("h20_01", "h30_01", "h50_01", "h60_01", "hsocial"),
     "telesale": ("h20_01", "h30_01", "h40_01", "h60_01", "hsocial"),
     "backoffice": ("h50_01", "h20_01", "h30_01", "h40_01", "hsocial"),
-    "it_support": (),
+    "it_support": ("hsocial", "hinternet"),
 }
 
 
@@ -293,6 +293,8 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
     reason = str(decision.get("reason", "")).lower()
     if decision.get("failed_link"):
         return "link_down"
+    if "least privilege" in reason and decision.get("action") == "deny":
+        return "reactive_policy_drop"
     if "it support" in reason:
         return "it_support"
     if destination == "h90" or source == "h90":

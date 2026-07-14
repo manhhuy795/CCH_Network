@@ -48,6 +48,27 @@ def test_all_user_groups_can_reach_voice_service():
         assert decision["path"][-2:] == ["voice_access", "h90"]
 
 
+def test_it_support_is_least_privilege_not_full_access():
+    policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
+    engine = PolicyEngine(policy_path)
+
+    assert engine.decide("h70_01", "h20_01")["action"] == "allow"
+    assert engine.decide("h70_01", "h50_01")["action"] == "allow"
+    assert engine.decide("h70_01", "hcall")["action"] == "allow"
+    assert engine.decide("h70_01", "hzalo")["action"] == "allow"
+
+    social = engine.decide("h70_01", "hsocial")
+    assert social["action"] == "deny"
+    assert social["blocked_at"] == "core_hq"
+
+    general_internet = engine.decide("h70_01", "hinternet")
+    assert general_internet["action"] == "deny"
+    assert general_internet["blocked_at"] == "core_hq"
+
+    user_to_it = engine.decide("h20_01", "h70_01")
+    assert user_to_it["action"] == "deny"
+
+
 def test_internet_cannot_initiate_ping_to_inside_users():
     policy_path = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "policy.yml"
     engine = PolicyEngine(policy_path)
