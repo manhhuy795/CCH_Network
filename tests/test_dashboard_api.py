@@ -524,3 +524,25 @@ def test_endpoint_selector_is_searchable_grouped_combobox():
     assert "Service" in test_panel
     assert " · " in test_panel
     assert ".endpoint-combobox" in styles
+
+
+def test_topology_uses_grouped_interaction_and_view_controls():
+    repo_root = Path(__file__).resolve().parents[1]
+    topology_canvas = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
+    styles = (repo_root / "dashboard" / "frontend" / "src" / "styles" / "global.css").read_text(encoding="utf-8")
+
+    assert "selectedGroup.hosts.map" in topology_canvas
+    assert "status: inventory" in topology_canvas
+    assert "props.onSource(host.name)" in topology_canvas
+    assert "props.onDestination(host.name)" in topology_canvas
+    assert "Zoom In" in topology_canvas
+    assert "Zoom Out" in topology_canvas
+    assert "Fit View" in topology_canvas
+    assert "Fullscreen" in topology_canvas
+    assert "Reset View" in topology_canvas
+    assert "requestFullscreen" in topology_canvas
+    assert "style={{ width: `${zoom * 100}%` }}" in topology_canvas
+    assert "activeIndex" in topology_canvas
+    assert "currentNode === id" in topology_canvas
+    assert ".topology-toolbar" in styles
+    assert "h20_01" not in topology_canvas

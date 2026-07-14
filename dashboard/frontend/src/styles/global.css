@@ -85,6 +85,8 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .metric small, .metric span { color: #68788a; font-size: 11px; }
 .topology-scroll, .table-scroll { max-width: 100%; overflow: auto; }
 .topology-svg { display: block; min-width: 1050px; width: 100%; }
+.topology-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.topology-toolbar button, .link-controls button { aspect-ratio: 1; min-height: 34px; padding: 7px; width: 36px; }
 .zone { fill: #fbfcfd; stroke: #d7e0e8; }
 .zone-label { fill: #5f7083; font-size: 11px; font-weight: 700; }
 .topology-link { fill: none; stroke: #aebdcc; stroke-width: 2.5; }

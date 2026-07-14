@@ -1,5 +1,5 @@
-import { RotateCcw, Unplug } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Maximize2, RotateCcw, Search, Unplug, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Decision, Host, Link, Topology } from "../api/client";
 
 const positions: Record<string, [number, number]> = {
@@ -61,10 +61,12 @@ function labelMap(topology?: Topology) {
 }
 
 export default function TopologyCanvas(props: Props) {
+  const sectionRef = useRef<HTMLElement>(null);
   const labels = useMemo(() => labelMap(props.topology), [props.topology]);
   const selectableNodes = useMemo(() => Object.keys(props.topology?.policy_map || {}), [props.topology]);
   const [selectedNode, setSelectedNode] = useState("project_a");
   const [selectedLink, setSelectedLink] = useState("");
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     const sourceHost = props.topology?.hosts.find((host) => host.name === props.source);
@@ -83,9 +85,16 @@ export default function TopologyCanvas(props: Props) {
   const nameOf = (id: string) => labels[id]?.[0] || id;
 
   return (
-    <section>
+    <section ref={sectionRef}>
       <div className="section-title">
         <div><h2>So do Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>Click cum de xem user va quan he policy</span></div>
+        <div className="topology-toolbar">
+          <button title="Zoom In" onClick={() => setZoom((value) => Math.min(1.6, value + 0.1))}><ZoomIn size={16} /></button>
+          <button title="Zoom Out" onClick={() => setZoom((value) => Math.max(0.75, value - 0.1))}><ZoomOut size={16} /></button>
+          <button title="Fit View" onClick={() => setZoom(1)}><Search size={16} /></button>
+          <button title="Fullscreen" onClick={() => void sectionRef.current?.requestFullscreen?.()}><Maximize2 size={16} /></button>
+          <button title="Reset View" onClick={() => { setZoom(1); setSelectedNode("project_a"); }}><RotateCcw size={16} /></button>
+        </div>
         {props.liveLinkControl ? (
           <div className="link-controls">
             <select value={selectedLink} aria-label="Chon lien ket" onChange={(event) => setSelectedLink(event.target.value)}>
@@ -101,7 +110,7 @@ export default function TopologyCanvas(props: Props) {
         )}
       </div>
       <div className="topology-scroll">
-        <svg className="topology-svg" viewBox="0 0 1360 820" aria-label="So do mang Hybrid MPLS va SDN">
+        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="So do mang Hybrid MPLS va SDN">
           <rect className="zone" x="20" y="95" width="705" height="430" /><text className="zone-label" x="35" y="117">TRU SO CHINH HQ</text>
           <rect className="zone" x="20" y="575" width="705" height="220" /><text className="zone-label" x="35" y="597">CHI NHANH BRANCH</text>
           <rect className="zone" x="755" y="185" width="285" height="610" /><text className="zone-label" x="770" y="207">WAN / MPLS L3VPN LOGIC</text>
@@ -181,7 +190,7 @@ export default function TopologyCanvas(props: Props) {
           <div className="host-list">
             {selectedGroup.hosts.map((host: Host) => (
               <div key={host.name}>
-                <span>{host.label} - {host.name} - {host.ip}</span>
+                <span>{host.label} - {host.name} - {host.ip} - status: inventory</span>
                 <button onClick={() => props.onSource(host.name)}>Chon nguon</button>
                 <button onClick={() => props.onDestination(host.name)}>Chon dich</button>
               </div>
