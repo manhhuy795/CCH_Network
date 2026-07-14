@@ -503,3 +503,24 @@ def test_dashboard_is_reorganized_into_four_operational_tabs():
     assert "Toggle policy ghi policy.yml atomic" in policy_panel
     for log_item in ("Packet-In", "FlowMod", "policy reload", "link down/up", "measurement", "warning", "error"):
         assert log_item in event_log
+
+
+def test_endpoint_selector_is_searchable_grouped_combobox():
+    repo_root = Path(__file__).resolve().parents[1]
+    test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+    styles = (repo_root / "dashboard" / "frontend" / "src" / "styles" / "global.css").read_text(encoding="utf-8")
+
+    assert "<select" not in test_panel
+    assert "EndpointCombobox" in test_panel
+    assert 'role="combobox"' in test_panel
+    assert 'role="listbox"' in test_panel
+    assert 'role="option"' in test_panel
+    for key in ("ArrowDown", "ArrowUp", "Enter", "Escape"):
+        assert key in test_panel
+    for search_term in ("hostname", "IP", "VLAN", "Project", "site"):
+        assert search_term in test_panel
+    assert "groupBucket(host)" in test_panel
+    assert "HQ - Voice" in test_panel
+    assert "Service" in test_panel
+    assert " · " in test_panel
+    assert ".endpoint-combobox" in styles

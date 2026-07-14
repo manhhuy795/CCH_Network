@@ -21,34 +21,88 @@ function hostText(host: Host) {
   return `${host.site} ${host.group_label} VLAN ${host.vlan ?? ""} ${host.label} ${host.name} ${host.ip}`.toLowerCase();
 }
 
-function HostSelect({ label, value, hosts, onChange }: { label: string; value: string; hosts: Host[]; onChange: (value: string) => void }) {
+function endpointLabel(host?: Host) {
+  if (!host) return "";
+  const user = host.label.includes(" - ") ? host.label.split(" - ").slice(1).join(" - ") : host.label;
+  return `${host.group_label} · ${user} · ${host.name} · ${host.ip}`;
+}
+
+function groupBucket(host: Host) {
+  if (host.kind === "service") return host.group === "h90" ? "HQ - Voice" : "Service";
+  return `${host.site} - ${host.group_label}`;
+}
+
+function EndpointCombobox({ label, value, hosts, onChange }: { label: string; value: string; hosts: Host[]; onChange: (value: string) => void }) {
   const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const selected = hosts.find((host) => host.name === value);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return needle ? hosts.filter((host) => hostText(host).includes(needle)) : hosts;
+    return (needle ? hosts.filter((host) => hostText(host).includes(needle)) : hosts).slice(0, 40);
   }, [hosts, query]);
   useEffect(() => {
-    if (!filtered.length) return;
-    if (!filtered.some((host) => host.name === value)) onChange(filtered[0].name);
-  }, [filtered, value, onChange]);
+    setActive(0);
+  }, [query]);
   const groups = useMemo(() => {
     const data = new Map<string, Host[]>();
     filtered.forEach((host) => {
-      const key = `${host.site} - ${host.group_label}`;
+      const key = groupBucket(host);
       data.set(key, [...(data.get(key) || []), host]);
     });
     return [...data.entries()];
   }, [filtered]);
+  const choose = (host: Host) => {
+    onChange(host.name);
+    setQuery("");
+    setOpen(false);
+  };
   return (
-    <label>{label}
-      <input placeholder="Tim hostname, IP, project, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} />
-      <select value={filtered.some((host) => host.name === value) ? value : filtered[0]?.name ?? ""} onChange={(event) => onChange(event.target.value)}>
-        {groups.map(([group, items]) => (
-          <optgroup label={group} key={group}>
-            {items.map((host) => <option value={host.name} key={host.name}>{host.label} - {host.name} - {host.ip}</option>)}
-          </optgroup>
-        ))}
-      </select>
+    <label className="combo-field">{label}
+      <div className="endpoint-combobox" role="combobox" aria-expanded={open} aria-haspopup="listbox">
+        <input
+          aria-label={`${label} endpoint`}
+          placeholder={selected ? endpointLabel(selected) : "Tim hostname, IP, VLAN, Project, site..."}
+          value={query}
+          onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActive((index) => Math.min(index + 1, filtered.length - 1)); }
+            if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => Math.max(index - 1, 0)); }
+            if (event.key === "Enter" && filtered[active]) { event.preventDefault(); choose(filtered[active]); }
+            if (event.key === "Escape") setOpen(false);
+          }}
+        />
+        <button type="button" onClick={() => setOpen((current) => !current)}>{selected ? endpointLabel(selected) : "Chon endpoint"}</button>
+        {open && (
+          <div className="combo-list" role="listbox">
+            {groups.map(([group, items]) => (
+              <div className="combo-group" key={group}>
+                <strong>{group}</strong>
+                {items.map((host) => {
+                  const flatIndex = filtered.findIndex((item) => item.name === host.name);
+                  return (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={host.name === value}
+                      className={flatIndex === active ? "active" : ""}
+                      value={host.name}
+                      key={host.name}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => choose(host)}
+                    >
+                      <span>{endpointLabel(host)}</span>
+                      <small>{host.site} · VLAN {host.vlan ?? "service"} · {host.group_label}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+            {!filtered.length && <p>Khong tim thay endpoint phu hop.</p>}
+          </div>
+        )}
+      </div>
     </label>
   );
 }
@@ -66,8 +120,8 @@ export default function TestPanel(props: Props) {
       <div className="section-title"><h2>Do kiem mang</h2><span>Ket qua that tu Mininet/OVS</span></div>
       <div className="panel-body">
         <div className="form-grid">
-          <HostSelect label="Nguon" value={props.source} hosts={props.hosts} onChange={props.onSource} />
-          <HostSelect label="Dich" value={props.destination} hosts={props.hosts} onChange={props.onDestination} />
+          <EndpointCombobox label="Nguon" value={props.source} hosts={props.hosts} onChange={props.onSource} />
+          <EndpointCombobox label="Dich" value={props.destination} hosts={props.hosts} onChange={props.onDestination} />
           <label className="full">Thoi gian do chu dong (giay)<input type="number" min={1} max={60} value={props.seconds} onChange={(event) => props.onSeconds(Number(event.target.value))} /></label>
         </div>
         <h3 className="button-group-title">Do kiem mang</h3>

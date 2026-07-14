@@ -55,6 +55,19 @@ p { color: #607084; line-height: 1.45; margin: 0; }
 .form-grid label { color: #58687a; display: grid; font-size: 12px; gap: 5px; }
 .form-grid .full { grid-column: 1 / -1; }
 select, input { border: 1px solid #c9d4df; border-radius: 7px; min-height: 38px; padding: 7px 8px; width: 100%; }
+.combo-field { min-width: 0; }
+.endpoint-combobox { display: grid; gap: 6px; position: relative; }
+.endpoint-combobox > button { justify-content: flex-start; min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+.combo-list {
+  background: #fff; border: 1px solid #b9c7d6; border-radius: 7px; box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
+  display: grid; gap: 4px; left: 0; max-height: 330px; overflow: auto; padding: 8px; position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
+}
+.combo-group { display: grid; gap: 3px; }
+.combo-group > strong { color: #4b5d73; font-size: 11px; padding: 5px 6px 2px; text-transform: uppercase; }
+.combo-group button { align-items: start; border-color: transparent; display: grid; gap: 2px; justify-content: stretch; min-height: 0; padding: 7px; text-align: left; }
+.combo-group button.active, .combo-group button:hover { background: #edf4ff; border-color: #b7c8dd; }
+.combo-group button[aria-selected="true"] { background: #edfdf7; border-color: #9fd9c2; }
+.combo-group small { color: #68788a; font-size: 11px; }
 .action-grid { display: grid; gap: 7px; grid-template-columns: 1fr 1fr; margin-top: 10px; }
 .button-group-title { color: #4b5d73; margin: 12px 0 2px; }
 .full-button { margin-top: 10px; width: 100%; }
