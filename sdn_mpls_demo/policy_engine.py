@@ -78,15 +78,15 @@ class PolicyEngine:
     def decide_packet(self, source_name: str, destination_name: str, icmp_type: int | None = None) -> dict[str, Any]:
         source = self.endpoint(source_name)
         destination = self.endpoint(destination_name)
+        if source and destination and icmp_type == ICMP_ECHO_REPLY:
+            reverse = self.decide(destination_name, source_name)
+            if reverse["action"] == "allow":
+                return {
+                    **reverse,
+                    "path": list(reversed(reverse["path"])),
+                    "reason": f"Cho phep ICMP echo-reply cho phien do endpoint noi bo khoi tao. {reverse['reason']}",
+                }
         if source and destination and source["kind"] == "service" and destination["kind"] == "user":
-            if icmp_type == ICMP_ECHO_REPLY:
-                reverse = self.decide(destination_name, source_name)
-                if reverse["action"] == "allow":
-                    return {
-                        **reverse,
-                        "path": list(reversed(reverse["path"])),
-                        "reason": f"Cho phep ICMP echo-reply cho phien do user noi bo khoi tao. {reverse['reason']}",
-                    }
             return self._result(
                 "deny",
                 "Chan truy cap chu dong tu Internet/service vao user noi bo. Chi cho phep goi phan hoi hop le.",

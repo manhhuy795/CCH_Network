@@ -28,6 +28,7 @@ h70_01 ping -c 2 h20_01     # expected pass, IT remote support Project A
 h70_01 ping -c 2 h50_01     # expected pass, IT remote support Branch via MPLS
 h70_01 ping -c 2 hcall      # expected pass, IT can test declared Call App
 h70_01 ping -c 2 hsocial    # expected fail, IT is not full-access to Social Media
+h20_01 ping -c 2 h70_01     # expected fail, user cannot initiate ping to IT
 
 # Internet/service outside initiating traffic into inside users must fail.
 hinternet ping -c 2 h20_01  # expected fail

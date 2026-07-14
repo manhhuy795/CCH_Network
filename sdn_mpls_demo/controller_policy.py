@@ -19,10 +19,10 @@ from os_ken.lib.packet import ethernet, ether_types, icmp, ipv4, packet
 from os_ken.ofproto import ofproto_v1_3
 
 try:
-    from .policy_engine import ICMP_ECHO_REQUEST, PolicyEngine
+    from .policy_engine import ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, PolicyEngine
     from scripts.network_model import dpid_name_map, load_network_model
 except ImportError:
-    from policy_engine import ICMP_ECHO_REQUEST, PolicyEngine
+    from policy_engine import ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, PolicyEngine
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -55,6 +55,7 @@ POLICY_COOKIES = {
     "allowed_services": 0x1100,
     "voice": 0x1200,
     "it_support": 0x1300,
+    "it_support_return": 0x1301,
     "reactive_policy_drop": 0x1000,
     "transit_to_enforcement": 0x1100,
     "internet_inbound_block": 0x1100,
@@ -341,6 +342,28 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     },
                     idle_timeout=0,
                 )
+                return_match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=1,
+                    icmpv4_type=ICMP_ECHO_REPLY,
+                    ipv4_src=(str(target_network.network_address), str(target_network.netmask)),
+                    ipv4_dst=(str(source_network.network_address), str(source_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    445,
+                    return_match,
+                    normal_actions,
+                    {
+                        "action": "ALLOW",
+                        "source": target_label,
+                        "destination": source_label,
+                        "policy": "it_support_return",
+                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
+                        "reason": "Chi cho phep ICMP echo-reply ve IT cho phien IT khoi tao.",
+                    },
+                    idle_timeout=0,
+                )
 
         for destination_name, destination_prefix in service_destinations:
             destination_network = ipaddress.ip_network(destination_prefix)
@@ -364,6 +387,28 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "policy": "it_support",
                         "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
                         "reason": "IT Support co quyen kiem tra dich vu quan tri duoc khai bao.",
+                    },
+                    idle_timeout=0,
+                )
+                return_match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=1,
+                    icmpv4_type=ICMP_ECHO_REPLY,
+                    ipv4_src=(str(target_network.network_address), str(target_network.netmask)),
+                    ipv4_dst=(str(source_network.network_address), str(source_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    445,
+                    return_match,
+                    normal_actions,
+                    {
+                        "action": "ALLOW",
+                        "source": target_label,
+                        "destination": source_label,
+                        "policy": "it_support_return",
+                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
+                        "reason": "Chi cho phep ICMP echo-reply ve IT cho phien IT khoi tao.",
                     },
                     idle_timeout=0,
                 )

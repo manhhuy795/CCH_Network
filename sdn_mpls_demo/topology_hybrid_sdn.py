@@ -296,6 +296,7 @@ POLICY_TESTS = (
     ("IT support", "h70_01", "h30_01", True, "IT Support can remote/support Project B"),
     ("IT support", "h70_01", "h50_01", True, "IT Support can remote/support Telesale via MPLS"),
     ("IT support", "h70_01", "hcall", True, "IT Support can test declared Call App service"),
+    ("IT least privilege", "h20_01", "h70_01", False, "Project users cannot initiate ping to IT"),
     ("IT least privilege", "h70_01", "hsocial", False, "IT Support is not full-access to Social Media"),
     ("Internet inbound", "hinternet", "h20_01", False, "Internet cannot initiate ping to Project A"),
     ("Internet inbound", "hzalo", "h30_01", False, "Zalo simulator cannot initiate ping to Project B"),

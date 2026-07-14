@@ -184,7 +184,7 @@ def test_controller_enforces_drop_policies_only_at_core_and_distribution():
 def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 
-    for cookie in ("0x1001", "0x1002", "0x1003", "0x1004", "0x1100", "0x1200", "0x1300"):
+    for cookie in ("0x1001", "0x1002", "0x1003", "0x1004", "0x1100", "0x1200", "0x1300", "0x1301"):
         assert cookie in controller
     assert "cookie=cookie" in controller
     assert 'cookie=f"0x{cookie:x}"' in controller
@@ -193,6 +193,7 @@ def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     assert '"policy": "it_support"' in controller
     assert "hq_social_block" in controller
     assert "branch_social_block" in controller
+    assert "it_support_return" in controller
 
 
 def test_controller_it_support_flows_are_least_privilege():
@@ -202,6 +203,8 @@ def test_controller_it_support_flows_are_least_privilege():
     assert 'allowed_services = set(self.policy.policies.get("it_support_allowed_services"' in it_section
     assert 'if "ip" in service and name in allowed_services' in it_section
     assert '(destination_network, it_network, destination_name, "it_support")' not in it_section
+    assert "icmpv4_type=ICMP_ECHO_REPLY" in it_section
+    assert '"policy": "it_support_return"' in it_section
     assert "hsocial" not in it_section
 
 

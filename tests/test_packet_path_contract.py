@@ -123,3 +123,14 @@ def test_internet_inbound_and_return_traffic_paths_are_explicit():
     assert blocked_reply["action"] == "deny"
     assert blocked_reply["blocked_at"] == "internet"
     assert blocked_reply["path"] == ["hsocial", "internet"]
+
+
+def test_it_support_return_path_is_reply_only():
+    policy = engine()
+
+    request = policy.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)
+    assert request["action"] == "deny"
+
+    reply = policy.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REPLY)
+    assert reply["action"] == "allow"
+    assert reply["path"] == ["project_a", "access_hq_a", "core_hq", "access_hq_it", "it_support"]

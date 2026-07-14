@@ -67,6 +67,11 @@ def test_it_support_is_least_privilege_not_full_access():
 
     user_to_it = engine.decide("h20_01", "h70_01")
     assert user_to_it["action"] == "deny"
+    assert engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)["action"] == "deny"
+
+    return_to_it = engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REPLY)
+    assert return_to_it["action"] == "allow"
+    assert return_to_it["path"] == ["project_a", "access_hq_a", "core_hq", "access_hq_it", "it_support"]
 
 
 def test_internet_cannot_initiate_ping_to_inside_users():
