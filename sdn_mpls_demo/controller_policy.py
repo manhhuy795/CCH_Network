@@ -44,6 +44,19 @@ ENFORCEMENT_SWITCH_BY_GROUP = {
     group_name: ("dist_branch" if group["site"] == "Branch" else "core_hq")
     for group_name, group in NETWORK_MODEL["host_groups"].items()
 }
+POLICY_COOKIES = {
+    "hq_project_isolation": 0x1001,
+    "branch_isolation": 0x1002,
+    "hq_social_block": 0x1003,
+    "branch_social_block": 0x1004,
+    "allowed_services": 0x1100,
+    "voice": 0x1200,
+    "it_support": 0x1300,
+    "reactive_policy_drop": 0x1000,
+    "transit_to_enforcement": 0x1100,
+    "internet_inbound_block": 0x1100,
+    "runtime": 0x0000,
+}
 
 
 def utc_now() -> str:
@@ -79,8 +92,10 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         with EVENTS_FILE.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
-    def add_flow(self, datapath, priority, match, actions, metadata, idle_timeout=180):
+    def add_flow(self, datapath, priority, match, actions, metadata, idle_timeout=180, hard_timeout=0):
         parser = datapath.ofproto_parser
+        policy_id = metadata.get("policy", "runtime")
+        cookie = int(metadata.get("cookie", POLICY_COOKIES.get(policy_id, 0)))
         instructions = [
             parser.OFPInstructionActions(
                 datapath.ofproto.OFPIT_APPLY_ACTIONS,
@@ -90,10 +105,12 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         datapath.send_msg(
             parser.OFPFlowMod(
                 datapath=datapath,
+                cookie=cookie,
                 priority=priority,
                 match=match,
                 instructions=instructions,
                 idle_timeout=idle_timeout,
+                hard_timeout=hard_timeout,
             )
         )
         switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
@@ -106,7 +123,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             source=metadata.get("source", "*"),
             destination=metadata.get("destination", "*"),
             reason=metadata["reason"],
-            policy=metadata.get("policy", "runtime"),
+            policy=policy_id,
+            cookie=f"0x{cookie:x}",
             enforcement_switch=metadata.get("enforcement_switch", switch_name),
         )
         if metadata.get("policy"):
@@ -212,6 +230,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "action": "ALLOW",
                         "source": source_label,
                         "destination": target_label,
+                        "policy": "it_support",
+                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
                         "reason": "IT Support co quyen remote/support co kiem soat theo policy.",
                     },
                     idle_timeout=0,
@@ -237,6 +257,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "action": "ALLOW",
                         "source": source_label,
                         "destination": target_label,
+                        "policy": "it_support",
+                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
                         "reason": "IT Support co quyen kiem tra dich vu quan tri duoc khai bao.",
                     },
                     idle_timeout=0,
@@ -276,6 +298,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "action": "ALLOW",
                         "source": source_label,
                         "destination": target_label,
+                        "policy": "voice",
+                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
                         "reason": "Voice duoc nhan dien va ap dung flow policy uu tien.",
                     },
                     idle_timeout=0,
@@ -324,6 +348,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                             "action": "ALLOW",
                             "source": source_label,
                             "destination": target_label,
+                            "policy": "allowed_services",
+                            "enforcement_switch": switch_name,
                             "reason": "Service duoc policy cho phep; return traffic duoc chap nhan.",
                         },
                         idle_timeout=0,
@@ -375,7 +401,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                                 "action": "DROP",
                                 "source": source_label,
                                 "destination": target_label,
-                                "policy": "social_media_block",
+                                "policy": "branch_social_block" if switch_name == "dist_branch" else "hq_social_block",
                                 "enforcement_switch": switch_name,
                                 "reason": "Block Social Media cho user thuong.",
                             },

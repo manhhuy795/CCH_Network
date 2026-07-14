@@ -51,7 +51,7 @@ export default function FlowTable({ flows }: { flows: Array<Record<string, unkno
         <table>
           <thead>
             <tr>
-              <th>OVS</th><th>Nguồn</th><th>Đích</th><th>Hành động</th><th>Packet</th><th>Byte</th><th>Ý nghĩa</th>
+              <th>OVS</th><th>Cookie</th><th>Nguồn</th><th>Đích</th><th>Hành động</th><th>Packet</th><th>Byte</th><th>Ý nghĩa</th>
               {details && <><th>Priority</th><th>Match</th><th>Actions</th></>}
             </tr>
           </thead>
@@ -59,6 +59,7 @@ export default function FlowTable({ flows }: { flows: Array<Record<string, unkno
             {visible.map((flow, index) => (
               <tr key={index}>
                 <td><strong>{flowText(flow, "switch", "")}</strong></td>
+                <td>{flowText(flow, "cookie", "0x0")}</td>
                 <td>{flowText(flow, "source")}</td>
                 <td>{flowText(flow, "destination")}</td>
                 <td><span className={`pill ${flow.action === "ALLOW" ? "allow" : "deny"}`}>{actionLabel(flow.action)}</span></td>
@@ -68,7 +69,7 @@ export default function FlowTable({ flows }: { flows: Array<Record<string, unkno
                 {details && <><td>{String(flow.priority ?? 0)}</td><td>{String(flow.raw_match ?? "")}</td><td>{String(flow.raw_action ?? "")}</td></>}
               </tr>
             ))}
-            {visible.length === 0 && <tr><td colSpan={details ? 10 : 7}>Chưa đọc được flow hoặc bộ lọc không có kết quả.</td></tr>}
+            {visible.length === 0 && <tr><td colSpan={details ? 11 : 8}>Chưa đọc được flow hoặc bộ lọc không có kết quả.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import time
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,8 @@ RUNTIME_FLOWS_FILE = REPO_ROOT / "sdn_mpls_demo" / "runtime" / "installed_flows.
 NETWORK_MODEL = load_network_model()
 ENGINE = PolicyEngine(POLICY_FILE)
 CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
+MANUAL_BLOCK_COOKIE_BASE = 0x9000
+COOKIE_MASK = "0xffffffffffffffff"
 
 CLUSTER_SOURCES = {
     "project_a": ("h20_01", "Dự án A / VLAN 20"),
@@ -448,6 +451,7 @@ def parse_flow_line(line: str, switch: str) -> dict[str, Any] | None:
     src_ip = re.search(r"nw_src=([0-9.]+)", line)
     dst_ip = re.search(r"nw_dst=([0-9.]+)", line)
     priority = re.search(r"priority=(\d+)", line)
+    cookie = re.search(r"cookie=0x([0-9a-fA-F]+)", line)
     packets = re.search(r"n_packets=(\d+)", line)
     byte_count = re.search(r"n_bytes=(\d+)", line)
     actions = line.split("actions=", 1)[1] if "actions=" in line else ""
@@ -466,6 +470,7 @@ def parse_flow_line(line: str, switch: str) -> dict[str, Any] | None:
         "dst": destination,
         "action": action,
         "priority": int(priority.group(1)) if priority else 0,
+        "cookie": f"0x{cookie.group(1)}" if cookie else "0x0",
         "match": f"{source} → {destination}",
         "raw_match": line.split("actions=", 1)[0].strip(),
         "raw_action": actions or "drop",
@@ -563,6 +568,26 @@ def pair_realtime_metrics(
     }
 
 
+def manual_block_cookie(source: str, destination: str) -> int:
+    key = "->".join(sorted((source, destination)))
+    request_id = int(hashlib.sha1(key.encode("utf-8")).hexdigest()[:6], 16) % 0x6FFF
+    return MANUAL_BLOCK_COOKIE_BASE + request_id
+
+
+def manual_enforcement_switch(source: str, destination: str) -> str:
+    decision = policy_decision(source, destination)
+    blocked_at = decision.get("blocked_at")
+    if blocked_at in CONTROLLED_SWITCHES:
+        return str(blocked_at)
+    for node in decision.get("path", []):
+        if node in {"core_hq", "dist_branch"}:
+            return str(node)
+    source_data = ENGINE.endpoint(source)
+    destination_data = ENGINE.endpoint(destination)
+    endpoint = source_data if source_data and source_data["kind"] == "user" else destination_data
+    return "dist_branch" if endpoint and endpoint.get("site") == "Branch" else "core_hq"
+
+
 def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any]:
     source_data = ENGINE.endpoint(source)
     destination_data = ENGINE.endpoint(destination)
@@ -570,20 +595,34 @@ def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any
         return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     outputs = []
     success = True
-    for switch in CONTROLLED_SWITCHES:
-        exists, _ = run_command(["ovs-vsctl", "br-exists", switch], timeout=4)
-        if not exists:
-            continue
-        for src_ip, dst_ip in ((source_data["ip"], destination_data["ip"]), (destination_data["ip"], source_data["ip"])):
-            match = f"ip,nw_src={src_ip},nw_dst={dst_ip}"
-            command = ["ovs-ofctl", "-O", "OpenFlow13", "add-flow", switch, f"priority=500,{match},actions=drop"]
-            if not block:
-                command = ["ovs-ofctl", "-O", "OpenFlow13", "del-flows", switch, match]
-            ok, output = run_command(command, timeout=8)
-            success = success and ok
-            outputs.append(output)
-    verb = "chặn" if block else "gỡ chặn"
-    return {"ok": success, "message": f"Đã {verb} tạm thời {source} ↔ {destination} trên các OVS đang hoạt động.", "raw": "\n".join(outputs)}
+    switch = manual_enforcement_switch(source, destination)
+    cookie = manual_block_cookie(source, destination)
+    exists, output = run_command(["ovs-vsctl", "br-exists", switch], timeout=4)
+    if not exists:
+        return {"ok": False, "message": f"Khong tim thay OVS enforcement {switch}.", "raw": output}
+    if not block:
+        command = ["ovs-ofctl", "-O", "OpenFlow13", "del-flows", switch, f"cookie=0x{cookie:x}/{COOKIE_MASK}"]
+        ok, output = run_command(command, timeout=8)
+        return {
+            "ok": ok,
+            "message": f"Da go chan tam thoi {source} <-> {destination} tai {switch} bang cookie 0x{cookie:x}.",
+            "raw": output,
+        }
+    for src_ip, dst_ip in ((source_data["ip"], destination_data["ip"]), (destination_data["ip"], source_data["ip"])):
+        match = f"ip,nw_src={src_ip},nw_dst={dst_ip}"
+        command = [
+            "ovs-ofctl",
+            "-O",
+            "OpenFlow13",
+            "add-flow",
+            switch,
+            f"cookie=0x{cookie:x},priority=500,{match},actions=drop",
+        ]
+        ok, output = run_command(command, timeout=8)
+        success = success and ok
+        outputs.append(output)
+    verb = "chan" if block else "go chan"
+    return {"ok": success, "message": f"Da {verb} tam thoi {source} <-> {destination} tai {switch} bang cookie 0x{cookie:x}.", "raw": "\n".join(outputs)}
 
 
 def live_status() -> dict[str, Any]:

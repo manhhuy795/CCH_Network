@@ -174,10 +174,25 @@ def test_controller_enforces_drop_policies_only_at_core_and_distribution():
     assert 'switch_name == "dist_branch" and self.policy.policies["isolate_branch_vlan_50_60"]' in controller
     assert 'Khong cai isolation DROP tren %s; access OVS chi transit/local switching.' in controller
     assert 'switch_name == ENFORCEMENT_SWITCH_BY_GROUP[group_name]' in controller
-    assert '"policy": "social_media_block"' in controller
+    assert "hq_social_block" in controller
+    assert "branch_social_block" in controller
     assert '"policy": "reactive_policy_drop"' in controller
     assert '"policy": "transit_to_enforcement"' in controller
     assert "POLICY INSTALLED switch=%s role=%s policy=%s priority=%s" in controller
+
+
+def test_controller_uses_openflow_cookies_for_policy_lifecycle():
+    controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+
+    for cookie in ("0x1001", "0x1002", "0x1003", "0x1004", "0x1100", "0x1200", "0x1300"):
+        assert cookie in controller
+    assert "cookie=cookie" in controller
+    assert 'cookie=f"0x{cookie:x}"' in controller
+    assert '"policy": "allowed_services"' in controller
+    assert '"policy": "voice"' in controller
+    assert '"policy": "it_support"' in controller
+    assert "hq_social_block" in controller
+    assert "branch_social_block" in controller
 
 
 def test_topology_runner_auto_starts_and_waits_for_controller():

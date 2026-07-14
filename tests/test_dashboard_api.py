@@ -124,3 +124,27 @@ def test_cluster_detail_configuration_covers_main_groups():
     assert "h50_01" in CLUSTER_DENY_TARGETS["project_a"]
     assert "h20_01" in CLUSTER_DENY_TARGETS["telesale"]
     assert CLUSTER_DENY_TARGETS["it_support"] == ()
+
+
+def test_manual_block_uses_cookie_and_single_enforcement_switch():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.live_mininet import manual_block_cookie, manual_enforcement_switch, parse_flow_line
+
+    assert manual_enforcement_switch("h20_01", "h30_01") == "core_hq"
+    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_branch"
+    assert manual_enforcement_switch("h70_01", "h50_01") == "core_hq"
+    assert manual_block_cookie("h20_01", "h30_01") == manual_block_cookie("h30_01", "h20_01")
+
+    flow = parse_flow_line(
+        "cookie=0x1001, duration=1.0s, priority=400,ip,nw_src=172.16.20.0,nw_dst=172.16.30.0 actions=drop",
+        "core_hq",
+    )
+    assert flow["cookie"] == "0x1001"
+
+    source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")
+    assert 'del-flows", switch, f"cookie=0x{cookie:x}/{COOKIE_MASK}"' in source
+    assert 'del-flows", switch, match' not in source
+    assert "for switch in CONTROLLED_SWITCHES:" not in source.split("def temporary_block", 1)[1].split("def live_status", 1)[0]
