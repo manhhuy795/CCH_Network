@@ -93,6 +93,8 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .topology-link.mpls { stroke: #7765a8; stroke-width: 4; }
 .topology-link.control { stroke: #8b5cf6; stroke-dasharray: 7 6; }
 .topology-link.control-lite { stroke: #8b5cf6; stroke-dasharray: 4 6; stroke-width: 1.5; }
+.of-domain-list text { fill: #6d4fb0; font-size: 10px; font-weight: 700; }
+.of-domain-list text:first-child { font-size: 11px; }
 .topology-link.allow { stroke: #0d9b68; stroke-width: 6; }
 .topology-link.deny, .topology-link.failed { stroke: #dc2626; stroke-dasharray: 10 7; stroke-width: 6; }
 .ping-map { pointer-events: none; stroke-linecap: round; stroke-width: 3.5; }

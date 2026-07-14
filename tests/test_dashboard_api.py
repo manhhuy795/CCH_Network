@@ -546,3 +546,19 @@ def test_topology_uses_grouped_interaction_and_view_controls():
     assert "currentNode === id" in topology_canvas
     assert ".topology-toolbar" in styles
     assert "h20_01" not in topology_canvas
+
+
+def test_openflow_control_visualization_is_simplified():
+    repo_root = Path(__file__).resolve().parents[1]
+    topology_canvas = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
+
+    assert "OpenFlow Control Bus" in topology_canvas
+    assert "HQ OpenFlow Domain" in topology_canvas
+    assert "Branch OpenFlow Domain" in topology_canvas
+    assert "Access HQ-A · Access HQ-B · Access HQ-C" in topology_canvas
+    assert "Branch Access · Branch Distribution" in topology_canvas
+    assert "control-lite" not in topology_canvas
+    control_section = topology_canvas.split("OpenFlow Control Bus", 1)[1].split("selectedPosition", 1)[0]
+    for forbidden in ("fw_hq", "fw_branch", "ce_hq", "ce_branch", "mpls_cloud"):
+        assert forbidden not in control_section
+    assert "currentNode === id" in topology_canvas

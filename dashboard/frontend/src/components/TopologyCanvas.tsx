@@ -131,12 +131,15 @@ export default function TopologyCanvas(props: Props) {
           <line x1={positions.c0[0]} y1={positions.c0[1] + 25} x2={positions.of_bus[0]} y2={positions.of_bus[1]} className="topology-link control" />
           <line x1={positions.of_bus[0]} y1={positions.of_bus[1]} x2={positions.of_hq[0]} y2={positions.of_hq[1]} className="topology-link control" />
           <line x1={positions.of_bus[0]} y1={positions.of_bus[1]} x2={positions.of_branch[0]} y2={positions.of_branch[1]} className="topology-link control" />
-          {["access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq"].map((target) => (
-            <line key={`of-hq-${target}`} x1={positions.of_hq[0]} y1={positions.of_hq[1]} x2={positions[target][0]} y2={positions[target][1]} className="topology-link control-lite" />
-          ))}
-          {["access_branch", "dist_branch"].map((target) => (
-            <line key={`of-branch-${target}`} x1={positions.of_branch[0]} y1={positions.of_branch[1]} x2={positions[target][0]} y2={positions[target][1]} className="topology-link control-lite" />
-          ))}
+          <g className="of-domain-list" transform="translate(560 182)">
+            <text>HQ OpenFlow Domain</text>
+            <text y="16">Access HQ-A · Access HQ-B · Access HQ-C</text>
+            <text y="32">Access HQ-IT · Voice Access · HQ Core</text>
+          </g>
+          <g className="of-domain-list" transform="translate(845 182)">
+            <text>Branch OpenFlow Domain</text>
+            <text y="16">Branch Access · Branch Distribution</text>
+          </g>
 
           {selectedPosition && selectedPolicy?.allow.map((target) => positions[target] ? (
             <line key={`allow-${selectedNode}-${target}`} x1={selectedPosition[0]} y1={selectedPosition[1]} x2={positions[target][0]} y2={positions[target][1]} className="ping-map allow" />
