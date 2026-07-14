@@ -58,6 +58,12 @@ Service mô phỏng:
 - `hsocial`: Social Media, `172.16.202.10`
 - `hinternet`: General Internet Test Service, `172.16.203.10`
 
+## VLAN Tagging
+
+Phase 4 deferred as optional enterprise fidelity enhancement.
+
+VLAN được biểu diễn bằng subnet và phân tách Access Switch trong phiên bản hiện tại; dot1q tagging thật là phần mở rộng. Policy enforcement hiện dựa trên IP subnet tại SDN Edge/Core/Distribution nên không phụ thuộc dot1q tagging để chứng minh segmentation trong lab.
+
 ## Kiến Trúc
 
 Đường liên site bắt buộc:
