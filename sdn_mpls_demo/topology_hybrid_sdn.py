@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import os
 import re
+import socket
+import threading
 import unicodedata
 from pathlib import Path
 
@@ -29,8 +32,30 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent
 POLICY_FILE = BASE_DIR / "policy.yml"
+CONTROL_SOCKET = Path(os.environ.get("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
+CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
+ALLOWED_CONTROL_COMMANDS = {
+    "GET_TOPOLOGY",
+    "GET_LINK_STATUS",
+    "LINK_DOWN",
+    "LINK_UP",
+    "GET_HOST_STATUS",
+    "GET_INTERFACE_MAP",
+}
 
 DPIDS = dpid_map(load_network_model())
+
+
+LOGICAL_LINK_SEGMENTS = {
+    "core_hq-ce_hq": [("hq_l3_gateway", "ce_hq")],
+    "ce_hq-core_hq": [("hq_l3_gateway", "ce_hq")],
+    "ce_branch-dist_branch": [("ce_branch", "branch_l3_gateway")],
+    "dist_branch-ce_branch": [("ce_branch", "branch_l3_gateway")],
+    "core_hq-fw_hq": [("hq_l3_gateway", "fw_hq")],
+    "fw_hq-core_hq": [("hq_l3_gateway", "fw_hq")],
+    "dist_branch-fw_branch": [("branch_l3_gateway", "fw_branch")],
+    "fw_branch-dist_branch": [("branch_l3_gateway", "fw_branch")],
+}
 
 
 class LinuxRouter(Node):
@@ -43,6 +68,198 @@ class LinuxRouter(Node):
     def terminate(self):
         self.cmd("sysctl -w net.ipv4.ip_forward=0 >/dev/null")
         super().terminate()
+
+
+class MininetControlAgent:
+    """Small allowlisted control plane for the dashboard.
+
+    The FastAPI backend talks to this agent over a Unix socket. The agent runs
+    inside the topology process, so LINK_DOWN/LINK_UP can call Mininet APIs
+    against real interfaces instead of storing simulated state in the backend.
+    """
+
+    def __init__(self, net: Mininet, policy: dict):
+        self.net = net
+        self.policy = policy
+        self.running = False
+        self.thread: threading.Thread | None = None
+        self.link_state: dict[str, str] = {}
+
+    def start(self) -> None:
+        try:
+            CONTROL_SOCKET.unlink()
+        except FileNotFoundError:
+            pass
+        self.running = True
+        self.thread = threading.Thread(target=self._serve, name="cch-mininet-control", daemon=True)
+        self.thread.start()
+        emit(f"Mininet control agent: {CONTROL_SOCKET}")
+
+    def stop(self) -> None:
+        self.running = False
+        try:
+            CONTROL_SOCKET.unlink()
+        except FileNotFoundError:
+            pass
+
+    def _serve(self) -> None:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+            server.bind(str(CONTROL_SOCKET))
+            CONTROL_SOCKET.chmod(0o660)
+            server.listen(8)
+            server.settimeout(1)
+            while self.running:
+                try:
+                    conn, _addr = server.accept()
+                except socket.timeout:
+                    continue
+                except OSError:
+                    if self.running:
+                        raise
+                    return
+                with conn:
+                    response = self._handle_connection(conn)
+                    conn.sendall(json.dumps(response).encode("utf-8"))
+
+    def _handle_connection(self, conn) -> dict:
+        try:
+            raw = conn.recv(65536).decode("utf-8").strip()
+            request = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return {"ok": False, "message": f"Invalid JSON: {exc}"}
+        if request.get("token") != CONTROL_TOKEN:
+            return {"ok": False, "message": "Unauthorized Mininet control request."}
+        command = request.get("command")
+        if command not in ALLOWED_CONTROL_COMMANDS:
+            return {"ok": False, "message": f"Command not allowed: {command}"}
+        if command == "GET_TOPOLOGY":
+            return self._topology()
+        if command == "GET_LINK_STATUS":
+            return self._link_status()
+        if command == "GET_HOST_STATUS":
+            return self._host_status()
+        if command == "GET_INTERFACE_MAP":
+            return self._interface_map(request.get("link_id"))
+        link_id = str(request.get("link_id", ""))
+        if command == "LINK_DOWN":
+            return self._set_link(link_id, "down")
+        if command == "LINK_UP":
+            return self._set_link(link_id, "up")
+        return {"ok": False, "message": f"Unhandled command: {command}"}
+
+    def _logical_links(self) -> list[str]:
+        return [f"{source}-{target}" for source, target, _kind in self.policy.get("links", [])]
+
+    def _segments_for_link(self, link_id: str) -> list[tuple[str, str]]:
+        if link_id in LOGICAL_LINK_SEGMENTS:
+            return LOGICAL_LINK_SEGMENTS[link_id]
+        if "-" not in link_id:
+            return []
+        left, right = link_id.split("-", 1)
+        groups = self.policy.get("host_groups", {})
+        if left in groups and groups[left]["switch"] == right:
+            group = groups[left]
+            return [
+                (f"{group['prefix']}_{index:02d}", right)
+                for index in range(1, int(group["count"]) + 1)
+            ]
+        if right in groups and groups[right]["switch"] == left:
+            group = groups[right]
+            return [
+                (left, f"{group['prefix']}_{index:02d}")
+                for index in range(1, int(group["count"]) + 1)
+            ]
+        return [(left, right)]
+
+    def _segment_interface_map(self, left: str, right: str) -> dict:
+        try:
+            left_node = self.net.get(left)
+            right_node = self.net.get(right)
+        except KeyError:
+            return {"left": left, "right": right, "status": "missing", "interfaces": []}
+        connections = left_node.connectionsTo(right_node)
+        interfaces = [
+            {
+                "left": str(left_intf),
+                "right": str(right_intf),
+                "left_up": bool(left_intf.isUp()),
+                "right_up": bool(right_intf.isUp()),
+            }
+            for left_intf, right_intf in connections
+        ]
+        if not interfaces:
+            status = "missing"
+        elif all(item["left_up"] and item["right_up"] for item in interfaces):
+            status = "up"
+        else:
+            status = "down"
+        return {"left": left, "right": right, "status": status, "interfaces": interfaces}
+
+    def _link_runtime_status(self, link_id: str) -> str:
+        if link_id in self.link_state:
+            return self.link_state[link_id]
+        segments = [self._segment_interface_map(left, right) for left, right in self._segments_for_link(link_id)]
+        if not segments or any(item["status"] == "missing" for item in segments):
+            return "unknown"
+        return "up" if all(item["status"] == "up" for item in segments) else "down"
+
+    def _set_link(self, link_id: str, state: str) -> dict:
+        segments = self._segments_for_link(link_id)
+        if not segments:
+            return {"ok": False, "message": f"Khong tim thay mapping link {link_id}.", "link_id": link_id}
+        changed = []
+        for left, right in segments:
+            try:
+                self.net.configLinkStatus(left, right, state)
+                changed.append({"left": left, "right": right, "state": state})
+            except Exception as exc:  # Mininet raises generic Exception for missing links.
+                return {
+                    "ok": False,
+                    "message": f"Khong doi duoc trang thai {left}-{right}: {exc}",
+                    "link_id": link_id,
+                    "changed": changed,
+                }
+        self.link_state[link_id] = state
+        return {
+            "ok": True,
+            "available": True,
+            "message": f"Da chuyen link {link_id} sang {state} tren Mininet.",
+            "link_id": link_id,
+            "status": state,
+            "changed": changed,
+            "links": self._link_status()["links"],
+            "interfaces": self._interface_map(link_id).get("interfaces", []),
+        }
+
+    def _link_status(self) -> dict:
+        return {
+            "ok": True,
+            "available": True,
+            "links": {link_id: self._link_runtime_status(link_id) for link_id in self._logical_links()},
+        }
+
+    def _interface_map(self, link_id: str | None = None) -> dict:
+        link_ids = [link_id] if link_id else self._logical_links()
+        mapping = {
+            item: [
+                self._segment_interface_map(left, right)
+                for left, right in self._segments_for_link(item)
+            ]
+            for item in link_ids
+            if item
+        }
+        return {"ok": True, "available": True, "interfaces": mapping.get(link_id, mapping)}
+
+    def _host_status(self) -> dict:
+        nodes = getattr(self.net, "nameToNode", {})
+        return {
+            "ok": True,
+            "available": True,
+            "hosts": {name: name in nodes for name in self.policy.get("hosts", {})},
+        }
+
+    def _topology(self) -> dict:
+        return {"ok": True, "available": True, **self._link_status()}
 
 
 POLICY_TESTS = (
@@ -171,7 +388,11 @@ class CallCenterCLI(CLI):
 
 
 def load_policy():
-    return PolicyEngine(POLICY_FILE).data
+    engine = PolicyEngine(POLICY_FILE)
+    data = dict(engine.data)
+    data["links"] = NETWORK_MODEL["links"]
+    data["hosts"] = engine.hosts
+    return data
 
 
 def add_group_hosts(net, policy, switches):
@@ -484,6 +705,8 @@ def build_topology():
 
     configure_routing(net, policy)
     start_service_simulators(net)
+    control_agent = MininetControlAgent(net, policy)
+    control_agent.start()
 
     emit()
     emit("=" * 88)
@@ -498,8 +721,11 @@ def build_topology():
         run_policy_tests(net, policy, title="Kiá»ƒm tra tá»± Ä‘á»™ng sau khi khá»Ÿi Ä‘á»™ng topology")
     else:
         emit("Bo qua auto-test vi CCH_AUTO_TEST_POLICY=0. Co the chay tay: testpolicy")
-    CallCenterCLI(net, policy)
-    net.stop()
+    try:
+        CallCenterCLI(net, policy)
+    finally:
+        control_agent.stop()
+        net.stop()
 
 
 if __name__ == "__main__":

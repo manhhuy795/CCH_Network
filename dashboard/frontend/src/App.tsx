@@ -47,6 +47,7 @@ export default function App() {
         api.topology(), api.policies(), api.flows(), api.status(),
       ]);
       setTopology(topologyData);
+      setFailedLinks(topologyData.links.filter((link) => link.status === "down").map((link) => link.id));
       setPolicies(policyData);
       setFlows(flowData.flows);
       setRuntime(status);
@@ -105,12 +106,13 @@ export default function App() {
   };
 
   const changeLink = async (linkId: string, fail: boolean) => {
-    const payload = await api.post<{ message: string; failed_links: string[] }>(
+    const payload = await api.post<{ ok: boolean; message: string; failed_links: string[] }>(
       fail ? "/api/link/fail" : "/api/link/recover",
       { link_id: linkId },
     );
     setFailedLinks(payload.failed_links);
-    addEvent(payload.message, fail ? "deny" : "allow");
+    addEvent(payload.message, payload.ok ? (fail ? "deny" : "allow") : "deny");
+    await refresh();
   };
 
   const togglePolicy = async (key: string, enabled: boolean) => {
@@ -155,7 +157,8 @@ export default function App() {
         <div className="operate-grid">
           <div className="main-column">
             <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
-              failedLinks={failedLinks} source={source} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
+              failedLinks={failedLinks} liveLinkControl={Boolean(topology?.summary.live_link_control)}
+              source={source} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
               onSource={setSource} onDestination={setDestination} />
           </div>
           <aside>

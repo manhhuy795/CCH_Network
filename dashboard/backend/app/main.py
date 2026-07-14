@@ -17,7 +17,6 @@ from .metrics import current_metrics
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 app = FastAPI(title="Hybrid MPLS + SDN Dashboard API", version="0.1.0")
-app.state.failed_links = set()
 
 app.add_middleware(
     CORSMiddleware,

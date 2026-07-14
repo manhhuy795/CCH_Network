@@ -96,6 +96,7 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .legend i.mpls { background: #7765a8; }
 .link-controls { display: flex; gap: 6px; }
 .link-controls select { max-width: 220px; }
+.runtime-hint { color: #68788a; font-size: 12px; }
 .ping-policy-card { border-top: 1px solid #e1e7ed; display: grid; gap: 5px; padding: 10px 12px; }
 .ping-policy-card strong { font-size: 13px; }
 .ping-policy-card p, .ping-policy-card div { color: #607084; font-size: 12px; line-height: 1.4; }

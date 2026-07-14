@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from . import mininet_control
 from .live_mininet import cluster_detail_test, current_metrics, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
@@ -12,15 +13,20 @@ from .topology import get_topology
 router = APIRouter(prefix="/api")
 
 
-def failed_links(request: Request) -> set[str]:
-    if not hasattr(request.app.state, "failed_links"):
-        request.app.state.failed_links = set()
-    return request.app.state.failed_links
+def failed_link_ids() -> list[str]:
+    status = mininet_control.get_link_status()
+    if not status.get("ok"):
+        return []
+    return sorted(
+        link_id
+        for link_id, state in status.get("links", {}).items()
+        if state == "down"
+    )
 
 
 @router.get("/topology")
-def api_topology(request: Request):
-    return get_topology(failed_links(request))
+def api_topology():
+    return get_topology()
 
 
 @router.get("/policies")
@@ -49,18 +55,18 @@ def api_live_status():
 
 
 @router.post("/test/ping")
-def api_test_ping(payload: HostPair, request: Request):
-    return run_ping(payload.source, payload.destination, failed_links(request))
+def api_test_ping(payload: HostPair):
+    return run_ping(payload.source, payload.destination)
 
 
 @router.post("/test/iperf")
-def api_test_iperf(payload: IperfRequest, request: Request):
-    return run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds, failed_links(request))
+def api_test_iperf(payload: IperfRequest):
+    return run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds)
 
 
 @router.post("/test/call-quality")
-def api_test_call_quality(payload: IperfRequest, request: Request):
-    return run_call_quality(payload.source, payload.destination, payload.seconds, failed_links(request))
+def api_test_call_quality(payload: IperfRequest):
+    return run_call_quality(payload.source, payload.destination, payload.seconds)
 
 
 @router.post("/test/cluster-detail")
@@ -92,22 +98,24 @@ def api_policy_toggle(payload: PolicyToggleRequest):
 
 
 @router.post("/simulate/path")
-def api_simulate_path(payload: HostPair, request: Request):
+def api_simulate_path(payload: HostPair):
     decision = policy_decision(payload.source, payload.destination)
     path = decision.get("path", [])
-    failed = failed_links(request)
-    for index, (left, right) in enumerate(zip(path, path[1:])):
-        if f"{left}-{right}" in failed or f"{right}-{left}" in failed:
-            return {
-                "src": payload.source,
-                "dst": payload.destination,
-                "action": "deny",
-                "reason": "Khong co duong di hop le do lien ket dang bi loi.",
-                "path": path[: index + 1],
-                "blocked_at": left,
-                "failed_link": f"{left}-{right}",
-                "mode": "logical_architecture",
-            }
+    down = mininet_control.first_down_link(path)
+    if down:
+        failed_link = down["link_id"]
+        blocked_at = down["blocked_at"]
+        stop_index = path.index(blocked_at) if blocked_at in path else 0
+        return {
+            "src": payload.source,
+            "dst": payload.destination,
+            "action": "deny",
+            "reason": "Khong co duong di hop le do lien ket that trong Mininet dang down.",
+            "path": path[: stop_index + 1],
+            "blocked_at": blocked_at,
+            "failed_link": failed_link,
+            "mode": "logical_architecture",
+        }
     return {
         "src": payload.source,
         "dst": payload.destination,
@@ -123,12 +131,14 @@ def api_link_update(payload: LinkUpdateRequest):
 
 
 @router.post("/link/fail")
-def api_link_fail(payload: LinkStateRequest, request: Request):
-    failed_links(request).add(payload.link_id)
-    return {"ok": True, "message": f"Da mo phong loi lien ket {payload.link_id}.", "failed_links": sorted(failed_links(request))}
+def api_link_fail(payload: LinkStateRequest):
+    result = mininet_control.set_link_state(payload.link_id, "down")
+    result["failed_links"] = failed_link_ids()
+    return result
 
 
 @router.post("/link/recover")
-def api_link_recover(payload: LinkStateRequest, request: Request):
-    failed_links(request).discard(payload.link_id)
-    return {"ok": True, "message": f"Da khoi phuc lien ket {payload.link_id}.", "failed_links": sorted(failed_links(request))}
+def api_link_recover(payload: LinkStateRequest):
+    result = mininet_control.set_link_state(payload.link_id, "up")
+    result["failed_links"] = failed_link_ids()
+    return result

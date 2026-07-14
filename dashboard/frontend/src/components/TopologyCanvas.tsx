@@ -27,6 +27,7 @@ type Props = {
   decision?: Decision;
   activeIndex: number;
   failedLinks: string[];
+  liveLinkControl: boolean;
   source: string;
   onFail: (linkId: string) => void;
   onRecover: (linkId: string) => void;
@@ -48,9 +49,9 @@ function labelMap(topology?: Topology) {
     const title = String(node.label || id);
     let subtitle = "";
     if (node.subtitle) subtitle = String(node.subtitle);
-    else if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
+    else if (node.type === "user_group") subtitle = `${node.count} users - VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
-    else if (node.type === "firewall") subtitle = "Mô phỏng Internet Edge";
+    else if (node.type === "firewall") subtitle = "Internet Edge";
     else if (node.type === "wan") subtitle = "WAN transport";
     else if (node.type === "controller") subtitle = "127.0.0.1:6653";
     else if (node.ip) subtitle = String(node.ip);
@@ -63,10 +64,18 @@ export default function TopologyCanvas(props: Props) {
   const labels = useMemo(() => labelMap(props.topology), [props.topology]);
   const selectableNodes = useMemo(() => Object.keys(props.topology?.policy_map || {}), [props.topology]);
   const [selectedNode, setSelectedNode] = useState("project_a");
+  const [selectedLink, setSelectedLink] = useState("");
+
   useEffect(() => {
     const sourceHost = props.topology?.hosts.find((host) => host.name === props.source);
     if (sourceHost?.group) setSelectedNode(sourceHost.group);
   }, [props.source, props.topology]);
+
+  useEffect(() => {
+    const firstLink = props.links.find((link) => link.type !== "control")?.id || "";
+    if (!props.links.some((link) => link.id === selectedLink)) setSelectedLink(firstLink);
+  }, [props.links, selectedLink]);
+
   const selectedPosition = positions[selectedNode];
   const selectedPolicy = props.topology?.policy_map?.[selectedNode];
   const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];
@@ -76,29 +85,34 @@ export default function TopologyCanvas(props: Props) {
   return (
     <section>
       <div className="section-title">
-        <div><h2>Sơ đồ Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>Click nhóm để xem user và quan hệ policy</span></div>
-        <div className="link-controls">
-          <select id="link-select" aria-label="Chọn liên kết">
-            {props.links.filter((link) => link.type !== "control").map((link) => (
-              <option value={link.id} key={link.id}>{link.source} ↔ {link.target}</option>
-            ))}
-          </select>
-          <button title="Giả lập lỗi liên kết" onClick={() => props.onFail((document.getElementById("link-select") as HTMLSelectElement).value)}><Unplug size={16} /></button>
-          <button title="Khôi phục liên kết" onClick={() => props.onRecover((document.getElementById("link-select") as HTMLSelectElement).value)}><RotateCcw size={16} /></button>
-        </div>
+        <div><h2>So do Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>Click cum de xem user va quan he policy</span></div>
+        {props.liveLinkControl ? (
+          <div className="link-controls">
+            <select value={selectedLink} aria-label="Chon lien ket" onChange={(event) => setSelectedLink(event.target.value)}>
+              {props.links.filter((link) => link.type !== "control").map((link) => (
+                <option value={link.id} key={link.id}>{link.source} - {link.target} ({link.status})</option>
+              ))}
+            </select>
+            <button title="Lam link that trong Mininet bi down" onClick={() => selectedLink && props.onFail(selectedLink)}><Unplug size={16} /></button>
+            <button title="Khoi phuc link that trong Mininet" onClick={() => selectedLink && props.onRecover(selectedLink)}><RotateCcw size={16} /></button>
+          </div>
+        ) : (
+          <span className="runtime-hint">Link fail/recover chi bat khi topology Mininet dang chay.</span>
+        )}
       </div>
       <div className="topology-scroll">
-        <svg className="topology-svg" viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
-          <rect className="zone" x="20" y="95" width="705" height="430" /><text className="zone-label" x="35" y="117">TRỤ SỞ CHÍNH HQ</text>
-          <rect className="zone" x="20" y="575" width="705" height="220" /><text className="zone-label" x="35" y="597">CHI NHÁNH BRANCH</text>
+        <svg className="topology-svg" viewBox="0 0 1360 820" aria-label="So do mang Hybrid MPLS va SDN">
+          <rect className="zone" x="20" y="95" width="705" height="430" /><text className="zone-label" x="35" y="117">TRU SO CHINH HQ</text>
+          <rect className="zone" x="20" y="575" width="705" height="220" /><text className="zone-label" x="35" y="597">CHI NHANH BRANCH</text>
           <rect className="zone" x="755" y="185" width="285" height="610" /><text className="zone-label" x="770" y="207">WAN / MPLS L3VPN LOGIC</text>
-          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">DỊCH VỤ INTERNET</text>
+          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">DICH VU INTERNET</text>
 
           {props.links.map((link) => {
-            const from = positions[link.source]; const to = positions[link.target];
+            const from = positions[link.source];
+            const to = positions[link.target];
             if (!from || !to) return null;
             const active = props.decision ? isPathLink(props.decision.path, link.source, link.target) : false;
-            const failed = props.failedLinks.includes(link.id);
+            const failed = link.status === "down" || props.failedLinks.includes(link.id);
             const route = routedLinks[link.id];
             const className = `topology-link ${link.type} ${active ? props.decision?.action : ""} ${failed ? "failed" : ""}`;
             if (route) return <polyline key={link.id} points={route.map(([x, y]) => `${x},${y}`).join(" ")} className={className} />;
@@ -150,26 +164,26 @@ export default function TopologyCanvas(props: Props) {
         </svg>
       </div>
       <div className="legend">
-        <span><i className="data" />Data Path</span><span><i className="allow" />Luồng được phép</span>
-        <span><i className="deny" />Luồng bị chặn</span><span><i className="control" />OpenFlow Control Path</span>
+        <span><i className="data" />Data Path</span><span><i className="allow" />Luong duoc phep</span>
+        <span><i className="deny" />Luong bi chan</span><span><i className="control" />OpenFlow Control Path</span>
         <span><i className="mpls" />WAN/MPLS transport</span>
       </div>
       {selectedPolicy && (
         <div className="ping-policy-card">
           <strong>{selectedPolicy.title}</strong>
-          <div><span className="ok">Được phép:</span> {selectedPolicy.allow.length ? selectedPolicy.allow.map(nameOf).join(", ") : "Không có luồng chủ động vào nội bộ"}</div>
-          <div><span className="bad">Bị chặn:</span> {selectedPolicy.deny.length ? selectedPolicy.deny.map(nameOf).join(", ") : "Không có mục chặn trong phạm vi demo"}</div>
+          <div><span className="ok">Duoc phep:</span> {selectedPolicy.allow.length ? selectedPolicy.allow.map(nameOf).join(", ") : "Khong co luong chu dong vao noi bo"}</div>
+          <div><span className="bad">Bi chan:</span> {selectedPolicy.deny.length ? selectedPolicy.deny.map(nameOf).join(", ") : "Khong co muc chan trong pham vi demo"}</div>
         </div>
       )}
       {selectedGroup && (
         <div className="host-group-panel">
-          <strong>{selectedGroup.label} · VLAN {selectedGroup.vlan} · {selectedGroup.subnet}</strong>
+          <strong>{selectedGroup.label} - VLAN {selectedGroup.vlan} - {selectedGroup.subnet}</strong>
           <div className="host-list">
             {selectedGroup.hosts.map((host: Host) => (
               <div key={host.name}>
-                <span>{host.label} · {host.name} · {host.ip}</span>
-                <button onClick={() => props.onSource(host.name)}>Chọn nguồn</button>
-                <button onClick={() => props.onDestination(host.name)}>Chọn đích</button>
+                <span>{host.label} - {host.name} - {host.ip}</span>
+                <button onClick={() => props.onSource(host.name)}>Chon nguon</button>
+                <button onClick={() => props.onDestination(host.name)}>Chon dich</button>
               </div>
             ))}
           </div>

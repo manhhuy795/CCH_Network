@@ -38,7 +38,13 @@ export type Topology = {
   hosts: Host[];
   links: Link[];
   policy_map: Record<string, { title: string; allow: string[]; deny: string[]; notes: Record<string, string> }>;
-  summary: { user_count: number; service_count: number; controlled_ovs_count: number };
+  summary: {
+    user_count: number;
+    service_count: number;
+    controlled_ovs_count: number;
+    live_link_control?: boolean;
+    link_control_message?: string;
+  };
 };
 
 export type Decision = {
@@ -46,6 +52,7 @@ export type Decision = {
   reason: string;
   path: string[];
   blocked_at?: string | null;
+  failed_link?: string | null;
 };
 
 export type TestResult = {

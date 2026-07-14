@@ -8,13 +8,13 @@ from .live_mininet import (
 )
 
 
-def run_ping(source: str, destination: str, failed_links: set[str] | None = None) -> dict:
+def run_ping(source: str, destination: str) -> dict:
     return run_ping_live(source, destination)
 
 
-def run_iperf(source: str, destination: str, protocol: str, seconds: int, failed_links: set[str] | None = None) -> dict:
+def run_iperf(source: str, destination: str, protocol: str, seconds: int) -> dict:
     return run_iperf_live(source, destination, protocol, seconds)
 
 
-def run_call_quality(source: str, destination: str, seconds: int, failed_links: set[str] | None = None) -> dict:
+def run_call_quality(source: str, destination: str, seconds: int) -> dict:
     return run_call_quality_live(source, destination, seconds)

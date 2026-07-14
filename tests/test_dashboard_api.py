@@ -178,3 +178,53 @@ def test_controller_admin_reload_reconciles_flows_by_cookie():
     assert "self._delete_cookie(datapath, cookie)" in controller
     assert "self.install_policy_flows(datapath)" in controller
     assert "self.datapaths[datapath.id] = datapath" in controller
+
+
+def test_live_link_control_uses_mininet_agent_not_backend_state():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app.topology import get_topology
+
+    api_source = (repo_root / "dashboard" / "backend" / "app" / "api.py").read_text(encoding="utf-8")
+    main_source = (repo_root / "dashboard" / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    client_source = (repo_root / "dashboard" / "backend" / "app" / "mininet_control.py").read_text(encoding="utf-8")
+    topology_source = (repo_root / "sdn_mpls_demo" / "topology_hybrid_sdn.py").read_text(encoding="utf-8")
+
+    assert "app.state.failed_links" not in main_source
+    assert "def failed_links" not in api_source
+    assert "mininet_control.set_link_state(payload.link_id, \"down\")" in api_source
+    assert "mininet_control.set_link_state(payload.link_id, \"up\")" in api_source
+    assert "subprocess" not in client_source
+    assert "shell=True" not in client_source
+    assert "ALLOWED_CONTROL_COMMANDS" in topology_source
+    assert "GET_INTERFACE_MAP" in topology_source
+    assert "self.net.configLinkStatus(left, right, state)" in topology_source
+    assert "MininetControlAgent(net, policy)" in topology_source
+
+    topology = get_topology()
+    assert topology["summary"]["live_link_control"] is False
+    assert all(link["status"] == "up" for link in topology["links"])
+
+
+def test_link_fail_endpoint_requires_live_mininet_agent():
+    pytest.importorskip("fastapi")
+    pytest.importorskip("fastapi.testclient")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+
+    response = client.post("/api/link/fail", json={"link_id": "core_hq-ce_hq"})
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["ok"] is False
+    assert payload["available"] is False
+    assert payload["failed_links"] == []
