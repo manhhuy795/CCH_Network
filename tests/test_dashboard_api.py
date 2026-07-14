@@ -562,3 +562,19 @@ def test_openflow_control_visualization_is_simplified():
     for forbidden in ("fw_hq", "fw_branch", "ce_hq", "ce_branch", "mpls_cloud"):
         assert forbidden not in control_section
     assert "currentNode === id" in topology_canvas
+
+
+def test_policy_is_not_rendered_as_topology_node_or_overlay():
+    repo_root = Path(__file__).resolve().parents[1]
+    topology_canvas = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
+    styles = (repo_root / "dashboard" / "frontend" / "src" / "styles" / "global.css").read_text(encoding="utf-8")
+    policy_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
+    test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+
+    for forbidden in ("Policy HQ", "Policy Branch", "ping-policy-card", "ping-map"):
+        assert forbidden not in topology_canvas
+        assert forbidden not in styles
+    assert "props.topology?.policy_map" not in topology_canvas
+    assert "Chinh sach SDN Edge" in policy_panel
+    assert "Policy:" in test_panel
+    assert "decision?.reason" in test_panel

@@ -63,7 +63,9 @@ function labelMap(topology?: Topology) {
 export default function TopologyCanvas(props: Props) {
   const sectionRef = useRef<HTMLElement>(null);
   const labels = useMemo(() => labelMap(props.topology), [props.topology]);
-  const selectableNodes = useMemo(() => Object.keys(props.topology?.policy_map || {}), [props.topology]);
+  const selectableNodes = useMemo(() => (props.topology?.nodes || [])
+    .filter((node) => ["user_group", "service", "blocked_service"].includes(String(node.type)))
+    .map((node) => String(node.id)), [props.topology]);
   const [selectedNode, setSelectedNode] = useState("project_a");
   const [selectedLink, setSelectedLink] = useState("");
   const [zoom, setZoom] = useState(1);
@@ -78,11 +80,8 @@ export default function TopologyCanvas(props: Props) {
     if (!props.links.some((link) => link.id === selectedLink)) setSelectedLink(firstLink);
   }, [props.links, selectedLink]);
 
-  const selectedPosition = positions[selectedNode];
-  const selectedPolicy = props.topology?.policy_map?.[selectedNode];
   const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];
   const selectedGroup = props.topology?.groups.find((group) => group.id === selectedNode);
-  const nameOf = (id: string) => labels[id]?.[0] || id;
 
   return (
     <section ref={sectionRef}>
@@ -141,13 +140,6 @@ export default function TopologyCanvas(props: Props) {
             <text y="16">Branch Access · Branch Distribution</text>
           </g>
 
-          {selectedPosition && selectedPolicy?.allow.map((target) => positions[target] ? (
-            <line key={`allow-${selectedNode}-${target}`} x1={selectedPosition[0]} y1={selectedPosition[1]} x2={positions[target][0]} y2={positions[target][1]} className="ping-map allow" />
-          ) : null)}
-          {selectedPosition && selectedPolicy?.deny.map((target) => positions[target] ? (
-            <line key={`deny-${selectedNode}-${target}`} x1={selectedPosition[0]} y1={selectedPosition[1]} x2={positions[target][0]} y2={positions[target][1]} className="ping-map deny" />
-          ) : null)}
-
           {[["of_bus", "OpenFlow Control Bus", ""], ["of_hq", "HQ OpenFlow Domain", ""], ["of_branch", "Branch OpenFlow Domain", ""]].map(([id, title, subtitle]) => {
             const [x, y] = positions[id];
             return <g className="topology-node controller" key={id} transform={`translate(${x - 70} ${y - 20})`}><rect width="140" height="40" rx="5" /><text x="70" y="18">{title}</text><text className="node-subtitle" x="70" y="32">{subtitle}</text></g>;
@@ -180,13 +172,6 @@ export default function TopologyCanvas(props: Props) {
         <span><i className="deny" />Luong bi chan</span><span><i className="control" />OpenFlow Control Path</span>
         <span><i className="mpls" />WAN/MPLS transport</span>
       </div>
-      {selectedPolicy && (
-        <div className="ping-policy-card">
-          <strong>{selectedPolicy.title}</strong>
-          <div><span className="ok">Duoc phep:</span> {selectedPolicy.allow.length ? selectedPolicy.allow.map(nameOf).join(", ") : "Khong co luong chu dong vao noi bo"}</div>
-          <div><span className="bad">Bi chan:</span> {selectedPolicy.deny.length ? selectedPolicy.deny.map(nameOf).join(", ") : "Khong co muc chan trong pham vi demo"}</div>
-        </div>
-      )}
       {selectedGroup && (
         <div className="host-group-panel">
           <strong>{selectedGroup.label} - VLAN {selectedGroup.vlan} - {selectedGroup.subnet}</strong>
