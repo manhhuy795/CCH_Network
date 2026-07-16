@@ -9,8 +9,10 @@ import os
 import re
 import shutil
 import socket
+import stat
 import threading
 import unicodedata
+import uuid
 from pathlib import Path
 
 import yaml
@@ -35,7 +37,13 @@ BASE_DIR = Path(__file__).resolve().parent
 POLICY_FILE = BASE_DIR / "policy.yml"
 CONTROL_SOCKET = Path(os.environ.get("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
+CONTROL_PROTOCOL_VERSION = 1
+CONTROL_MAX_REQUEST_BYTES = 128 * 1024
+CONTROL_CONNECTION_TIMEOUT_SECONDS = 5
+CONTROL_START_TIMEOUT_SECONDS = 5
 ALLOWED_CONTROL_COMMANDS = {
+    "HEALTH",
+    "PING_AGENT",
     "GET_TOPOLOGY",
     "GET_LINK_STATUS",
     "LINK_DOWN",
@@ -89,60 +97,172 @@ class MininetControlAgent:
     against real interfaces instead of storing simulated state in the backend.
     """
 
-    def __init__(self, net: Mininet, policy: dict):
+    def __init__(
+        self,
+        net: Mininet,
+        policy: dict,
+        socket_path: Path | str = CONTROL_SOCKET,
+        token: str = CONTROL_TOKEN,
+    ):
         self.net = net
         self.policy = policy
+        self.socket_path = Path(socket_path)
+        self.token = token
         self.running = False
         self.thread: threading.Thread | None = None
         self.link_state: dict[str, str] = {}
+        self.server_socket: socket.socket | None = None
+        self.ready = threading.Event()
+        self.startup_error: BaseException | None = None
+        self.workers: set[threading.Thread] = set()
+        self.workers_lock = threading.Lock()
 
     def start(self) -> None:
-        try:
-            CONTROL_SOCKET.unlink()
-        except FileNotFoundError:
-            pass
+        if self.thread and self.thread.is_alive():
+            return
+        self._remove_stale_socket()
         self.running = True
+        self.ready.clear()
+        self.startup_error = None
         self.thread = threading.Thread(target=self._serve, name="cch-mininet-control", daemon=True)
         self.thread.start()
-        emit(f"Mininet control agent: {CONTROL_SOCKET}")
+        if not self.ready.wait(CONTROL_START_TIMEOUT_SECONDS):
+            self.stop()
+            raise RuntimeError("Mininet control agent khong san sang trong thoi gian cho phep.")
+        if self.startup_error:
+            error = self.startup_error
+            self.stop()
+            raise RuntimeError(f"Khong khoi dong duoc Mininet control agent: {error}") from error
+        emit(f"Mininet control agent: {self.socket_path}")
 
     def stop(self) -> None:
         self.running = False
-        try:
-            CONTROL_SOCKET.unlink()
-        except FileNotFoundError:
-            pass
+        server = self.server_socket
+        self.server_socket = None
+        if server is not None:
+            try:
+                server.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            server.close()
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(timeout=CONTROL_START_TIMEOUT_SECONDS)
+        with self.workers_lock:
+            workers = list(self.workers)
+        for worker in workers:
+            if worker is not threading.current_thread():
+                worker.join(timeout=1)
+        self._remove_socket_file()
 
     def _serve(self) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
-            server.bind(str(CONTROL_SOCKET))
-            CONTROL_SOCKET.chmod(0o660)
-            server.listen(8)
+        try:
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.server_socket = server
+            server.bind(str(self.socket_path))
+            self.socket_path.chmod(0o660)
+            server.listen(16)
             server.settimeout(1)
+            self.ready.set()
             while self.running:
                 try:
                     conn, _addr = server.accept()
                 except socket.timeout:
                     continue
-                except OSError:
-                    if self.running:
-                        raise
-                    return
-                with conn:
-                    response = self._handle_connection(conn)
-                    conn.sendall(json.dumps(response).encode("utf-8"))
+                except OSError as exc:
+                    if not self.running:
+                        break
+                    self._log_connection_error(None, None, exc)
+                    continue
+                worker = threading.Thread(
+                    target=self._serve_connection,
+                    args=(conn,),
+                    name="cch-mininet-client",
+                    daemon=True,
+                )
+                with self.workers_lock:
+                    self.workers.add(worker)
+                worker.start()
+        except OSError as exc:
+            self.startup_error = exc
+            self._log_connection_error(None, None, exc)
+            self.ready.set()
+        finally:
+            server = self.server_socket
+            self.server_socket = None
+            if server is not None:
+                server.close()
+            self._remove_socket_file()
 
-    def _handle_connection(self, conn) -> dict:
+    def _serve_connection(self, conn) -> None:
+        request_id = uuid.uuid4().hex
+        command = None
         try:
-            raw = conn.recv(65536).decode("utf-8").strip()
-            request = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            return {"ok": False, "message": f"Invalid JSON: {exc}"}
-        if request.get("token") != CONTROL_TOKEN:
-            return {"ok": False, "message": "Unauthorized Mininet control request."}
+            conn.settimeout(CONTROL_CONNECTION_TIMEOUT_SECONDS)
+            request = self._read_request(conn)
+            request_id = str(request.get("request_id") or request_id)
+            command = request.get("command")
+            response = self._handle_request(request)
+            response["request_id"] = request_id
+            response.setdefault("protocol_version", CONTROL_PROTOCOL_VERSION)
+            conn.sendall((json.dumps(response, ensure_ascii=False) + "\n").encode("utf-8"))
+        except (BrokenPipeError, ConnectionResetError, socket.timeout, json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+            self._log_connection_error(command, request_id, exc)
+            self._send_error_response(conn, command, request_id, exc)
+        except Exception as exc:
+            self._log_connection_error(command, request_id, exc)
+            self._send_error_response(conn, command, request_id, exc)
+        finally:
+            try:
+                conn.close()
+            except OSError:
+                pass
+            with self.workers_lock:
+                self.workers.discard(threading.current_thread())
+
+    def _read_request(self, conn) -> dict:
+        chunks = bytearray()
+        while True:
+            chunk = conn.recv(min(65536, CONTROL_MAX_REQUEST_BYTES + 1 - len(chunks)))
+            if not chunk:
+                if not chunks:
+                    raise ConnectionResetError("Client dong ket noi truoc khi gui request.")
+                raise ValueError("Request thieu ky tu newline ket thuc.")
+            chunks.extend(chunk)
+            newline = chunks.find(b"\n")
+            if newline >= 0:
+                payload = bytes(chunks[:newline])
+                break
+            if len(chunks) > CONTROL_MAX_REQUEST_BYTES:
+                raise ValueError(f"Request vuot qua {CONTROL_MAX_REQUEST_BYTES} bytes.")
+        if not payload.strip():
+            raise ValueError("Request rong.")
+        if len(payload) > CONTROL_MAX_REQUEST_BYTES:
+            raise ValueError(f"Request vuot qua {CONTROL_MAX_REQUEST_BYTES} bytes.")
+        request = json.loads(payload.decode("utf-8"))
+        if not isinstance(request, dict):
+            raise ValueError("Request JSON phai la object.")
+        return request
+
+    def _handle_request(self, request: dict) -> dict:
+        if request.get("token") != self.token:
+            return {
+                "ok": False,
+                "error_code": "UNAUTHORIZED",
+                "message": "Unauthorized Mininet control request.",
+            }
         command = request.get("command")
         if command not in ALLOWED_CONTROL_COMMANDS:
-            return {"ok": False, "message": f"Command not allowed: {command}"}
+            return {
+                "ok": False,
+                "error_code": "COMMAND_NOT_ALLOWED",
+                "message": f"Command not allowed: {command}",
+            }
+        if command in {"HEALTH", "PING_AGENT"}:
+            return {
+                "ok": True,
+                "agent_alive": True,
+                "protocol_version": CONTROL_PROTOCOL_VERSION,
+            }
         if command == "GET_TOPOLOGY":
             return self._topology()
         if command == "GET_LINK_STATUS":
@@ -175,6 +295,74 @@ class MininetControlAgent:
         if command == "LINK_UP":
             return self._set_link(link_id, "up")
         return {"ok": False, "message": f"Unhandled command: {command}"}
+
+    def _send_error_response(self, conn, command, request_id: str, exc: BaseException) -> None:
+        response = {
+            "ok": False,
+            "error_code": self._error_code(exc),
+            "command": command,
+            "request_id": request_id,
+            "protocol_version": CONTROL_PROTOCOL_VERSION,
+            "message": str(exc),
+        }
+        try:
+            conn.sendall((json.dumps(response, ensure_ascii=False) + "\n").encode("utf-8"))
+        except (BrokenPipeError, ConnectionResetError, socket.timeout, OSError):
+            pass
+
+    def _log_connection_error(self, command, request_id, exc: BaseException) -> None:
+        emit(json.dumps(
+            {
+                "event": "mininet_control_error",
+                "command": command,
+                "request_id": request_id,
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+            ensure_ascii=False,
+        ))
+
+    @staticmethod
+    def _error_code(exc: BaseException) -> str:
+        if isinstance(exc, json.JSONDecodeError):
+            return "INVALID_JSON"
+        if isinstance(exc, UnicodeDecodeError):
+            return "INVALID_ENCODING"
+        if isinstance(exc, socket.timeout):
+            return "CONNECTION_TIMEOUT"
+        if isinstance(exc, ValueError) and "vuot qua" in str(exc):
+            return "REQUEST_TOO_LARGE"
+        if isinstance(exc, ValueError):
+            return "INVALID_REQUEST"
+        return "CONNECTION_ERROR"
+
+    def _remove_stale_socket(self) -> None:
+        if not self.socket_path.exists():
+            return
+        mode = self.socket_path.lstat().st_mode
+        if not stat.S_ISSOCK(mode):
+            raise RuntimeError(f"Khong xoa file khong phai socket: {self.socket_path}")
+        if self._socket_is_active():
+            raise RuntimeError(f"Mininet control agent dang chay tai {self.socket_path}")
+        self.socket_path.unlink()
+
+    def _socket_is_active(self) -> bool:
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.2)
+            probe.connect(str(self.socket_path))
+            return True
+        except OSError:
+            return False
+        finally:
+            probe.close()
+
+    def _remove_socket_file(self) -> None:
+        try:
+            if stat.S_ISSOCK(self.socket_path.lstat().st_mode):
+                self.socket_path.unlink()
+        except FileNotFoundError:
+            pass
 
     def _node(self, name: str):
         if not isinstance(name, str):

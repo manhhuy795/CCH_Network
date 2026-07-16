@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from typing import Any
 CONTROL_SOCKET = Path(os.environ.get("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
 REQUEST_TIMEOUT_SECONDS = 3
+MAX_RESPONSE_BYTES = 128 * 1024
 
 
 def _unavailable(message: str | None = None) -> dict[str, Any]:
@@ -26,27 +28,42 @@ def request_agent(command: str, **payload: Any) -> dict[str, Any]:
     if not CONTROL_SOCKET.exists():
         return _unavailable()
 
-    request = {"token": CONTROL_TOKEN, "command": command, **payload}
+    request_id = uuid.uuid4().hex
+    request = {"token": CONTROL_TOKEN, "command": command, "request_id": request_id, **payload}
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.settimeout(REQUEST_TIMEOUT_SECONDS)
             client.connect(str(CONTROL_SOCKET))
             client.sendall((json.dumps(request) + "\n").encode("utf-8"))
             chunks: list[bytes] = []
+            received = 0
             while True:
                 chunk = client.recv(65536)
                 if not chunk:
+                    break
+                received += len(chunk)
+                if received > MAX_RESPONSE_BYTES:
+                    return _unavailable("Mininet control agent tra ve response qua lon.")
+                newline = chunk.find(b"\n")
+                if newline >= 0:
+                    chunks.append(chunk[:newline])
                     break
                 chunks.append(chunk)
         if not chunks:
             return _unavailable("Mininet control agent khong tra du lieu.")
         response = json.loads(b"".join(chunks).decode("utf-8"))
+        if response.get("request_id") != request_id:
+            return _unavailable("Mininet control agent tra ve request_id khong khop.")
         response.setdefault("available", True)
         return response
     except (OSError, TimeoutError) as exc:
         return _unavailable(f"Khong ket noi duoc Mininet control agent: {exc}")
     except json.JSONDecodeError as exc:
         return _unavailable(f"Mininet control agent tra ve JSON khong hop le: {exc}")
+
+
+def health() -> dict[str, Any]:
+    return request_agent("HEALTH")
 
 
 def set_link_state(link_id: str, state: str) -> dict[str, Any]:
