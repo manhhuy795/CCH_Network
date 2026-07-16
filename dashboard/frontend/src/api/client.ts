@@ -169,6 +169,9 @@ export const api = {
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),
   status: () => request<Record<string, unknown>>("/api/live/status"),
   health: () => request<Record<string, unknown>>("/api/health"),
+  verifyOperator: () => request<{ ok: boolean; authenticated: boolean; role: string }>("/api/auth/verify", {
+    headers: authHeaders(),
+  }),
   post: <T>(path: string, body: object) =>
     request<T>(path, {
       method: "POST",

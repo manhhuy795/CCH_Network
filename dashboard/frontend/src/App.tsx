@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type TestResult, type Topology } from "./api/client";
+import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog, { type LogEntry } from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
@@ -9,12 +10,14 @@ import PolicyPanel from "./components/PolicyPanel";
 import RealtimePanel from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
+import Drawer from "./components/ui/Drawer";
+import FeedbackState from "./components/ui/FeedbackState";
+import ToastRegion, { type ToastItem } from "./components/ui/ToastRegion";
 
 type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
-type Tab = "overview" | "measure" | "policy" | "logs";
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("overview");
+  const [page, setPage] = useState<DashboardPage>("overview");
   const [topology, setTopology] = useState<Topology>();
   const [policies, setPolicies] = useState<Record<string, unknown>>({});
   const [flows, setFlows] = useState<Array<Record<string, unknown>>>([]);
@@ -28,24 +31,35 @@ export default function App() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [metrics, setMetrics] = useState<Record<string, number | string | boolean | object | null>>({});
   const [events, setEvents] = useState<LogEntry[]>([]);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [failedLinks, setFailedLinks] = useState<string[]>([]);
   const [online, setOnline] = useState(0);
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
   const [websocketOnline, setWebsocketOnline] = useState(false);
   const [operatorToken, setOperatorTokenState] = useState(getOperatorToken());
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>();
+  const [helpOpen, setHelpOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
   const timer = useRef<number>();
   const actionInFlight = useRef(false);
+  const toastSequence = useRef(0);
 
-  const addEvent = (message: string, kind: LogEntry["kind"] = "info") => {
+  const notify = useCallback((message: string, tone: ToastItem["tone"] = "info") => {
+    toastSequence.current += 1;
+    const id = `${Date.now()}-${toastSequence.current}`;
+    setToasts((current) => [...current.slice(-3), { id, message, tone }]);
+  }, []);
+
+  const addEvent = useCallback((message: string, kind: LogEntry["kind"] = "info") => {
     setEvents((current) => [
       { time: new Date().toLocaleTimeString("vi-VN"), message, kind },
       ...current,
     ].slice(0, 60));
-  };
+  }, []);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const [topologyData, policyData, flowData, status, auth] = await Promise.all([
         api.topology(), api.policies(), api.flows(), api.status(), api.authStatus(),
@@ -60,19 +74,42 @@ export default function App() {
       const hosts = (status.hosts || {}) as Record<string, boolean>;
       setOnline(Object.values(hosts).filter(Boolean).length);
     } catch (error) {
-      addEvent(error instanceof Error ? error.message : "Không tải được dữ liệu dashboard.", "deny");
+      const message = error instanceof Error ? error.message : "Không tải được dữ liệu dashboard.";
+      addEvent(message, "deny");
+      notify(message, "error");
     }
-  };
+  }, [addEvent, notify]);
 
-  const saveOperatorToken = (value: string) => {
-    setOperatorTokenState(value);
-    setOperatorToken(value);
-  };
+  const authenticate = useCallback(async () => {
+    if (!operatorToken.trim()) return;
+    setAuthChecking(true);
+    setOperatorToken(operatorToken);
+    try {
+      await api.verifyOperator();
+      setAuthenticated(true);
+      setOperatorTokenState("");
+      notify("Đã xác thực phiên IT Operator.", "success");
+    } catch (error) {
+      setAuthenticated(false);
+      setOperatorToken("");
+      const message = error instanceof Error ? error.message : "Không xác thực được token.";
+      notify(message, "error");
+    } finally {
+      setAuthChecking(false);
+    }
+  }, [notify, operatorToken]);
 
   useEffect(() => {
     void refresh();
+    if (getOperatorToken()) {
+      setAuthChecking(true);
+      api.verifyOperator()
+        .then(() => setAuthenticated(true))
+        .catch(() => setOperatorToken(""))
+        .finally(() => setAuthChecking(false));
+    }
     return () => window.clearInterval(timer.current);
-  }, []);
+  }, [refresh]);
 
   const animate = (path: string[]) => {
     window.clearInterval(timer.current);
@@ -107,12 +144,14 @@ export default function App() {
       }
       if (payload.result) setMetrics(payload.result);
       addEvent(payload.message, payload.ok ? "allow" : "deny");
+      notify(payload.message, payload.ok ? "success" : "error");
       const flowData = await api.flows();
       setFlows(flowData.flows);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Thao tác thất bại.";
       setResult({ ok: false, message, raw: message });
       addEvent(message, "deny");
+      notify(message, "error");
     } finally {
       actionInFlight.current = false;
       setBusy(false);
@@ -126,136 +165,121 @@ export default function App() {
     );
     setFailedLinks(payload.failed_links);
     addEvent(payload.message, payload.ok ? (fail ? "deny" : "allow") : "deny");
+    notify(payload.message, payload.ok ? "success" : "error");
     await refresh();
   };
 
   const togglePolicy = async (key: string, enabled: boolean) => {
     setPolicyBusy(true);
     try {
-      const payload = await api.post<{ ok: boolean; message: string; policies?: Record<string, unknown> }>("/api/policy/toggle", { key, enabled });
+      const payload = await api.post<{ ok: boolean; message: string }>("/api/policy/toggle", { key, enabled });
       addEvent(payload.message, payload.ok ? "allow" : "deny");
-      if (!payload.ok) return;
-      await refresh();
+      notify(payload.message, payload.ok ? "success" : "error");
+      if (payload.ok) await refresh();
     } catch (error) {
-      addEvent(error instanceof Error ? error.message : "Không áp dụng được policy.", "deny");
+      notify(error instanceof Error ? error.message : "Không áp dụng được policy.", "error");
     } finally {
       setPolicyBusy(false);
     }
   };
 
-  const totalEndpoints = (topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5);
-  const switchCount = topology?.summary.controlled_ovs_count ?? 8;
   const healthComponents = (runtime.components || {}) as Record<string, { status?: string; message_vi?: string }>;
-  const componentState = (name: string) => healthComponents[name]?.status || "unknown";
-  const tabs: Array<[Tab, string]> = [
-    ["overview", "Tong quan"],
-    ["measure", "Do kiem mang"],
-    ["policy", "Chinh sach & OpenFlow"],
-    ["logs", "Nhat ky"],
-  ];
+  const overallStatus = String(runtime.status || "unknown");
+  const topologyProps = {
+    topology,
+    links: topology?.links || [],
+    decision,
+    activeIndex,
+    failedLinks,
+    liveLinkControl: Boolean(topology?.summary.live_link_control),
+    source,
+    onFail: (id: string) => void changeLink(id, true),
+    onRecover: (id: string) => void changeLink(id, false),
+    onSource: setSource,
+    onDestination: setDestination,
+  };
+
+  const pageContent = () => {
+    if (!topology && page !== "events") {
+      return <FeedbackState kind="loading" title="Đang tải dữ liệu vận hành" message="Dashboard đang đọc topology, health và OpenFlow inventory." />;
+    }
+    if (page === "topology") return <TopologyCanvas {...topologyProps} />;
+    if (page === "testing") return (
+      <div className="workspace-grid">
+        <TopologyCanvas {...topologyProps} />
+        <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
+          busy={busy} result={result} onSource={setSource} onDestination={setDestination}
+          onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
+      </div>
+    );
+    if (page === "policy") return (
+      <div className="policy-workspace">
+        <div className="main-column"><PolicyPanel policies={policies} onToggle={(key, enabled) => void togglePolicy(key, enabled)} busy={policyBusy} /><FlowTable flows={flows} /></div>
+        <aside><ClusterDetailPanel /><MetricsPanel metrics={metrics} /></aside>
+      </div>
+    );
+    if (page === "performance") return (
+      <div className="performance-grid">
+        <RealtimePanel source={source} destination={destination} onStatus={setWebsocketOnline} />
+        <MetricsPanel metrics={metrics} />
+      </div>
+    );
+    if (page === "events") return <EventLog entries={events} />;
+    return (
+      <>
+        <div className="page-heading">
+          <div><h1>Tổng quan vận hành</h1><p>Cập nhật gần nhất: {lastUpdated || "chưa có dữ liệu"}</p></div>
+          <button onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
+        </div>
+        <div className="overview-status-grid">
+          {[
+            ["controller", "Controller"],
+            ["backend", "Backend"],
+            ["mininet_topology", "Mininet"],
+            ["mininet_control_agent", "Control Agent"],
+            ["openvswitch", "Open vSwitch"],
+            ["websocket", "WebSocket"],
+          ].map(([key, label]) => (
+            <div className="status-tile" key={key}>
+              <strong>{label}</strong>
+              <span>{healthComponents[key]?.status || "unknown"}</span>
+              <small>{healthComponents[key]?.message_vi || "Chưa có dữ liệu runtime."}</small>
+            </div>
+          ))}
+          <div className="status-tile"><strong>Host online</strong><span>{online}/{(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}</span><small>Endpoint được xác nhận từ Mininet.</small></div>
+          <div className="status-tile"><strong>Link/cảnh báo</strong><span>{failedLinks.length}</span><small>{failedLinks.length ? failedLinks.join(", ") : "Không có link DOWN."}</small></div>
+        </div>
+      </>
+    );
+  };
 
   return (
-    <main>
-      <header>
-        <div>
-          <h1>Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy cho Call Center BPO</h1>
-          <p>OS-Ken điều khiển Open vSwitch tại SDN Edge; MPLS Logic Cloud chỉ mô phỏng WAN transport giữa HQ và Branch.</p>
+    <AppShell
+      page={page}
+      onPage={setPage}
+      overallStatus={overallStatus}
+      websocketOnline={websocketOnline}
+      authenticated={authenticated}
+      authChecking={authChecking}
+      token={operatorToken}
+      onToken={setOperatorTokenState}
+      onAuthenticate={() => void authenticate()}
+      onLogout={() => { setOperatorToken(""); setAuthenticated(false); setOperatorTokenState(""); }}
+      onHelp={() => setHelpOpen(true)}
+    >
+      {pageContent()}
+      <Drawer open={helpOpen} title="Trợ giúp vận hành" onClose={() => setHelpOpen(false)}>
+        <div className="help-content">
+          <h3>Trình tự kiểm tra</h3>
+          <p>Kiểm tra trạng thái tổng, mở Topology, sau đó chạy phép đo từ một endpoint cụ thể.</p>
+          <h3>Kết quả thật</h3>
+          <p>Ping và iperf được backend chạy trong namespace Mininet. Packet path lấy từ backend policy decision.</p>
+          <h3>Quyền thao tác</h3>
+          <p>Link fail/recover, policy toggle và phép đo yêu cầu phiên IT Operator đã xác thực.</p>
+          {authStatus && <p>Header xác thực: {authStatus.token_header}</p>}
         </div>
-        <div className="header-actions">
-          <label className="token-box">
-            <span>IT token</span>
-            <input
-              value={operatorToken}
-              onChange={(event) => saveOperatorToken(event.target.value)}
-              placeholder={authStatus?.operator_token_configured ? "Nhap operator token" : "Backend chua cau hinh token"}
-              type="password"
-            />
-          </label>
-          <button className="primary" onClick={() => void refresh()}><RefreshCw size={16} />Lam moi</button>
-        </div>
-      </header>
-
-      <div className="tabs">
-        {tabs.map(([key, label]) => <button className={tab === key ? "active" : ""} onClick={() => setTab(key)} key={key}>{label}</button>)}
-      </div>
-
-      <div className="summary">
-        <div><strong>{online}/{totalEndpoints}</strong><span>Endpoint Mininet</span></div>
-        <div><strong>{topology?.summary.user_count ?? 110}</strong><span>User thật</span></div>
-        <div><strong>{flows.length}</strong><span>Flow OpenFlow</span></div>
-        <div><strong>{websocketOnline ? "Online" : "Idle"}</strong><span>WebSocket</span></div>
-      </div>
-
-      {tab === "overview" && (
-        <div className="overview-grid">
-          <div className="main-column">
-            <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
-              failedLinks={failedLinks} liveLinkControl={Boolean(topology?.summary.live_link_control)}
-              source={source} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
-              onSource={setSource} onDestination={setDestination} />
-          </div>
-          <aside>
-            <section>
-              <div className="section-title"><h2>Trang thai he thong</h2><span>{lastUpdated || "Chua cap nhat"}</span></div>
-              <div className="metric-grid">
-                <div className="metric"><strong>{componentState("frontend")}</strong><span>Frontend</span></div>
-                <div className="metric"><strong>{componentState("backend")}</strong><span>Backend</span></div>
-                <div className="metric"><strong>{componentState("controller")}</strong><span>Controller</span></div>
-                <div className="metric"><strong>{componentState("mininet_topology")}</strong><span>Mininet topology</span></div>
-                <div className="metric"><strong>{componentState("mininet_control_agent")}</strong><span>Control Agent</span></div>
-                <div className="metric"><strong>{componentState("openvswitch")}</strong><span>Open vSwitch</span></div>
-                <div className="metric"><strong>{websocketOnline ? "online" : componentState("websocket")}</strong><span>WebSocket</span></div>
-                <div className="metric"><strong>{componentState("flow_inventory")}</strong><span>Flow inventory</span></div>
-                <div className="metric"><strong>{topology?.summary.user_count ?? 110}</strong><span>User</span></div>
-                <div className="metric"><strong>{totalEndpoints}</strong><span>Endpoint</span></div>
-                <div className="metric"><strong>{switchCount}</strong><span>Switch OVS</span></div>
-                <div className="metric"><strong>{flows.length}</strong><span>OpenFlow flow</span></div>
-              </div>
-            </section>
-            <MetricsPanel metrics={metrics} />
-          </aside>
-        </div>
-      )}
-
-      {tab === "measure" && (
-        <div className="operate-grid">
-          <div className="main-column">
-            <TopologyCanvas topology={topology} links={topology?.links || []} decision={decision} activeIndex={activeIndex}
-              failedLinks={failedLinks} liveLinkControl={Boolean(topology?.summary.live_link_control)}
-              source={source} onFail={(id) => void changeLink(id, true)} onRecover={(id) => void changeLink(id, false)}
-              onSource={setSource} onDestination={setDestination} />
-          </div>
-          <aside>
-            <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
-              busy={busy} result={result} onSource={setSource} onDestination={setDestination}
-              onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
-            <RealtimePanel source={source} destination={destination} onStatus={setWebsocketOnline} />
-            <MetricsPanel metrics={metrics} />
-            <section>
-              <div className="section-title"><h2>Trạng thái runtime</h2><span>Cập nhật từ API</span></div>
-              <div className="metric-grid">
-                <div className="metric"><strong>{String(runtime.mnexec ?? false)}</strong><span>Mininet/mnexec</span></div>
-                <div className="metric"><strong>{String(runtime.ovs_bridge ?? false)}</strong><span>Open vSwitch</span></div>
-              </div>
-            </section>
-          </aside>
-        </div>
-      )}
-
-      {tab === "policy" && (
-        <div className="dashboard-grid">
-          <div className="main-column">
-            <PolicyPanel policies={policies} onToggle={(key, enabled) => void togglePolicy(key, enabled)} busy={policyBusy} />
-            <FlowTable flows={flows} />
-          </div>
-          <aside>
-            <ClusterDetailPanel />
-            <MetricsPanel metrics={metrics} />
-          </aside>
-        </div>
-      )}
-
-      {tab === "logs" && <EventLog entries={events} />}
-    </main>
+      </Drawer>
+      <ToastRegion items={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} />
+    </AppShell>
   );
 }

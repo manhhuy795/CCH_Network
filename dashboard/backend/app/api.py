@@ -79,6 +79,11 @@ def api_auth_status():
     return auth_status()
 
 
+@router.get("/auth/verify", dependencies=[operator_required])
+def api_auth_verify():
+    return {"ok": True, "authenticated": True, "role": "it_operator"}
+
+
 @router.get("/policies")
 def api_policies():
     return get_policy_payload()

@@ -475,11 +475,14 @@ def test_operator_actions_require_it_token(monkeypatch):
 
     client_source = (repo_root / "dashboard" / "frontend" / "src" / "api" / "client.ts").read_text(encoding="utf-8")
     app_source = (repo_root / "dashboard" / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    shell_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "layout" / "AppShell.tsx").read_text(encoding="utf-8")
     start_script = (repo_root / "scripts" / "start_demo.sh").read_text(encoding="utf-8")
 
     assert "X-CCH-Operator-Token" in client_source
     assert "localStorage" in client_source
-    assert "IT token" in app_source
+    assert "IT operator token" in shell_source
+    assert "verifyOperator" in app_source
+    assert 'label="Đã xác thực"' in shell_source
     assert "secrets.token_urlsafe" in start_script
     assert "cch-it-demo-token" not in start_script
 
@@ -550,17 +553,18 @@ def test_cors_is_restricted_to_dashboard_origins():
     assert "CCH_DASHBOARD_CORS_ORIGINS" in security_source
 
 
-def test_dashboard_is_reorganized_into_four_operational_tabs():
+def test_dashboard_uses_six_operational_sidebar_destinations():
     repo_root = Path(__file__).resolve().parents[1]
     app_source = (repo_root / "dashboard" / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    shell_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "layout" / "AppShell.tsx").read_text(encoding="utf-8")
     test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
     event_log = (repo_root / "dashboard" / "frontend" / "src" / "components" / "EventLog.tsx").read_text(encoding="utf-8")
     policy_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
 
-    assert 'type Tab = "overview" | "measure" | "policy" | "logs"' in app_source
-    for label in ("Tong quan", "Do kiem mang", "Chinh sach & OpenFlow", "Nhat ky"):
-        assert label in app_source
-    for overview_item in ("OS-Ken", "Mininet", "Open vSwitch", "WebSocket", "Endpoint", "Switch OVS", "OpenFlow flow"):
+    assert 'DashboardPage = "overview" | "topology" | "testing" | "policy" | "performance" | "events"' in shell_source
+    for label in ("Tổng quan", "Topology", "Kiểm tra kết nối", "Chính sách & OpenFlow", "Hiệu năng", "Sự kiện & nhật ký"):
+        assert label in shell_source
+    for overview_item in ("Controller", "Backend", "Mininet", "Control Agent", "Open vSwitch", "WebSocket", "Host online", "Link/cảnh báo"):
         assert overview_item in app_source
     for measurement_item in ("Kiem tra Ping", "Throughput TCP", "Jitter UDP", "Uoc luong chat luong thoai"):
         assert measurement_item in test_panel
