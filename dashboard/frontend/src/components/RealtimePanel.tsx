@@ -1,15 +1,27 @@
 import { Pause, Play } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RealtimeMetric } from "../api/client";
+import type { Host, RealtimeMetric } from "../api/client";
 import { wsUrl } from "../api/client";
+import StatusBadge from "./ui/StatusBadge";
 
 type Props = {
+  hosts: Host[];
   source: string;
   destination: string;
+  onSource: (value: string) => void;
+  onDestination: (value: string) => void;
   onStatus: (connected: boolean) => void;
 };
 
-function Sparkline({ data, field, unit }: { data: RealtimeMetric[]; field: keyof RealtimeMetric; unit: string }) {
+const chartFields: Array<{ field: keyof RealtimeMetric; label: string; unit: string }> = [
+  { field: "throughput_mbps", label: "Throughput theo flow counter", unit: "Mbps" },
+  { field: "delay_ms", label: "RTT trung bình", unit: "ms" },
+  { field: "jitter_ms", label: "Jitter", unit: "ms" },
+  { field: "packet_loss_percent", label: "Packet loss", unit: "%" },
+  { field: "flow_packets", label: "Flow packets", unit: "packets" },
+];
+
+function Sparkline({ data, field, label, unit }: { data: RealtimeMetric[]; field: keyof RealtimeMetric; label: string; unit: string }) {
   const values = data.map((item) => Number(item[field] ?? 0));
   const max = Math.max(1, ...values);
   const points = values.map((value, index) => {
@@ -19,19 +31,26 @@ function Sparkline({ data, field, unit }: { data: RealtimeMetric[]; field: keyof
   }).join(" ");
   const latest = values.at(-1) ?? 0;
   return (
-    <div className="chart-card" title={`Moi nhat: ${latest} ${unit}`}>
-      <div><strong>{String(field).replaceAll("_", " ")}</strong><span>{latest} {unit}</span></div>
-      <svg viewBox="0 0 240 64"><polyline points={points} /></svg>
+    <div className="chart-card" title={`Mới nhất: ${latest} ${unit}`}>
+      <div><strong>{label}</strong><span>{latest} {unit}</span></div>
+      <svg viewBox="0 0 240 64" aria-label={`${label}: ${latest} ${unit}`}><polyline points={points} /></svg>
     </div>
   );
 }
 
-export default function RealtimePanel({ source, destination, onStatus }: Props) {
+export default function RealtimePanel({ hosts, source, destination, onSource, onDestination, onStatus }: Props) {
   const [running, setRunning] = useState(false);
   const [interval, setIntervalValue] = useState(2);
+  const [rangeMinutes, setRangeMinutes] = useState(5);
   const [history, setHistory] = useState<RealtimeMetric[]>([]);
   const [socketState, setSocketState] = useState<"idle" | "connecting" | "online" | "closed" | "error">("idle");
+  const [clock, setClock] = useState(Date.now());
   const socketRef = useRef<WebSocket>();
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     setRunning(false);
@@ -60,50 +79,68 @@ export default function RealtimePanel({ source, destination, onStatus }: Props) 
       onStatus(false);
     };
     socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as RealtimeMetric;
-      setHistory((current) => [...current, payload].slice(-60));
+      try {
+        const payload = JSON.parse(event.data) as RealtimeMetric;
+        const maxPoints = Math.max(10, Math.ceil((rangeMinutes * 60) / interval));
+        setHistory((current) => [...current, payload].slice(-maxPoints));
+      } catch {
+        setSocketState("error");
+      }
     };
     return () => socket.close();
-  }, [running, source, destination, interval, onStatus]);
+  }, [running, source, destination, interval, rangeMinutes, onStatus]);
 
   const latest = history.at(-1);
   const updated = useMemo(
-    () => latest?.timestamp ? new Date(latest.timestamp).toLocaleTimeString("vi-VN") : "Chua co",
+    () => latest?.timestamp ? new Date(latest.timestamp).toLocaleTimeString("vi-VN") : "Chưa có dữ liệu",
     [latest],
   );
+  const latestTime = latest?.timestamp ? new Date(latest.timestamp).getTime() : 0;
+  const stale = Boolean(latestTime && clock - latestTime > interval * 3000);
+  const selectableHosts = hosts.filter((host) => host.name !== (source || destination));
 
   return (
     <section>
       <div className="section-title">
-        <h2>Giam sat theo thoi gian thuc</h2>
-        <span>{socketState} - cap nhat cuoi: {updated} - {history.length}/60 diem</span>
+        <div><h2>Giám sát hiệu năng theo thời gian thực</h2><span>Ping định kỳ và OpenFlow counter; không chạy iperf liên tục</span></div>
+        <div className="realtime-statuses">
+          <StatusBadge status={socketState === "online" ? "online" : socketState === "error" ? "offline" : socketState === "connecting" ? "degraded" : "unknown"} label={`WebSocket ${socketState}`} />
+          {stale && <StatusBadge status="degraded" label="Dữ liệu stale" />}
+        </div>
       </div>
-      <div className="panel-body">
-        <div className="form-grid">
-          <label>Chu ky
-            <select value={interval} onChange={(event) => setIntervalValue(Number(event.target.value))}>
-              <option value={2}>2 giay</option>
-              <option value={5}>5 giay</option>
-              <option value={10}>10 giay</option>
+      <div className="panel-body realtime-workspace">
+        <div className="realtime-controls">
+          <label>Nguồn
+            <select value={source} disabled={running} onChange={(event) => onSource(event.target.value)}>
+              {hosts.filter((host) => host.name !== destination).map((host) => <option value={host.name} key={host.name}>{host.name} · {host.group_label} · {host.ip}</option>)}
             </select>
           </label>
-          <label>Trang thai
-            <input readOnly value={running ? `Dang giam sat ${source} -> ${destination}` : "Da dung"} />
+          <label>Đích
+            <select value={destination} disabled={running} onChange={(event) => onDestination(event.target.value)}>
+              {selectableHosts.filter((host) => host.name !== source).map((host) => <option value={host.name} key={host.name}>{host.name} · {host.group_label} · {host.ip}</option>)}
+            </select>
+          </label>
+          <label>Chu kỳ
+            <select value={interval} disabled={running} onChange={(event) => setIntervalValue(Number(event.target.value))}>
+              <option value={2}>2 giây</option><option value={5}>5 giây</option><option value={10}>10 giây</option>
+            </select>
+          </label>
+          <label>Khoảng thời gian
+            <select value={rangeMinutes} disabled={running} onChange={(event) => setRangeMinutes(Number(event.target.value))}>
+              <option value={1}>1 phút</option><option value={5}>5 phút</option><option value={15}>15 phút</option>
+            </select>
           </label>
         </div>
-        <div className="action-grid">
-          <button className="primary" onClick={() => setRunning(true)} disabled={running}><Play size={16} />Bat dau giam sat</button>
-          <button onClick={() => setRunning(false)} disabled={!running}><Pause size={16} />Dung giam sat</button>
+        <div className="run-bar">
+          <button className="primary" onClick={() => setRunning(true)} disabled={running || source === destination}><Play size={16} />Bắt đầu</button>
+          <button onClick={() => setRunning(false)} disabled={!running}><Pause size={16} />Dừng</button>
+          <span className="realtime-updated">Cập nhật cuối: {updated} · {history.length} điểm</span>
         </div>
-        <div className="chart-grid">
-          <Sparkline data={history} field="throughput_mbps" unit="Mbps" />
-          <Sparkline data={history} field="delay_ms" unit="ms" />
-          <Sparkline data={history} field="packet_loss_percent" unit="%" />
-          <Sparkline data={history} field="jitter_ms" unit="ms" />
-        </div>
+        {!history.length && <div className="metrics-empty">Chọn cặp endpoint và bấm Bắt đầu để nhận số liệu thật từ WebSocket.</div>}
+        {history.length > 0 && <div className="chart-grid">{chartFields.map((item) => <Sparkline data={history} key={item.field} {...item} />)}</div>}
         {latest && (
           <p className="realtime-note">
-            Flow packets {latest.flow_packets} - flow bytes {latest.flow_bytes} - status {latest.status}
+            Flow bytes {latest.flow_bytes.toLocaleString("vi-VN")} · trạng thái {latest.status} · {latest.message || "Đã nhận dữ liệu"}
           </p>
         )}
       </div>

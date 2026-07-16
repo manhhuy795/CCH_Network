@@ -198,6 +198,20 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
 .chart-card span { color: #66768a; font-size: 12px; }
 .chart-card svg { display: block; height: 64px; width: 100%; }
 .chart-card polyline { fill: none; stroke: #0f5cc0; stroke-width: 2; }
+.realtime-statuses { display: flex; flex-wrap: wrap; gap: 6px; }
+.realtime-workspace { display: grid; gap: 12px; }
+.realtime-controls { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.realtime-controls label { color: #526176; display: grid; font-size: 11px; font-weight: 700; gap: 5px; }
+.realtime-updated { color: var(--text-muted); font-size: 11px; margin-left: auto; }
+.metrics-empty { align-items: center; border: 1px dashed #b9c6d3; border-radius: var(--radius-md); color: var(--text-muted); display: flex; justify-content: center; min-height: 150px; padding: 18px; text-align: center; }
+.events-workspace { display: grid; gap: 12px; }
+.event-filters { display: grid; gap: 7px; grid-template-columns: 140px 140px 170px 170px minmax(220px, 1fr); padding: 10px 12px; }
+.structured-events { display: grid; max-height: 440px; overflow: auto; }
+.structured-event { border-top: 1px solid #e5ebf0; display: grid; gap: 5px; padding: 9px 12px; }
+.structured-event > div { align-items: center; display: flex; flex-wrap: wrap; gap: 7px; }
+.structured-event > div > span:not(.status-badge), .structured-event time, .structured-event small { color: var(--text-muted); font-size: 10px; }
+.structured-event time { margin-left: auto; }.structured-event p { font-size: 11px; }
+.task-history-table { min-width: 1180px; }.task-history-table td { max-width: 280px; overflow-wrap: anywhere; }
 @media (max-width: 1120px) { .overview-grid, .operate-grid, .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
   main { padding: 8px; } header { align-items: flex-start; flex-direction: column; }
@@ -343,6 +357,8 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
   .app-sidebar .nav-item { justify-content: center; }
   .workspace-grid, .policy-workspace, .performance-grid { grid-template-columns: 1fr; }
   .policy-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .realtime-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .event-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 1fr; }

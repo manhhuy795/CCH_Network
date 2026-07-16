@@ -75,6 +75,11 @@ export type TestResult = {
   duration?: number;
   protocol?: string;
   measurement_completed?: boolean;
+  task_id?: string;
+  task_status?: "success" | "failed";
+  started_at?: string;
+  ended_at?: string;
+  duration_ms?: number;
   decision?: Decision;
   result?: Record<string, number | string | boolean | object | null>;
   raw?: string;
@@ -172,6 +177,39 @@ export type PolicyPayload = {
   inventory: PolicyInventoryItem[];
 };
 
+export type ActivityEvent = {
+  id: string;
+  timestamp: string;
+  severity: "info" | "warning" | "error";
+  component: string;
+  event_type: string;
+  source?: string | null;
+  destination?: string | null;
+  message: string;
+  technical_detail?: unknown;
+  task_id?: string | null;
+  error_code?: string | null;
+};
+
+export type TaskHistoryItem = {
+  task_id: string;
+  user_action: string;
+  status: "success" | "failed" | "running";
+  started_at: string;
+  ended_at?: string | null;
+  duration_ms?: number | null;
+  result_summary?: string | null;
+  error_code?: string | null;
+  source?: string | null;
+  destination?: string | null;
+};
+
+export type ActivityPayload = {
+  events: ActivityEvent[];
+  tasks: TaskHistoryItem[];
+  count: number;
+};
+
 export function getOperatorToken() {
   return window.localStorage.getItem(OPERATOR_TOKEN_KEY) || "";
 }
@@ -229,6 +267,7 @@ export const api = {
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),
   status: () => request<Record<string, unknown>>("/api/live/status"),
   health: () => request<Record<string, unknown>>("/api/health"),
+  activity: () => request<ActivityPayload>("/api/activity"),
   verifyOperator: () => request<{ ok: boolean; authenticated: boolean; role: string }>("/api/auth/verify", {
     headers: authHeaders(),
   }),

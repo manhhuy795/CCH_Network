@@ -129,7 +129,7 @@ def test_voice_softphone_wording_is_estimation_not_real_sip_call():
     assert "Softphone Cfone/Gphone" in live_mininet
     assert "Voice Quality" in frontend_test_workflow
     assert "không phải cuộc gọi SIP/RTP thật" in frontend_test_panel
-    assert "MOS/R-factor la uoc luong" in metrics_panel
+    assert "MOS/R-factor là ước lượng" in metrics_panel
     assert "QoS dam bao" not in controller
 
 
@@ -338,7 +338,8 @@ def test_realtime_metrics_contract_uses_pair_and_flow_delta():
     assert "iperf(" not in pair_body
     assert "flow_bytes" in main_source
     assert "setHistory([])" in realtime_panel
-    assert "slice(-60)" in realtime_panel
+    assert "slice(-maxPoints)" in realtime_panel
+    assert "rangeMinutes" in realtime_panel
     assert "Math.random" not in realtime_panel
 
 
@@ -578,7 +579,7 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     assert "TopologyCanvas" in app_source
     assert "controller acknowledgement" in policy_panel
     assert "Ghi policy.yml chỉ là thay đổi cấu hình" in policy_panel
-    for log_item in ("Packet-In", "FlowMod", "policy reload", "link down/up", "measurement", "warning", "error"):
+    for log_item in ("Lọc thời gian", "Lọc severity", "Lọc component", "Lọc event type", "Lịch sử tác vụ", "technical_detail"):
         assert log_item in event_log
 
 

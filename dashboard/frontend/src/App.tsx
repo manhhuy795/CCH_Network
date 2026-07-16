@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiClientError, api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type PolicyPayload, type TestResult, type Topology } from "./api/client";
+import { ApiClientError, api, getOperatorToken, setOperatorToken, type ActivityEvent, type AuthStatus, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
-import EventLog, { type LogEntry } from "./components/EventLog";
+import EventLog from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
 import OverviewPage from "./components/OverviewPage";
@@ -35,7 +35,8 @@ export default function App() {
   const [decision, setDecision] = useState<Decision>();
   const [activeIndex, setActiveIndex] = useState(0);
   const [metrics, setMetrics] = useState<Record<string, number | string | boolean | object | null>>({});
-  const [events, setEvents] = useState<LogEntry[]>([]);
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
+  const [tasks, setTasks] = useState<TaskHistoryItem[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [failedLinks, setFailedLinks] = useState<string[]>([]);
   const [linkOperation, setLinkOperation] = useState<LinkOperation>();
@@ -60,11 +61,33 @@ export default function App() {
     setToasts((current) => [...current.slice(-3), { id, message, tone }]);
   }, []);
 
-  const addEvent = useCallback((message: string, kind: LogEntry["kind"] = "info") => {
+  const addEvent = useCallback((message: string, kind: "info" | "allow" | "deny" = "info") => {
+    const localEvent: ActivityEvent = {
+      id: `frontend-${Date.now()}-${toastSequence.current}`,
+      timestamp: new Date().toISOString(),
+      severity: kind === "deny" ? "error" : "info",
+      component: "frontend",
+      event_type: "user_action",
+      message,
+    };
     setEvents((current) => [
-      { time: new Date().toLocaleTimeString("vi-VN"), message, kind },
+      localEvent,
       ...current,
-    ].slice(0, 60));
+    ].slice(0, 300));
+  }, []);
+
+  const refreshActivity = useCallback(async () => {
+    if (!getOperatorToken()) return;
+    try {
+      const payload = await api.activity();
+      setEvents((current) => [
+        ...current.filter((entry) => entry.component === "frontend"),
+        ...payload.events,
+      ].slice(0, 300));
+      setTasks(payload.tasks);
+    } catch {
+      // Health and authentication surfaces already report why protected activity is unavailable.
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -81,12 +104,13 @@ export default function App() {
       setLastUpdated(new Date().toLocaleString("vi-VN"));
       const hosts = (status.hosts || {}) as Record<string, boolean>;
       setOnline(Object.values(hosts).filter(Boolean).length);
+      void refreshActivity();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Không tải được dữ liệu dashboard.";
       addEvent(message, "deny");
       notify(message, "error");
     }
-  }, [addEvent, notify]);
+  }, [addEvent, notify, refreshActivity]);
 
   const authenticate = useCallback(async () => {
     if (!operatorToken.trim()) return;
@@ -97,6 +121,7 @@ export default function App() {
       setAuthenticated(true);
       setOperatorTokenState("");
       notify("Đã xác thực phiên IT Operator.", "success");
+      await refreshActivity();
     } catch (error) {
       setAuthenticated(false);
       setOperatorToken("");
@@ -105,7 +130,7 @@ export default function App() {
     } finally {
       setAuthChecking(false);
     }
-  }, [notify, operatorToken]);
+  }, [notify, operatorToken, refreshActivity]);
 
   useEffect(() => {
     void refresh();
@@ -180,6 +205,7 @@ export default function App() {
       notify(payload.message, payload.ok ? "success" : "error");
       const flowData = await api.flows();
       setFlows(flowData.flows);
+      await refreshActivity();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Thao tác thất bại.";
       const errorCode = error instanceof ApiClientError ? error.errorCode : "UNKNOWN_ERROR";
@@ -206,6 +232,7 @@ export default function App() {
       addEvent(payload.message, payload.ok ? (fail ? "deny" : "allow") : "deny");
       notify(payload.message, payload.ok ? "success" : "error");
       await refresh();
+      await refreshActivity();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Không thay đổi được trạng thái link.";
       setLinkOperation({ linkId, action, status: "failed", message });
@@ -221,6 +248,7 @@ export default function App() {
       addEvent(payload.message, payload.ok ? "allow" : "deny");
       notify(payload.message, payload.ok ? "success" : "error");
       if (payload.ok) await refresh();
+      await refreshActivity();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Không áp dụng được policy.", "error");
     } finally {
@@ -271,17 +299,17 @@ export default function App() {
     );
     if (page === "performance") return (
       <div className="performance-grid">
-        <RealtimePanel source={source} destination={destination} onStatus={setWebsocketOnline} />
+        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={setSource} onDestination={setDestination} onStatus={setWebsocketOnline} />
         <MetricsPanel metrics={metrics} />
       </div>
     );
-    if (page === "events") return <EventLog entries={events} />;
+    if (page === "events") return <EventLog entries={events} tasks={tasks} />;
     return <OverviewPage
       components={healthComponents}
       onlineHosts={online}
       totalHosts={(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}
       failedLinks={failedLinks}
-      lastError={events.find((event) => event.kind === "deny")?.message}
+      lastError={events.find((event) => event.severity === "error")?.message}
       lastUpdated={lastUpdated}
       onNavigate={setPage}
     />;

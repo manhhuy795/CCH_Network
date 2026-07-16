@@ -5,6 +5,7 @@ import secrets
 
 from fastapi import Header
 
+from .activity import append_event
 from .errors import ApiError
 
 
@@ -51,6 +52,7 @@ def require_operator(
 ) -> dict[str, str]:
     expected = configured_operator_token()
     if not expected:
+        append_event(component="backend", event_type="auth", message="Xác thực thất bại: operator token chưa được cấu hình.", severity="error", error_code="AUTH_NOT_CONFIGURED")
         raise ApiError(
             status_code=503,
             error_code="AUTH_NOT_CONFIGURED",
@@ -64,6 +66,7 @@ def require_operator(
             provided = value.strip()
 
     if not provided:
+        append_event(component="backend", event_type="auth", message="Xác thực thất bại: thiếu operator token.", severity="warning", error_code="AUTH_REQUIRED")
         raise ApiError(
             status_code=401,
             error_code="AUTH_REQUIRED",
@@ -71,6 +74,7 @@ def require_operator(
         )
 
     if not secrets.compare_digest(provided, expected):
+        append_event(component="backend", event_type="auth", message="Xác thực thất bại: operator token không hợp lệ.", severity="warning", error_code="AUTH_INVALID")
         raise ApiError(
             status_code=403,
             error_code="AUTH_INVALID",

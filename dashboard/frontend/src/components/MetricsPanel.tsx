@@ -3,11 +3,11 @@ type Props = {
 };
 
 const items = [
-  ["rtt_avg_ms", "RTT trung binh", "ms"],
+  ["rtt_avg_ms", "RTT trung bình", "ms"],
   ["jitter_ms", "Jitter", "ms"],
-  ["packet_loss_percent", "Mat goi", "%"],
-  ["throughput_mbps", "Thong luong", "Mbps"],
-  ["mos", "MOS uoc luong", "/ 4.5"],
+  ["packet_loss_percent", "Mất gói", "%"],
+  ["throughput_mbps", "Thông lượng", "Mbps"],
+  ["mos", "MOS ước lượng", "/ 4.5"],
   ["r_factor", "R-factor", "/ 100"],
 ];
 
@@ -15,8 +15,8 @@ export default function MetricsPanel({ metrics }: Props) {
   return (
     <section>
       <div className="section-title">
-        <h2>Ket qua lan do gan nhat</h2>
-        <span>MOS/R-factor la uoc luong tu RTT, loss va jitter; khong phai cuoc goi SIP/RTP hoan chinh</span>
+        <h2>Kết quả lần đo gần nhất</h2>
+        <span>MOS/R-factor là ước lượng từ RTT, loss và jitter; không phải cuộc gọi SIP/RTP hoàn chỉnh</span>
       </div>
       <div className="metric-grid">
         {items.map(([key, label, unit]) => (

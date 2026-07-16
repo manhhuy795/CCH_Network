@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from . import mininet_control
+from .activity import activity_payload, append_event, record_operation, utc_now
 from .errors import ERROR_HTTP_STATUS
 from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
@@ -69,6 +72,30 @@ def failed_link_ids() -> list[str]:
     )
 
 
+def tracked_operation(
+    *,
+    user_action: str,
+    event_type: str,
+    component: str,
+    source: str | None,
+    destination: str | None,
+    operation,
+) -> dict:
+    started_at = utc_now()
+    started_monotonic = time.monotonic()
+    payload = operation()
+    return record_operation(
+        user_action=user_action,
+        event_type=event_type,
+        component=component,
+        source=source,
+        destination=destination,
+        started_at=started_at,
+        started_monotonic=started_monotonic,
+        payload=_normalize_operation_error(payload),
+    )
+
+
 @router.get("/topology")
 def api_topology():
     return get_topology()
@@ -81,6 +108,7 @@ def api_auth_status():
 
 @router.get("/auth/verify", dependencies=[operator_required])
 def api_auth_verify():
+    append_event(component="backend", event_type="auth", message="Xác thực IT Operator thành công.", severity="info")
     return {"ok": True, "authenticated": True, "role": "it_operator"}
 
 
@@ -119,19 +147,48 @@ def api_health():
     return system_health()
 
 
+@router.get("/activity", dependencies=[operator_required])
+def api_activity(limit: int = 300):
+    return activity_payload(limit)
+
+
 @router.post("/test/ping", dependencies=[operator_required])
 def api_test_ping(payload: HostPair):
-    return operation_response(run_ping(payload.source, payload.destination))
+    result = tracked_operation(
+        user_action="Ping",
+        event_type="ping",
+        component="mininet_control_agent",
+        source=payload.source,
+        destination=payload.destination,
+        operation=lambda: run_ping(payload.source, payload.destination),
+    )
+    return operation_response(result)
 
 
 @router.post("/test/iperf", dependencies=[operator_required])
 def api_test_iperf(payload: IperfRequest):
-    return operation_response(run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds))
+    result = tracked_operation(
+        user_action=f"iperf {payload.protocol.upper()}",
+        event_type="iperf",
+        component="mininet_control_agent",
+        source=payload.source,
+        destination=payload.destination,
+        operation=lambda: run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds),
+    )
+    return operation_response(result)
 
 
 @router.post("/test/call-quality", dependencies=[operator_required])
 def api_test_call_quality(payload: IperfRequest):
-    return operation_response(run_call_quality(payload.source, payload.destination, payload.seconds))
+    result = tracked_operation(
+        user_action="Voice Quality",
+        event_type="voice_quality",
+        component="mininet_control_agent",
+        source=payload.source,
+        destination=payload.destination,
+        operation=lambda: run_call_quality(payload.source, payload.destination, payload.seconds),
+    )
+    return operation_response(result)
 
 
 @router.post("/test/cluster-detail", dependencies=[operator_required])
@@ -141,12 +198,26 @@ def api_test_cluster_detail(payload: ClusterTestRequest):
 
 @router.post("/live/block", dependencies=[operator_required])
 def api_live_block(payload: HostPair):
-    return temporary_block(payload.source, payload.destination, block=True)
+    return tracked_operation(
+        user_action="Manual block",
+        event_type="manual_flow",
+        component="openvswitch",
+        source=payload.source,
+        destination=payload.destination,
+        operation=lambda: temporary_block(payload.source, payload.destination, block=True),
+    )
 
 
 @router.post("/live/unblock", dependencies=[operator_required])
 def api_live_unblock(payload: HostPair):
-    return temporary_block(payload.source, payload.destination, block=False)
+    return tracked_operation(
+        user_action="Manual unblock",
+        event_type="manual_flow",
+        component="openvswitch",
+        source=payload.source,
+        destination=payload.destination,
+        operation=lambda: temporary_block(payload.source, payload.destination, block=False),
+    )
 
 
 @router.post("/policy/apply", dependencies=[operator_required])
@@ -156,10 +227,22 @@ def api_policy_apply():
 
 @router.post("/policy/toggle", dependencies=[operator_required])
 def api_policy_toggle(payload: PolicyToggleRequest):
+    started_at = utc_now()
+    started_monotonic = time.monotonic()
     try:
-        return toggle_policy(payload.key, payload.enabled)
+        result = toggle_policy(payload.key, payload.enabled)
     except (KeyError, ValueError) as exc:
-        return {"ok": False, "message": str(exc)}
+        result = {"ok": False, "message": str(exc), "error_code": "POLICY_APPLY_FAILED"}
+    return record_operation(
+        user_action=f"{'Bật' if payload.enabled else 'Tắt'} policy {payload.key}",
+        event_type="policy",
+        component="controller",
+        source=payload.key,
+        destination=None,
+        started_at=started_at,
+        started_monotonic=started_monotonic,
+        payload=_normalize_operation_error(result),
+    )
 
 
 @router.post("/simulate/path", dependencies=[operator_required])
@@ -201,13 +284,31 @@ def api_link_update(payload: LinkUpdateRequest):
 
 @router.post("/link/fail", dependencies=[operator_required])
 def api_link_fail(payload: LinkStateRequest):
-    result = mininet_control.set_link_state(payload.link_id, "down")
-    result["failed_links"] = failed_link_ids()
-    return result
+    def operation():
+        result = mininet_control.set_link_state(payload.link_id, "down")
+        result["failed_links"] = failed_link_ids()
+        return result
+    return tracked_operation(
+        user_action=f"Fail link {payload.link_id}",
+        event_type="link",
+        component="mininet_control_agent",
+        source=payload.link_id,
+        destination=None,
+        operation=operation,
+    )
 
 
 @router.post("/link/recover", dependencies=[operator_required])
 def api_link_recover(payload: LinkStateRequest):
-    result = mininet_control.set_link_state(payload.link_id, "up")
-    result["failed_links"] = failed_link_ids()
-    return result
+    def operation():
+        result = mininet_control.set_link_state(payload.link_id, "up")
+        result["failed_links"] = failed_link_ids()
+        return result
+    return tracked_operation(
+        user_action=f"Recover link {payload.link_id}",
+        event_type="link",
+        component="mininet_control_agent",
+        source=payload.link_id,
+        destination=None,
+        operation=operation,
+    )
