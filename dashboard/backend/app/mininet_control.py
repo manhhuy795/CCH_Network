@@ -10,7 +10,12 @@ from typing import Any
 
 CONTROL_SOCKET = Path(os.environ.get("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
-REQUEST_TIMEOUT_SECONDS = 3
+SHORT_TIMEOUT_SECONDS = 3.0
+START_IPERF_TIMEOUT_SECONDS = 5.0
+FLOW_TIMEOUT_SECONDS = 5.0
+IPERF_SAFETY_MARGIN_SECONDS = 10.0
+PING_SAFETY_MARGIN_SECONDS = 3.0
+MAX_REQUEST_TIMEOUT_SECONDS = 45.0
 MAX_RESPONSE_BYTES = 128 * 1024
 
 
@@ -22,7 +27,59 @@ def _unavailable(message: str | None = None) -> dict[str, Any]:
     }
 
 
-def request_agent(command: str, **payload: Any) -> dict[str, Any]:
+def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, min(parsed, maximum))
+
+
+def timeout_for_command(command: str, payload: dict[str, Any] | None = None) -> float:
+    values = payload or {}
+    if command == "RUN_IPERF_CLIENT":
+        seconds = _bounded_int(values.get("seconds"), 5, 1, 30)
+        return min(float(seconds) + IPERF_SAFETY_MARGIN_SECONDS, MAX_REQUEST_TIMEOUT_SECONDS)
+    if command == "PING":
+        count = _bounded_int(values.get("count"), 3, 1, 10)
+        ping_timeout = _bounded_int(values.get("ping_timeout"), 1, 1, 5)
+        return min(float(count * ping_timeout) + PING_SAFETY_MARGIN_SECONDS, MAX_REQUEST_TIMEOUT_SECONDS)
+    if command == "START_IPERF_SERVER":
+        return START_IPERF_TIMEOUT_SECONDS
+    if command in {"DUMP_FLOWS", "ADD_MANUAL_DROP", "DEL_COOKIE_FLOWS"}:
+        return FLOW_TIMEOUT_SECONDS
+    return SHORT_TIMEOUT_SECONDS
+
+
+def _request_timeout(command: str, timeout_seconds: float | None, payload: dict[str, Any]) -> float:
+    if timeout_seconds is None:
+        return timeout_for_command(command, payload)
+    try:
+        requested = float(timeout_seconds)
+    except (TypeError, ValueError):
+        requested = timeout_for_command(command, payload)
+    return max(1.0, min(requested, MAX_REQUEST_TIMEOUT_SECONDS))
+
+
+def _timeout_response(command: str, timeout_seconds: float) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "available": True,
+        "error_code": "AGENT_TIMEOUT",
+        "command": command,
+        "timeout_seconds": timeout_seconds,
+        "message": (
+            f"Mininet control agent khong tra loi lenh {command} "
+            f"trong {timeout_seconds:g} giay. Agent van co the dang xu ly tac vu dai."
+        ),
+    }
+
+
+def request_agent(
+    command: str,
+    timeout_seconds: float | None = None,
+    **payload: Any,
+) -> dict[str, Any]:
     if not hasattr(socket, "AF_UNIX"):
         return _unavailable("He dieu hanh hien tai khong ho tro Unix socket cho Mininet control agent.")
     if not CONTROL_SOCKET.exists():
@@ -30,9 +87,10 @@ def request_agent(command: str, **payload: Any) -> dict[str, Any]:
 
     request_id = uuid.uuid4().hex
     request = {"token": CONTROL_TOKEN, "command": command, "request_id": request_id, **payload}
+    effective_timeout = _request_timeout(command, timeout_seconds, payload)
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.settimeout(REQUEST_TIMEOUT_SECONDS)
+            client.settimeout(effective_timeout)
             client.connect(str(CONTROL_SOCKET))
             client.sendall((json.dumps(request) + "\n").encode("utf-8"))
             chunks: list[bytes] = []
@@ -56,7 +114,9 @@ def request_agent(command: str, **payload: Any) -> dict[str, Any]:
             return _unavailable("Mininet control agent tra ve request_id khong khop.")
         response.setdefault("available", True)
         return response
-    except (OSError, TimeoutError) as exc:
+    except (socket.timeout, TimeoutError):
+        return _timeout_response(command, effective_timeout)
+    except OSError as exc:
         return _unavailable(f"Khong ket noi duoc Mininet control agent: {exc}")
     except json.JSONDecodeError as exc:
         return _unavailable(f"Mininet control agent tra ve JSON khong hop le: {exc}")
