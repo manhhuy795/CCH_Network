@@ -354,9 +354,9 @@ def test_iperf_sessions_are_isolated_and_concurrency_limited():
     assert "session_id" in iperf_body
     assert '"port": port' in iperf_body
     assert '"duration": seconds' in iperf_body
-    assert "mininet_control.start_iperf_server(destination, port, log_path)" in iperf_body
-    assert "mininet_control.run_iperf_client(source, destination_data[\"ip\"], port, protocol, seconds)" in iperf_body
-    assert "mininet_control.kill_pid(destination, server_pid)" in iperf_body
+    assert "mininet_control.start_iperf_server(destination, port, log_path, session_id)" in iperf_body
+    assert "mininet_control.run_iperf_client(" in iperf_body
+    assert "mininet_control.kill_pid(destination, server_pid, session_id)" in iperf_body
     assert "_destination_lock(destination)" in iperf_body
 
     with live_mininet._IPERF_GLOBAL_LOCK:
@@ -384,6 +384,16 @@ def test_iperf_sessions_are_isolated_and_concurrency_limited():
     finally:
         for session in sessions:
             live_mininet._finish_iperf_session(session["session_id"])
+
+
+def test_frontend_prevents_duplicate_long_running_actions():
+    repo_root = Path(__file__).resolve().parents[1]
+    app_source = (repo_root / "dashboard" / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+
+    assert "const actionInFlight = useRef(false)" in app_source
+    assert "if (actionInFlight.current) return" in app_source
+    assert "actionInFlight.current = true" in app_source
+    assert "actionInFlight.current = false" in app_source
 
 
 def test_privileged_mininet_operations_are_split_into_control_agent():

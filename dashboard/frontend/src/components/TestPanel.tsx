@@ -122,7 +122,7 @@ export default function TestPanel(props: Props) {
         <div className="form-grid">
           <EndpointCombobox label="Nguon" value={props.source} hosts={props.hosts} onChange={props.onSource} />
           <EndpointCombobox label="Dich" value={props.destination} hosts={props.hosts} onChange={props.onDestination} />
-          <label className="full">Thoi gian do chu dong (giay)<input type="number" min={1} max={60} value={props.seconds} onChange={(event) => props.onSeconds(Number(event.target.value))} /></label>
+          <label className="full">Thoi gian do chu dong (giay)<input type="number" min={1} max={30} value={props.seconds} onChange={(event) => props.onSeconds(Number(event.target.value))} /></label>
         </div>
         <h3 className="button-group-title">Do kiem mang</h3>
         <div className="action-grid">
@@ -147,6 +147,13 @@ export default function TestPanel(props: Props) {
               <span>Cookie: {decision.cookie || "n/a"}</span>
               <span>Priority: {decision.priority ?? "n/a"}</span>
               {decision.failed_link && <span>Failed link: {decision.failed_link}</span>}
+            </div>
+          )}
+          {(props.result?.error_code || props.result?.parse_warning || props.result?.cleanup_warning) && (
+            <div className="decision-meta">
+              {props.result.error_code && <span>Error: {props.result.error_code}</span>}
+              {props.result.parse_warning && <span>Parse: {props.result.parse_warning}</span>}
+              {props.result.cleanup_warning && <span>Cleanup: {props.result.cleanup_warning}</span>}
             </div>
           )}
         </div>

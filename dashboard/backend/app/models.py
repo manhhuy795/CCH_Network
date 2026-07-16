@@ -22,7 +22,7 @@ class HostPair(BaseModel):
 
 class IperfRequest(HostPair):
     protocol: Literal["tcp", "udp"] = "tcp"
-    seconds: int = Field(default=5, ge=1, le=60)
+    seconds: int = Field(default=5, ge=1, le=30)
 
 
 class ClusterTestRequest(BaseModel):

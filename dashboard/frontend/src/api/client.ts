@@ -65,6 +65,9 @@ export type Decision = {
 export type TestResult = {
   ok: boolean;
   message: string;
+  error_code?: string | null;
+  parse_warning?: string | null;
+  cleanup_warning?: string | null;
   decision?: Decision;
   result?: Record<string, number | string | boolean | object | null>;
   raw?: string;

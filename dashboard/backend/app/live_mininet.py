@@ -419,16 +419,40 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
 def parse_iperf3(output: str) -> dict[str, Any]:
     try:
         payload = json.loads(output)
-    except json.JSONDecodeError:
-        return {"raw": output}
+    except json.JSONDecodeError as exc:
+        return {"parse_warning": str(exc), "raw": output}
+    if not isinstance(payload, dict):
+        return {
+            "parse_warning": f"iperf3 JSON phai la object, nhan duoc {type(payload).__name__}.",
+            "raw": output,
+        }
     end = payload.get("end", {})
+    if not isinstance(end, dict):
+        return {"parse_warning": "Field end cua iperf3 khong phai object.", "raw": output}
     summary = end.get("sum_received") or end.get("sum") or {}
-    return {
-        "throughput_mbps": round(float(summary.get("bits_per_second", 0)) / 1_000_000, 3),
+    if not isinstance(summary, dict):
+        return {"parse_warning": "Field summary cua iperf3 khong phai object.", "raw": output}
+    throughput = None
+    parse_warnings = []
+    if summary.get("bits_per_second") is not None:
+        try:
+            throughput = round(float(summary["bits_per_second"]) / 1_000_000, 3)
+        except (TypeError, ValueError):
+            parse_warnings.append("bits_per_second khong phai so")
+    result = {
+        "throughput_mbps": throughput,
         "jitter_ms": summary.get("jitter_ms"),
         "packet_loss_percent": summary.get("lost_percent"),
+        "lost_packets": summary.get("lost_packets"),
+        "transferred_bytes": summary.get("bytes"),
         "raw": output,
     }
+    missing = [field for field in ("bits_per_second", "bytes") if field not in summary]
+    if missing:
+        parse_warnings.append(f"Thieu field iperf3: {', '.join(missing)}")
+    if parse_warnings:
+        result["parse_warning"] = "; ".join(parse_warnings)
+    return result
 
 
 def _cleanup_stale_iperf_sessions(now: float | None = None) -> None:
@@ -458,6 +482,7 @@ def _register_iperf_session(source: str, destination: str, protocol: str, second
         if len(_IPERF_ACTIVE_SESSIONS) >= IPERF_MAX_CONCURRENT:
             return False, {
                 "ok": False,
+                "error_code": "IPERF_CONCURRENCY_LIMIT",
                 "message": f"He thong dang co {IPERF_MAX_CONCURRENT} phien iperf. Hay cho phien dang chay ket thuc.",
             }
 
@@ -470,7 +495,11 @@ def _register_iperf_session(source: str, destination: str, protocol: str, second
                 port = candidate
                 break
         if port is None:
-            return False, {"ok": False, "message": "Khong con port iperf trong pool demo."}
+            return False, {
+                "ok": False,
+                "error_code": "IPERF_PORT_POOL_EXHAUSTED",
+                "message": "Khong con port iperf trong pool demo.",
+            }
 
         session_id = uuid.uuid4().hex[:12]
         session = {
@@ -492,15 +521,6 @@ def _finish_iperf_session(session_id: str) -> None:
         _IPERF_ACTIVE_SESSIONS.pop(session_id, None)
 
 
-def _extract_background_pid(output: str) -> str | None:
-    for line in reversed(output.splitlines()):
-        value = line.strip()
-        if value.isdigit():
-            return value
-    return None
-
-
-
 def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
     protocol = protocol.lower()
     seconds = max(1, min(int(seconds), 30))
@@ -518,6 +538,7 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     if not destination_lock.acquire(blocking=False):
         return {
             "ok": False,
+            "error_code": "IPERF_DESTINATION_BUSY",
             "message": f"{destination} dang co phien iperf khac. Hay cho phien do ket thuc roi thu lai.",
             "source": source,
             "destination": destination,
@@ -545,12 +566,14 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
     log_path = str(session["log_path"])
     server_pid: str | None = None
     output = ""
+    response_payload: dict[str, Any] | None = None
     try:
-        server_ok, server_output = mininet_control.start_iperf_server(destination, port, log_path)
-        server_pid = _extract_background_pid(server_output)
-        if not server_ok or not server_pid:
-            return {
+        server_response = mininet_control.start_iperf_server(destination, port, log_path, session_id)
+        server_pid = str(server_response.get("pid") or "") or None
+        if not server_response.get("ok") or not server_pid or not server_response.get("listening"):
+            response_payload = {
                 "ok": False,
+                "error_code": server_response.get("error_code") or "IPERF_SERVER_START_FAILED",
                 "message": f"Khong khoi dong duoc iperf3 server tren {destination}.",
                 "session_id": session_id,
                 "source": source,
@@ -559,15 +582,30 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
                 "port": port,
                 "duration": seconds,
                 "decision": decision,
-                "raw": server_output,
+                "raw": str(server_response.get("raw") or server_response.get("message") or ""),
             }
+            return response_payload
 
-        time.sleep(0.4)
-        ok, output = mininet_control.run_iperf_client(source, destination_data["ip"], port, protocol, seconds)
-        result = parse_iperf3(output)
-        return {
-            "ok": ok,
-            "message": f"{source} -> {destination}: da do bang thong {protocol.upper()} theo session {session_id}",
+        client_response = mininet_control.run_iperf_client(
+            source,
+            destination_data["ip"],
+            port,
+            protocol,
+            seconds,
+            session_id,
+        )
+        output = str(client_response.get("raw") or "")
+        result = client_response.get("result")
+        if not isinstance(result, dict):
+            result = parse_iperf3(output)
+        parse_warning = client_response.get("parse_warning") or result.get("parse_warning")
+        response_payload = {
+            "ok": bool(client_response.get("ok")),
+            "error_code": client_response.get("error_code"),
+            "message": str(
+                client_response.get("message")
+                or f"{source} -> {destination}: da do bang thong {protocol.upper()} theo session {session_id}"
+            ),
             "session_id": session_id,
             "source": source,
             "destination": destination,
@@ -576,13 +614,24 @@ def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5
             "duration": seconds,
             "decision": decision,
             "result": result,
+            "parse_warning": parse_warning,
             "raw": output,
         }
+        return response_payload
     finally:
-        if server_pid:
-            mininet_control.kill_pid(destination, server_pid)
-        _finish_iperf_session(session_id)
-        destination_lock.release()
+        cleanup_warning = None
+        try:
+            if server_pid:
+                cleanup_response = mininet_control.kill_pid(destination, server_pid, session_id)
+                if not cleanup_response.get("ok"):
+                    cleanup_warning = str(cleanup_response.get("message") or "Khong cleanup duoc iperf server.")
+        except Exception as exc:
+            cleanup_warning = f"Cleanup iperf gap loi: {exc}"
+        finally:
+            _finish_iperf_session(session_id)
+            destination_lock.release()
+        if cleanup_warning and response_payload is not None:
+            response_payload["cleanup_warning"] = cleanup_warning
 
 
 def estimate_voice_quality(rtt_ms: float, jitter_ms: float, packet_loss_percent: float) -> dict[str, Any]:

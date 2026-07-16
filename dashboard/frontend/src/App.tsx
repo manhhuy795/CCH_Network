@@ -36,6 +36,7 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>();
   const [lastUpdated, setLastUpdated] = useState("");
   const timer = useRef<number>();
+  const actionInFlight = useRef(false);
 
   const addEvent = (message: string, kind: LogEntry["kind"] = "info") => {
     setEvents((current) => [
@@ -85,6 +86,8 @@ export default function App() {
   };
 
   const runAction = async (action: Action) => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     try {
       const pair = { source, destination };
@@ -111,6 +114,7 @@ export default function App() {
       setResult({ ok: false, message, raw: message });
       addEvent(message, "deny");
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   };

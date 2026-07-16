@@ -116,6 +116,8 @@ class MininetControlAgent:
         self.startup_error: BaseException | None = None
         self.workers: set[threading.Thread] = set()
         self.workers_lock = threading.Lock()
+        self.iperf_sessions: dict[str, dict] = {}
+        self.iperf_lock = threading.Lock()
 
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
@@ -152,6 +154,7 @@ class MininetControlAgent:
         for worker in workers:
             if worker is not threading.current_thread():
                 worker.join(timeout=1)
+        self._cleanup_all_iperf_sessions()
         self._remove_socket_file()
 
     def _serve(self) -> None:
@@ -196,6 +199,8 @@ class MininetControlAgent:
     def _serve_connection(self, conn) -> None:
         request_id = uuid.uuid4().hex
         command = None
+        request = None
+        delivery_failed = False
         try:
             conn.settimeout(CONTROL_CONNECTION_TIMEOUT_SECONDS)
             request = self._read_request(conn)
@@ -206,12 +211,15 @@ class MininetControlAgent:
             response.setdefault("protocol_version", CONTROL_PROTOCOL_VERSION)
             conn.sendall((json.dumps(response, ensure_ascii=False) + "\n").encode("utf-8"))
         except (BrokenPipeError, ConnectionResetError, socket.timeout, json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+            delivery_failed = isinstance(exc, (BrokenPipeError, ConnectionResetError))
             self._log_connection_error(command, request_id, exc)
             self._send_error_response(conn, command, request_id, exc)
         except Exception as exc:
             self._log_connection_error(command, request_id, exc)
             self._send_error_response(conn, command, request_id, exc)
         finally:
+            if delivery_failed and command in {"START_IPERF_SERVER", "RUN_IPERF_CLIENT"} and request:
+                self._cleanup_iperf_session(str(request.get("session_id", "")))
             try:
                 conn.close()
             except OSError:
@@ -396,6 +404,11 @@ class MininetControlAgent:
             return 5
         return max(1, min(seconds, 30))
 
+    @staticmethod
+    def _session_id(value) -> str | None:
+        session_id = str(value or "")
+        return session_id if re.fullmatch(r"[0-9a-f]{12}", session_id) else None
+
     def _ping(self, request: dict) -> dict:
         source = str(request.get("source", ""))
         destination_ip = self._ip(request.get("destination_ip"))
@@ -407,36 +420,227 @@ class MininetControlAgent:
         return {"ok": " 0% packet loss" in output or " 0.0% packet loss" in output, "raw": output}
 
     def _start_iperf_server(self, request: dict) -> dict:
+        session_id = self._session_id(request.get("session_id"))
         destination = str(request.get("destination", ""))
         port = self._port(request.get("port"))
         log_path = str(request.get("log_path", ""))
         node = self._node(destination)
-        if not node or port is None or not re.fullmatch(r"/tmp/cch_iperf/[0-9a-f]{12}\.json", log_path):
-            return {"ok": False, "message": "START_IPERF_SERVER request khong hop le.", "raw": ""}
-        output = node.cmd(f"mkdir -p /tmp/cch_iperf && iperf3 -s -1 -p {port} --json > {log_path} 2>&1 & echo $!")
-        return {"ok": bool(re.search(r"\d+", output)), "raw": output}
+        expected_log = f"/tmp/cch_iperf/{session_id}.json" if session_id else ""
+        if not node or port is None or not session_id or log_path != expected_log:
+            return {
+                "ok": False,
+                "error_code": "INVALID_IPERF_SERVER_REQUEST",
+                "message": "START_IPERF_SERVER request khong hop le.",
+                "raw": "",
+            }
+        with self.iperf_lock:
+            if session_id in self.iperf_sessions:
+                return {
+                    "ok": False,
+                    "error_code": "IPERF_SESSION_EXISTS",
+                    "message": f"Session iperf {session_id} da ton tai.",
+                    "session_id": session_id,
+                    "raw": "",
+                }
+            if any(session.get("host") == destination for session in self.iperf_sessions.values()):
+                return {
+                    "ok": False,
+                    "error_code": "IPERF_DESTINATION_BUSY",
+                    "message": f"{destination} dang co session iperf khac.",
+                    "session_id": session_id,
+                    "host": destination,
+                    "raw": "",
+                }
+            self.iperf_sessions[session_id] = {
+                "session_id": session_id,
+                "host": destination,
+                "port": port,
+                "pid": None,
+                "log_path": log_path,
+                "state": "starting",
+            }
+        command = (
+            f"mkdir -p /tmp/cch_iperf; "
+            f"iperf3 -s -1 -p {port} --json > {log_path} 2>&1 & "
+            "pid=$!; ready=0; "
+            "for attempt in $(seq 1 20); do "
+            f"if kill -0 $pid 2>/dev/null && ss -H -ltn 'sport = :{port}' | grep -q .; "
+            "then ready=1; break; fi; "
+            "sleep 0.05; "
+            "done; "
+            "printf '%s %s\n' \"$pid\" \"$ready\""
+        )
+        try:
+            output = node.cmd(command)
+        except Exception:
+            with self.iperf_lock:
+                self.iperf_sessions.pop(session_id, None)
+            raise
+        match = re.search(r"(?m)^(\d+)\s+([01])\s*$", output)
+        if not match or match.group(2) != "1":
+            if match:
+                node.cmd(f"kill -TERM {match.group(1)} 2>/dev/null || true")
+            with self.iperf_lock:
+                self.iperf_sessions.pop(session_id, None)
+            return {
+                "ok": False,
+                "error_code": "IPERF_SERVER_NOT_LISTENING",
+                "message": f"iperf3 server tren {destination}:{port} khong vao trang thai LISTEN.",
+                "session_id": session_id,
+                "host": destination,
+                "port": port,
+                "listening": False,
+                "raw": output,
+            }
+        pid = match.group(1)
+        session = {
+            "session_id": session_id,
+            "host": destination,
+            "port": port,
+            "pid": pid,
+            "log_path": log_path,
+            "state": "listening",
+        }
+        with self.iperf_lock:
+            self.iperf_sessions[session_id] = session
+        return {
+            "ok": True,
+            **session,
+            "listening": True,
+            "raw": output,
+        }
 
     def _run_iperf_client(self, request: dict) -> dict:
+        session_id = self._session_id(request.get("session_id"))
         source = str(request.get("source", ""))
         destination_ip = self._ip(request.get("destination_ip"))
         port = self._port(request.get("port"))
         protocol = str(request.get("protocol", "tcp")).lower()
         seconds = self._duration(request.get("seconds", 5))
         node = self._node(source)
-        if not node or not destination_ip or port is None or protocol not in {"tcp", "udp"}:
-            return {"ok": False, "message": "RUN_IPERF_CLIENT request khong hop le.", "raw": ""}
+        with self.iperf_lock:
+            session = dict(self.iperf_sessions.get(session_id, {})) if session_id else {}
+        if (
+            not node
+            or not destination_ip
+            or port is None
+            or protocol not in {"tcp", "udp"}
+            or not session_id
+            or session.get("port") != port
+        ):
+            return {
+                "ok": False,
+                "error_code": "INVALID_IPERF_CLIENT_REQUEST",
+                "message": "RUN_IPERF_CLIENT request khong hop le hoac session khong ton tai.",
+                "session_id": session_id,
+                "raw": "",
+            }
         udp = " -u -b 20M" if protocol == "udp" else ""
         output = node.cmd(f"iperf3 -c {destination_ip} -p {port} -t {seconds} --json{udp}")
-        return {"ok": '"end"' in output, "raw": output}
+        try:
+            payload = json.loads(output)
+        except json.JSONDecodeError as exc:
+            return {
+                "ok": False,
+                "error_code": "IPERF_JSON_INVALID",
+                "message": "iperf3 tra ve JSON khong hop le.",
+                "session_id": session_id,
+                "parse_warning": str(exc),
+                "raw": output,
+            }
+        if not isinstance(payload, dict):
+            return {
+                "ok": False,
+                "error_code": "IPERF_JSON_INVALID",
+                "message": "iperf3 JSON phai la object.",
+                "session_id": session_id,
+                "parse_warning": f"Nhan duoc {type(payload).__name__} thay vi object.",
+                "raw": output,
+            }
+        result, warnings = self._iperf_result(payload, protocol)
+        error = payload.get("error")
+        return {
+            "ok": not error and bool(payload.get("end")),
+            "error_code": "IPERF_CLIENT_ERROR" if error else None,
+            "message": str(error or "iperf3 client hoan thanh."),
+            "session_id": session_id,
+            "protocol": protocol,
+            "duration": seconds,
+            "result": result,
+            "parse_warning": "; ".join(warnings) if warnings else None,
+            "raw": output,
+        }
 
     def _kill_pid(self, request: dict) -> dict:
+        session_id = self._session_id(request.get("session_id"))
         host = str(request.get("host", ""))
         pid = str(request.get("pid", ""))
         node = self._node(host)
-        if not node or not re.fullmatch(r"\d+", pid):
-            return {"ok": False, "message": "KILL_PID request khong hop le.", "raw": ""}
+        with self.iperf_lock:
+            session = dict(self.iperf_sessions.get(session_id, {})) if session_id else {}
+        if (
+            not node
+            or not re.fullmatch(r"\d+", pid)
+            or not session_id
+            or session.get("host") != host
+            or session.get("pid") != pid
+        ):
+            return {
+                "ok": False,
+                "error_code": "IPERF_SESSION_OWNERSHIP_MISMATCH",
+                "message": "PID khong thuoc dung host/session iperf.",
+                "session_id": session_id,
+                "raw": "",
+            }
         output = node.cmd(f"kill -TERM {pid} 2>/dev/null || true")
-        return {"ok": True, "raw": output}
+        with self.iperf_lock:
+            self.iperf_sessions.pop(session_id, None)
+        return {"ok": True, "session_id": session_id, "pid": pid, "host": host, "raw": output}
+
+    @staticmethod
+    def _iperf_result(payload: dict, protocol: str) -> tuple[dict, list[str]]:
+        end = payload.get("end") if isinstance(payload.get("end"), dict) else {}
+        if protocol == "udp":
+            summary = end.get("sum") if isinstance(end.get("sum"), dict) else {}
+        else:
+            summary = end.get("sum_received") if isinstance(end.get("sum_received"), dict) else {}
+            if not summary and isinstance(end.get("sum"), dict):
+                summary = end["sum"]
+        warnings = []
+        throughput = None
+        if summary.get("bits_per_second") is not None:
+            try:
+                throughput = round(float(summary["bits_per_second"]) / 1_000_000, 3)
+            except (TypeError, ValueError):
+                warnings.append("Field bits_per_second khong phai so.")
+        fields = {
+            "throughput_mbps": throughput,
+            "jitter_ms": summary.get("jitter_ms"),
+            "packet_loss_percent": summary.get("lost_percent"),
+            "lost_packets": summary.get("lost_packets"),
+            "transferred_bytes": summary.get("bytes"),
+        }
+        required = ["bits_per_second", "bytes"]
+        if protocol == "udp":
+            required.extend(["jitter_ms", "lost_percent", "lost_packets"])
+        warnings.extend(f"Thieu field end summary: {field}" for field in required if field not in summary)
+        return fields, warnings
+
+    def _cleanup_iperf_session(self, session_id: str) -> None:
+        with self.iperf_lock:
+            session = self.iperf_sessions.pop(session_id, None)
+        if not session:
+            return
+        node = self._node(str(session.get("host", "")))
+        pid = str(session.get("pid", ""))
+        if node and re.fullmatch(r"\d+", pid):
+            node.cmd(f"kill -TERM {pid} 2>/dev/null || true")
+
+    def _cleanup_all_iperf_sessions(self) -> None:
+        with self.iperf_lock:
+            session_ids = list(self.iperf_sessions)
+        for session_id in session_ids:
+            self._cleanup_iperf_session(session_id)
 
     def _dump_flows(self, switch_value) -> dict:
         switch = self._switch_name(switch_value)

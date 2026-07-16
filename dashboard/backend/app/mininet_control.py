@@ -146,26 +146,37 @@ def ping(source: str, destination_ip: str, count: int) -> tuple[bool, str]:
     return bool(response.get("ok")), str(response.get("raw") or response.get("message") or "")
 
 
-def start_iperf_server(destination: str, port: int, log_path: str) -> tuple[bool, str]:
-    response = request_agent("START_IPERF_SERVER", destination=destination, port=port, log_path=log_path)
-    return bool(response.get("ok")), str(response.get("raw") or response.get("message") or "")
+def start_iperf_server(destination: str, port: int, log_path: str, session_id: str) -> dict[str, Any]:
+    return request_agent(
+        "START_IPERF_SERVER",
+        destination=destination,
+        port=port,
+        log_path=log_path,
+        session_id=session_id,
+    )
 
 
-def run_iperf_client(source: str, destination_ip: str, port: int, protocol: str, seconds: int) -> tuple[bool, str]:
-    response = request_agent(
+def run_iperf_client(
+    source: str,
+    destination_ip: str,
+    port: int,
+    protocol: str,
+    seconds: int,
+    session_id: str,
+) -> dict[str, Any]:
+    return request_agent(
         "RUN_IPERF_CLIENT",
         source=source,
         destination_ip=destination_ip,
         port=port,
         protocol=protocol,
         seconds=seconds,
+        session_id=session_id,
     )
-    return bool(response.get("ok")), str(response.get("raw") or response.get("message") or "")
 
 
-def kill_pid(host: str, pid: str) -> tuple[bool, str]:
-    response = request_agent("KILL_PID", host=host, pid=pid)
-    return bool(response.get("ok")), str(response.get("raw") or response.get("message") or "")
+def kill_pid(host: str, pid: str, session_id: str) -> dict[str, Any]:
+    return request_agent("KILL_PID", host=host, pid=pid, session_id=session_id)
 
 
 def dump_flows(switch: str) -> tuple[bool, str]:
