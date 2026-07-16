@@ -157,11 +157,12 @@ def test_mpls_is_labeled_as_logic_simulation_not_provider_core():
 
     assert model["infrastructure"]["mpls_cloud"]["label"] == "MPLS L3VPN Logic Cloud"
     assert "Mo phong logic WAN transport" in model["infrastructure"]["mpls_cloud"]["subtitle"]
-    assert "WAN / MPLS L3VPN LOGIC" in frontend
+    assert "MPLS L3VPN LOGIC" in frontend
     assert "PE/P core, VRF, RD/RT, MP-BGP, LDP" in readme
     assert "MPLS L3VPN Logic Cloud" in sdn_readme
-    assert "ce_hq" not in frontend.split("HQ OpenFlow Domain", 1)[1].split("].map", 1)[0]
-    assert "mpls_cloud" not in frontend.split("OpenFlow Control Bus", 1)[1].split("].map", 1)[0]
+    control_section = frontend.split("controlledNodes.map", 1)[1].split("props.links.filter", 1)[0]
+    for forbidden in ("fw_hq", "fw_branch", "ce_hq", "ce_branch", "mpls_cloud"):
+        assert forbidden not in control_section
 
 
 def test_internet_edge_boundary_is_not_claimed_as_stateful_firewall():

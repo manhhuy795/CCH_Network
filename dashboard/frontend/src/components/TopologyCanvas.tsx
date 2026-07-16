@@ -1,17 +1,19 @@
-import { Maximize2, RotateCcw, Search, Unplug, ZoomIn, ZoomOut } from "lucide-react";
+import { Focus, Layers3, Maximize2, RotateCcw, Search, Unplug, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Decision, Host, Link, Topology } from "../api/client";
+import ConfirmDialog from "./ui/ConfirmDialog";
+import Drawer from "./ui/Drawer";
+import StatusBadge from "./ui/StatusBadge";
 
 const positions: Record<string, [number, number]> = {
   project_a: [90, 145], project_b: [90, 225], project_c: [90, 305], it_support: [90, 385], h90: [90, 465],
   access_hq_a: [270, 145], access_hq_b: [270, 225], access_hq_c: [270, 305], access_hq_it: [270, 385], voice_access: [270, 465],
-  core_hq: [470, 305], c0: [800, 75],
+  core_hq: [470, 305], fw_hq: [665, 305], ce_hq: [790, 305],
+  c0: [775, 70], mpls_cloud: [900, 455],
   telesale: [90, 635], backoffice: [90, 735], access_branch: [270, 685], dist_branch: [470, 685],
-  fw_hq: [665, 305], fw_branch: [665, 745],
-  ce_hq: [800, 255], mpls_cloud: [900, 455], ce_branch: [800, 650],
+  fw_branch: [665, 745], ce_branch: [790, 650],
   internet: [1085, 620],
   hzalo: [1260, 165], hcall: [1260, 315], hsocial: [1260, 555], hinternet: [1260, 725],
-  of_bus: [800, 120], of_hq: [660, 165], of_branch: [915, 165],
 };
 
 const routedLinks: Record<string, [number, number][]> = {
@@ -21,13 +23,27 @@ const routedLinks: Record<string, [number, number][]> = {
   "fw_branch-internet": [[665, 745], [900, 745], [900, 620], [1085, 620]],
 };
 
+const regions: Record<string, string> = {
+  project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", h90: "hq",
+  access_hq_a: "hq", access_hq_b: "hq", access_hq_c: "hq", access_hq_it: "hq", voice_access: "hq",
+  core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
+  mpls_cloud: "wan",
+  telesale: "branch", backoffice: "branch", access_branch: "branch", dist_branch: "branch", fw_branch: "branch", ce_branch: "branch",
+  internet: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
+};
+
+type Inspector = { kind: "node"; id: string } | { kind: "link"; id: string } | null;
+
 type Props = {
   topology?: Topology;
   links: Link[];
+  flows?: Array<Record<string, unknown>>;
+  metrics?: Record<string, number | string | boolean | object | null>;
   decision?: Decision;
   activeIndex: number;
   failedLinks: string[];
   liveLinkControl: boolean;
+  authenticated?: boolean;
   source: string;
   onFail: (linkId: string) => void;
   onRecover: (linkId: string) => void;
@@ -49,9 +65,9 @@ function labelMap(topology?: Topology) {
     const title = String(node.label || id);
     let subtitle = "";
     if (node.subtitle) subtitle = String(node.subtitle);
-    else if (node.type === "user_group") subtitle = `${node.count} users - VLAN ${node.vlan}`;
+    else if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
-    else if (node.type === "firewall") subtitle = "Simulated policy boundary";
+    else if (node.type === "firewall") subtitle = "Internet Edge Boundary";
     else if (node.type === "wan") subtitle = "WAN transport";
     else if (node.type === "controller") subtitle = "127.0.0.1:6653";
     else if (node.ip) subtitle = String(node.ip);
@@ -60,132 +76,220 @@ function labelMap(topology?: Topology) {
   return labels;
 }
 
+function nodeClass(type: string, id: string) {
+  if (type === "user_group") return "user";
+  if (type === "switch") return "switch";
+  if (type === "router") return "router";
+  if (type === "wan") return "cloud";
+  if (type === "firewall") return "firewall";
+  if (type === "controller") return "controller";
+  if (id === "hsocial") return "blocked";
+  return "service";
+}
+
 export default function TopologyCanvas(props: Props) {
   const sectionRef = useRef<HTMLElement>(null);
   const labels = useMemo(() => labelMap(props.topology), [props.topology]);
-  const selectableNodes = useMemo(() => (props.topology?.nodes || [])
-    .filter((node) => ["user_group", "service", "blocked_service"].includes(String(node.type)))
-    .map((node) => String(node.id)), [props.topology]);
-  const [selectedNode, setSelectedNode] = useState("project_a");
-  const [selectedLink, setSelectedLink] = useState("");
   const [zoom, setZoom] = useState(1);
+  const [query, setQuery] = useState("");
+  const [region, setRegion] = useState("all");
+  const [mode, setMode] = useState<"simple" | "technical">("simple");
+  const [legendVisible, setLegendVisible] = useState(true);
+  const [inspector, setInspector] = useState<Inspector>(null);
+  const [confirmLink, setConfirmLink] = useState<{ id: string; action: "fail" | "recover" } | null>(null);
+
+  const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];
+  const controlledNodes = useMemo(
+    () => (props.topology?.nodes || []).filter((node) => node.type === "switch" && positions[String(node.id)]),
+    [props.topology],
+  );
+  const selectedNode = inspector?.kind === "node"
+    ? props.topology?.nodes.find((node) => String(node.id) === inspector.id)
+    : undefined;
+  const selectedLink = inspector?.kind === "link"
+    ? props.links.find((link) => link.id === inspector.id)
+    : undefined;
+  const selectedGroup = selectedNode
+    ? props.topology?.groups.find((group) => group.id === String(selectedNode.id))
+    : undefined;
+  const matchingNodes = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return new Set<string>();
+    return new Set((props.topology?.nodes || [])
+      .filter((node) => JSON.stringify(node).toLowerCase().includes(needle))
+      .map((node) => String(node.id)));
+  }, [props.topology, query]);
 
   useEffect(() => {
     const sourceHost = props.topology?.hosts.find((host) => host.name === props.source);
-    if (sourceHost?.group) setSelectedNode(sourceHost.group);
+    if (sourceHost?.group && query) setQuery(sourceHost.group);
   }, [props.source, props.topology]);
 
-  useEffect(() => {
-    const firstLink = props.links.find((link) => link.type !== "control")?.id || "";
-    if (!props.links.some((link) => link.id === selectedLink)) setSelectedLink(firstLink);
-  }, [props.links, selectedLink]);
+  const nodeVisible = (id: string) => region === "all" || regions[id] === region || (region === "hq" && id === "c0");
+  const flowForNode = selectedNode
+    ? (props.flows || []).filter((flow) => String(flow.switch || "") === String(selectedNode.id))
+    : [];
+  const nodeTraffic = flowForNode.reduce((sum, flow) => sum + Number(flow.bytes || 0), 0);
+  const relatedLinks = selectedNode
+    ? props.links.filter((link) => link.source === selectedNode.id || link.target === selectedNode.id)
+    : [];
+  const linkStatus = selectedLink
+    ? (props.failedLinks.includes(selectedLink.id) || selectedLink.status === "down" ? "offline" : selectedLink.status === "degraded" ? "degraded" : "online")
+    : "unknown";
 
-  const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];
-  const selectedGroup = props.topology?.groups.find((group) => group.id === selectedNode);
+  const chooseEndpoint = (kind: "source" | "destination") => {
+    if (!selectedNode) return;
+    const endpoint = selectedGroup?.hosts[0]?.name || String(selectedNode.id);
+    if (kind === "source") props.onSource(endpoint);
+    else props.onDestination(endpoint);
+  };
 
   return (
-    <section ref={sectionRef}>
-      <div className="section-title">
-        <div><h2>So do Hybrid MPLS L3VPN + SDN Edge Policy</h2><span>Click cum de xem user va quan he policy</span></div>
+    <section ref={sectionRef} className={`topology-workspace ${mode}`}>
+      <div className="section-title topology-title">
+        <div><h2>Topology mạng Call Center BPO</h2><span>Data path và OpenFlow control path được tách riêng</span></div>
         <div className="topology-toolbar">
-          <button title="Zoom In" onClick={() => setZoom((value) => Math.min(1.6, value + 0.1))}><ZoomIn size={16} /></button>
-          <button title="Zoom Out" onClick={() => setZoom((value) => Math.max(0.75, value - 0.1))}><ZoomOut size={16} /></button>
-          <button title="Fit View" onClick={() => setZoom(1)}><Search size={16} /></button>
-          <button title="Fullscreen" onClick={() => void sectionRef.current?.requestFullscreen?.()}><Maximize2 size={16} /></button>
-          <button title="Reset View" onClick={() => { setZoom(1); setSelectedNode("project_a"); }}><RotateCcw size={16} /></button>
-        </div>
-        {props.liveLinkControl ? (
-          <div className="link-controls">
-            <select value={selectedLink} aria-label="Chon lien ket" onChange={(event) => setSelectedLink(event.target.value)}>
-              {props.links.filter((link) => link.type !== "control").map((link) => (
-                <option value={link.id} key={link.id}>{link.source} - {link.target} ({link.status})</option>
-              ))}
-            </select>
-            <button title="Lam link that trong Mininet bi down" onClick={() => selectedLink && props.onFail(selectedLink)}><Unplug size={16} /></button>
-            <button title="Khoi phuc link that trong Mininet" onClick={() => selectedLink && props.onRecover(selectedLink)}><RotateCcw size={16} /></button>
+          <label className="topology-search"><Search size={15} /><input aria-label="Tìm node" placeholder="Tìm node, IP, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          <select aria-label="Lọc vùng" value={region} onChange={(event) => setRegion(event.target.value)}>
+            <option value="all">Tất cả vùng</option><option value="hq">HQ</option><option value="wan">MPLS</option>
+            <option value="branch">Branch</option><option value="services">Internet/Services</option>
+          </select>
+          <div className="segmented" aria-label="Chế độ hiển thị">
+            <button className={mode === "simple" ? "active" : ""} onClick={() => setMode("simple")}>Đơn giản</button>
+            <button className={mode === "technical" ? "active" : ""} onClick={() => setMode("technical")}>Kỹ thuật</button>
           </div>
-        ) : (
-          <span className="runtime-hint">Link fail/recover chi bat khi topology Mininet dang chay.</span>
-        )}
+          <button className="icon-button" title="Zoom In" onClick={() => setZoom((value) => Math.min(1.6, value + 0.1))}><ZoomIn size={16} /></button>
+          <button className="icon-button" title="Zoom Out" onClick={() => setZoom((value) => Math.max(0.75, value - 0.1))}><ZoomOut size={16} /></button>
+          <button className="icon-button" title="Fit View" onClick={() => setZoom(1)}><Focus size={16} /></button>
+          <button className="icon-button" title="Reset View" onClick={() => { setZoom(1); setQuery(""); setRegion("all"); setInspector(null); }}><RotateCcw size={16} /></button>
+          <button className="icon-button" title="Fullscreen" onClick={() => void sectionRef.current?.requestFullscreen?.()}><Maximize2 size={16} /></button>
+          <button className={legendVisible ? "icon-button active" : "icon-button"} title="Legend" onClick={() => setLegendVisible((value) => !value)}><Layers3 size={16} /></button>
+        </div>
       </div>
       <div className="topology-scroll">
-        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="So do mang Hybrid MPLS va SDN">
-          <rect className="zone" x="20" y="95" width="705" height="430" /><text className="zone-label" x="35" y="117">TRU SO CHINH HQ</text>
-          <rect className="zone" x="20" y="575" width="705" height="220" /><text className="zone-label" x="35" y="597">CHI NHANH BRANCH</text>
-          <rect className="zone" x="755" y="185" width="285" height="610" /><text className="zone-label" x="770" y="207">WAN / MPLS L3VPN LOGIC</text>
-          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">DICH VU INTERNET</text>
+        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
+          <rect className="zone" x="20" y="95" width="780" height="430" /><text className="zone-label" x="35" y="117">HQ</text>
+          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">BRANCH</text>
+          <rect className="zone" x="815" y="185" width="220" height="610" /><text className="zone-label" x="830" y="207">MPLS L3VPN LOGIC</text>
+          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">INTERNET / SERVICES</text>
 
-          {props.links.map((link) => {
+          {mode === "technical" && controlledNodes.map((node) => {
+            const target = positions[String(node.id)];
+            const controller = positions.c0;
+            return <line data-testid="control-path" key={`control-${String(node.id)}`} x1={controller[0]} y1={controller[1] + 25} x2={target[0]} y2={target[1]} className="topology-link control" />;
+          })}
+
+          {props.links.filter((link) => link.type !== "control").map((link) => {
             const from = positions[link.source];
             const to = positions[link.target];
             if (!from || !to) return null;
             const active = props.decision ? isPathLink(props.decision.path, link.source, link.target) : false;
             const failed = link.status === "down" || props.failedLinks.includes(link.id);
             const route = routedLinks[link.id];
-            const className = `topology-link ${link.type} ${active ? props.decision?.action : ""} ${failed ? "failed" : ""}`;
-            if (route) return <polyline key={link.id} points={route.map(([x, y]) => `${x},${y}`).join(" ")} className={className} />;
-            return <line key={link.id} x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]} className={className} />;
-          })}
-
-          <line x1={positions.c0[0]} y1={positions.c0[1] + 25} x2={positions.of_bus[0]} y2={positions.of_bus[1]} className="topology-link control" />
-          <line x1={positions.of_bus[0]} y1={positions.of_bus[1]} x2={positions.of_hq[0]} y2={positions.of_hq[1]} className="topology-link control" />
-          <line x1={positions.of_bus[0]} y1={positions.of_bus[1]} x2={positions.of_branch[0]} y2={positions.of_branch[1]} className="topology-link control" />
-          <g className="of-domain-list" transform="translate(560 182)">
-            <text>HQ OpenFlow Domain</text>
-            <text y="16">Access HQ-A · Access HQ-B · Access HQ-C</text>
-            <text y="32">Access HQ-IT · Voice Access · HQ Core</text>
-          </g>
-          <g className="of-domain-list" transform="translate(845 182)">
-            <text>Branch OpenFlow Domain</text>
-            <text y="16">Branch Access · Branch Distribution</text>
-          </g>
-
-          {[["of_bus", "OpenFlow Control Bus", ""], ["of_hq", "HQ OpenFlow Domain", ""], ["of_branch", "Branch OpenFlow Domain", ""]].map(([id, title, subtitle]) => {
-            const [x, y] = positions[id];
-            return <g className="topology-node controller" key={id} transform={`translate(${x - 70} ${y - 20})`}><rect width="140" height="40" rx="5" /><text x="70" y="18">{title}</text><text className="node-subtitle" x="70" y="32">{subtitle}</text></g>;
+            const visible = nodeVisible(link.source) && nodeVisible(link.target);
+            const className = `topology-link data-link ${link.type} ${active ? props.decision?.action : ""} ${failed ? "failed" : ""} ${visible ? "" : "region-hidden"}`;
+            if (route) return <polyline key={link.id} aria-label={`Link ${link.source} đến ${link.target}`} points={route.map(([x, y]) => `${x},${y}`).join(" ")} className={className} onClick={() => setInspector({ kind: "link", id: link.id })} />;
+            return <line key={link.id} aria-label={`Link ${link.source} đến ${link.target}`} x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]} className={className} onClick={() => setInspector({ kind: "link", id: link.id })} />;
           })}
 
           {Object.entries(positions).filter(([id]) => labels[id]).map(([id, [x, y]]) => {
             const [title, subtitle] = labels[id];
-            const nodeType = String(props.topology?.nodes.find((node) => node.id === id)?.type || "");
-            const className = nodeType === "user_group" ? "user" : nodeType === "switch" ? "switch" :
-              nodeType === "router" ? "router" : nodeType === "wan" ? "cloud" : nodeType === "firewall" ? "firewall" :
-              id === "hsocial" ? "blocked" : nodeType === "controller" ? "controller" : "service";
-            const selectable = selectableNodes.includes(id);
+            const node = props.topology?.nodes.find((item) => String(item.id) === id);
+            const type = String(node?.type || "");
+            const matched = matchingNodes.has(id);
+            const dimmed = query && !matched;
             return (
-              <g className={`topology-node ${className} ${currentNode === id ? "current" : ""} ${selectedNode === id ? "selected" : ""} ${selectable ? "selectable" : ""}`} key={id}
-                transform={`translate(${x - 60} ${y - 25})`} onClick={() => selectable && setSelectedNode(id)}>
+              <g
+                className={`topology-node ${nodeClass(type, id)} ${currentNode === id ? "current" : ""} ${dimmed ? "search-dimmed" : ""} ${nodeVisible(id) ? "" : "region-hidden"}`}
+                key={id}
+                transform={`translate(${x - 60} ${y - 25})`}
+                onClick={() => setInspector({ kind: "node", id })}
+                role="button"
+                aria-label={`Node ${title}`}
+              >
                 <rect width="120" height="50" rx="5" />
-                <text x="60" y="20">{title}</text><text className="node-subtitle" x="60" y="36">{subtitle}</text>
+                <text x="60" y="20">{title}</text>
+                <text className="node-subtitle" x="60" y="36">{subtitle}</text>
               </g>
             );
           })}
           {props.decision?.action === "deny" && props.decision.blocked_at && positions[props.decision.blocked_at] && (
-            <g className="deny-mark" transform={`translate(${positions[props.decision.blocked_at][0]} ${positions[props.decision.blocked_at][1]})`}>
+            <g className="deny-mark" data-testid="blocked-at" transform={`translate(${positions[props.decision.blocked_at][0]} ${positions[props.decision.blocked_at][1]})`}>
               <line x1="-14" y1="-14" x2="14" y2="14" /><line x1="14" y1="-14" x2="-14" y2="14" />
             </g>
           )}
         </svg>
       </div>
-      <div className="legend">
-        <span><i className="data" />Data Path</span><span><i className="allow" />Luong duoc phep</span>
-        <span><i className="deny" />Luong bi chan</span><span><i className="control" />OpenFlow Control Path</span>
-        <span><i className="mpls" />WAN/MPLS transport</span>
-      </div>
-      {selectedGroup && (
-        <div className="host-group-panel">
-          <strong>{selectedGroup.label} - VLAN {selectedGroup.vlan} - {selectedGroup.subnet}</strong>
-          <div className="host-list">
-            {selectedGroup.hosts.map((host: Host) => (
-              <div key={host.name}>
-                <span>{host.label} - {host.name} - {host.ip} - status: inventory</span>
-                <button onClick={() => props.onSource(host.name)}>Chon nguon</button>
-                <button onClick={() => props.onDestination(host.name)}>Chon dich</button>
-              </div>
-            ))}
-          </div>
+      {legendVisible && (
+        <div className="legend">
+          <span><i className="data" />Data path</span><span><i className="allow" />ALLOW</span>
+          <span><i className="deny" />DENY / link DOWN</span><span><i className="control" />OpenFlow control path</span>
+          <span><i className="mpls" />MPLS transport</span>
         </div>
       )}
+      <Drawer open={Boolean(inspector)} title={selectedNode ? `Node · ${String(selectedNode.label || selectedNode.id)}` : selectedLink ? `Link · ${selectedLink.source} → ${selectedLink.target}` : "Inspector"} onClose={() => setInspector(null)}>
+        {selectedNode && (
+          <div className="inspector-grid">
+            <StatusBadge status={currentNode === selectedNode.id ? "online" : "unknown"} label={currentNode === selectedNode.id ? "Đang có packet" : "Theo inventory"} />
+            <dl>
+              <dt>Tên</dt><dd>{String(selectedNode.id)}</dd>
+              <dt>Vai trò</dt><dd>{String(selectedNode.type || "unknown")}</dd>
+              <dt>IP/Subnet</dt><dd>{String(selectedNode.ip || selectedNode.subnet || "N/A")}</dd>
+              <dt>VLAN/Group</dt><dd>{String(selectedNode.vlan || selectedNode.group || "N/A")}</dd>
+              <dt>Managed by controller</dt><dd>{selectedNode.type === "switch" ? "Có" : "Không"}</dd>
+              <dt>DPID</dt><dd>{String(selectedNode.dpid || "N/A")}</dd>
+              <dt>Flow count</dt><dd>{flowForNode.length}</dd>
+              <dt>Traffic</dt><dd>{nodeTraffic.toLocaleString("vi-VN")} bytes</dd>
+              <dt>Link liên quan</dt><dd>{relatedLinks.length}</dd>
+            </dl>
+            {selectedGroup && (
+              <div className="inspector-hosts">
+                <strong>{selectedGroup.label} · {selectedGroup.subnet}</strong>
+                {selectedGroup.hosts.slice(0, 10).map((host: Host) => <span key={host.name}>{host.name} · {host.ip}</span>)}
+              </div>
+            )}
+            {["user_group", "service", "blocked_service"].includes(String(selectedNode.type)) && (
+              <div className="drawer-actions">
+                <button onClick={() => chooseEndpoint("source")}>Chọn làm nguồn</button>
+                <button onClick={() => chooseEndpoint("destination")}>Chọn làm đích</button>
+              </div>
+            )}
+          </div>
+        )}
+        {selectedLink && (
+          <div className="inspector-grid">
+            <StatusBadge status={linkStatus} />
+            <dl>
+              <dt>Endpoint A</dt><dd>{selectedLink.source}</dd>
+              <dt>Endpoint B</dt><dd>{selectedLink.target}</dd>
+              <dt>Loại link</dt><dd>{selectedLink.type}</dd>
+              <dt>Bandwidth</dt><dd>{String(selectedLink.bandwidth_mbps || "N/A")} Mbps</dd>
+              <dt>Delay</dt><dd>{String(selectedLink.delay_ms || "N/A")} ms</dd>
+              <dt>Loss</dt><dd>{String(selectedLink.loss_percent || "N/A")}%</dd>
+            </dl>
+            {props.liveLinkControl && selectedLink.type !== "control" && (
+              <div className="drawer-actions">
+                <button className="danger" disabled={!props.authenticated} onClick={() => setConfirmLink({ id: selectedLink.id, action: "fail" })}><Unplug size={15} />Fail link</button>
+                <button disabled={!props.authenticated} onClick={() => setConfirmLink({ id: selectedLink.id, action: "recover" })}><RotateCcw size={15} />Recover</button>
+              </div>
+            )}
+          </div>
+        )}
+      </Drawer>
+      <ConfirmDialog
+        open={Boolean(confirmLink)}
+        title={confirmLink?.action === "fail" ? "Ngắt liên kết Mininet?" : "Khôi phục liên kết?"}
+        message={`Thao tác sẽ áp dụng lên link thật ${confirmLink?.id || ""} trong topology đang chạy.`}
+        confirmLabel={confirmLink?.action === "fail" ? "Fail link" : "Recover link"}
+        danger={confirmLink?.action === "fail"}
+        onClose={() => setConfirmLink(null)}
+        onConfirm={() => {
+          if (!confirmLink) return;
+          if (confirmLink.action === "fail") props.onFail(confirmLink.id);
+          else props.onRecover(confirmLink.id);
+          setConfirmLink(null);
+        }}
+      />
     </section>
   );
 }

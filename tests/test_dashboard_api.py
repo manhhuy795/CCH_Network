@@ -557,6 +557,7 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     repo_root = Path(__file__).resolve().parents[1]
     app_source = (repo_root / "dashboard" / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
     shell_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "layout" / "AppShell.tsx").read_text(encoding="utf-8")
+    overview_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "OverviewPage.tsx").read_text(encoding="utf-8")
     test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
     event_log = (repo_root / "dashboard" / "frontend" / "src" / "components" / "EventLog.tsx").read_text(encoding="utf-8")
     policy_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
@@ -565,7 +566,7 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     for label in ("Tổng quan", "Topology", "Kiểm tra kết nối", "Chính sách & OpenFlow", "Hiệu năng", "Sự kiện & nhật ký"):
         assert label in shell_source
     for overview_item in ("Controller", "Backend", "Mininet", "Control Agent", "Open vSwitch", "WebSocket", "Host online", "Link/cảnh báo"):
-        assert overview_item in app_source
+        assert overview_item in overview_source
     for measurement_item in ("Kiem tra Ping", "Throughput TCP", "Jitter UDP", "Uoc luong chat luong thoai"):
         assert measurement_item in test_panel
     assert "animate(payload.decision.path)" in app_source
@@ -601,10 +602,10 @@ def test_topology_uses_grouped_interaction_and_view_controls():
     topology_canvas = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
     styles = (repo_root / "dashboard" / "frontend" / "src" / "styles" / "global.css").read_text(encoding="utf-8")
 
-    assert "selectedGroup.hosts.map" in topology_canvas
-    assert "status: inventory" in topology_canvas
-    assert "props.onSource(host.name)" in topology_canvas
-    assert "props.onDestination(host.name)" in topology_canvas
+    assert "selectedGroup.hosts.slice" in topology_canvas
+    assert "chooseEndpoint" in topology_canvas
+    assert 'kind: "node"' in topology_canvas
+    assert 'kind: "link"' in topology_canvas
     assert "Zoom In" in topology_canvas
     assert "Zoom Out" in topology_canvas
     assert "Fit View" in topology_canvas
@@ -614,6 +615,7 @@ def test_topology_uses_grouped_interaction_and_view_controls():
     assert "style={{ width: `${zoom * 100}%` }}" in topology_canvas
     assert "activeIndex" in topology_canvas
     assert "currentNode === id" in topology_canvas
+    assert "prefers-reduced-motion" in styles
     assert ".topology-toolbar" in styles
     assert "h20_01" not in topology_canvas
 
@@ -622,15 +624,11 @@ def test_openflow_control_visualization_is_simplified():
     repo_root = Path(__file__).resolve().parents[1]
     topology_canvas = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
 
-    assert "OpenFlow Control Bus" in topology_canvas
-    assert "HQ OpenFlow Domain" in topology_canvas
-    assert "Branch OpenFlow Domain" in topology_canvas
-    assert "Access HQ-A · Access HQ-B · Access HQ-C" in topology_canvas
-    assert "Branch Access · Branch Distribution" in topology_canvas
+    assert "controlledNodes.map" in topology_canvas
+    assert 'data-testid="control-path"' in topology_canvas
+    assert 'node.type === "switch"' in topology_canvas
+    assert "OpenFlow Control Bus" not in topology_canvas
     assert "control-lite" not in topology_canvas
-    control_section = topology_canvas.split("OpenFlow Control Bus", 1)[1].split("selectedPosition", 1)[0]
-    for forbidden in ("fw_hq", "fw_branch", "ce_hq", "ce_branch", "mpls_cloud"):
-        assert forbidden not in control_section
     assert "currentNode === id" in topology_canvas
 
 

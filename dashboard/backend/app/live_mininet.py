@@ -151,7 +151,13 @@ def topology_payload() -> dict[str, Any]:
         groups.append(item)
 
     nodes.extend(
-        {"id": node_id, "label": label, "type": node_type, "subtitle": subtitle}
+        {
+            "id": node_id,
+            "label": label,
+            "type": node_type,
+            "subtitle": subtitle,
+            "dpid": NETWORK_MODEL.get("switches", {}).get(node_id, {}).get("dpid"),
+        }
         for node_id, label, node_type, subtitle in INFRA_NODES
     )
     for service_name, service in ENGINE.services.items():

@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
@@ -6,6 +5,7 @@ import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog, { type LogEntry } from "./components/EventLog";
 import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
+import OverviewPage from "./components/OverviewPage";
 import PolicyPanel from "./components/PolicyPanel";
 import RealtimePanel from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
@@ -113,6 +113,10 @@ export default function App() {
 
   const animate = (path: string[]) => {
     window.clearInterval(timer.current);
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setActiveIndex(Math.max(0, path.length - 1));
+      return;
+    }
     setActiveIndex(0);
     let index = 0;
     timer.current = window.setInterval(() => {
@@ -192,6 +196,9 @@ export default function App() {
     activeIndex,
     failedLinks,
     liveLinkControl: Boolean(topology?.summary.live_link_control),
+    flows,
+    metrics,
+    authenticated,
     source,
     onFail: (id: string) => void changeLink(id, true),
     onRecover: (id: string) => void changeLink(id, false),
@@ -225,32 +232,15 @@ export default function App() {
       </div>
     );
     if (page === "events") return <EventLog entries={events} />;
-    return (
-      <>
-        <div className="page-heading">
-          <div><h1>Tổng quan vận hành</h1><p>Cập nhật gần nhất: {lastUpdated || "chưa có dữ liệu"}</p></div>
-          <button onClick={() => void refresh()}><RefreshCw size={16} />Làm mới</button>
-        </div>
-        <div className="overview-status-grid">
-          {[
-            ["controller", "Controller"],
-            ["backend", "Backend"],
-            ["mininet_topology", "Mininet"],
-            ["mininet_control_agent", "Control Agent"],
-            ["openvswitch", "Open vSwitch"],
-            ["websocket", "WebSocket"],
-          ].map(([key, label]) => (
-            <div className="status-tile" key={key}>
-              <strong>{label}</strong>
-              <span>{healthComponents[key]?.status || "unknown"}</span>
-              <small>{healthComponents[key]?.message_vi || "Chưa có dữ liệu runtime."}</small>
-            </div>
-          ))}
-          <div className="status-tile"><strong>Host online</strong><span>{online}/{(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}</span><small>Endpoint được xác nhận từ Mininet.</small></div>
-          <div className="status-tile"><strong>Link/cảnh báo</strong><span>{failedLinks.length}</span><small>{failedLinks.length ? failedLinks.join(", ") : "Không có link DOWN."}</small></div>
-        </div>
-      </>
-    );
+    return <OverviewPage
+      components={healthComponents}
+      onlineHosts={online}
+      totalHosts={(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}
+      failedLinks={failedLinks}
+      lastError={events.find((event) => event.kind === "deny")?.message}
+      lastUpdated={lastUpdated}
+      onNavigate={setPage}
+    />;
   };
 
   return (

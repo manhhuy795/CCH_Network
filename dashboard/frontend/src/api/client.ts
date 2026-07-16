@@ -31,6 +31,9 @@ export type Link = {
   target: string;
   type: string;
   status: string;
+  bandwidth_mbps?: number;
+  delay_ms?: number;
+  loss_percent?: number;
 };
 
 export type Topology = {
