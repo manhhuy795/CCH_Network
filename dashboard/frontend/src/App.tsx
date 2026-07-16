@@ -145,6 +145,8 @@ export default function App() {
 
   const totalEndpoints = (topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5);
   const switchCount = topology?.summary.controlled_ovs_count ?? 8;
+  const healthComponents = (runtime.components || {}) as Record<string, { status?: string; message_vi?: string }>;
+  const componentState = (name: string) => healthComponents[name]?.status || "unknown";
   const tabs: Array<[Tab, string]> = [
     ["overview", "Tong quan"],
     ["measure", "Do kiem mang"],
@@ -196,10 +198,14 @@ export default function App() {
             <section>
               <div className="section-title"><h2>Trang thai he thong</h2><span>{lastUpdated || "Chua cap nhat"}</span></div>
               <div className="metric-grid">
-                <div className="metric"><strong>{String(runtime.controller ?? runtime.os_ken ?? "unknown")}</strong><span>OS-Ken</span></div>
-                <div className="metric"><strong>{String(runtime.mnexec ?? false)}</strong><span>Mininet</span></div>
-                <div className="metric"><strong>{String(runtime.ovs_bridge ?? false)}</strong><span>Open vSwitch</span></div>
-                <div className="metric"><strong>{websocketOnline ? "Online" : "Idle"}</strong><span>WebSocket</span></div>
+                <div className="metric"><strong>{componentState("frontend")}</strong><span>Frontend</span></div>
+                <div className="metric"><strong>{componentState("backend")}</strong><span>Backend</span></div>
+                <div className="metric"><strong>{componentState("controller")}</strong><span>Controller</span></div>
+                <div className="metric"><strong>{componentState("mininet_topology")}</strong><span>Mininet topology</span></div>
+                <div className="metric"><strong>{componentState("mininet_control_agent")}</strong><span>Control Agent</span></div>
+                <div className="metric"><strong>{componentState("openvswitch")}</strong><span>Open vSwitch</span></div>
+                <div className="metric"><strong>{websocketOnline ? "online" : componentState("websocket")}</strong><span>WebSocket</span></div>
+                <div className="metric"><strong>{componentState("flow_inventory")}</strong><span>Flow inventory</span></div>
                 <div className="metric"><strong>{topology?.summary.user_count ?? 110}</strong><span>User</span></div>
                 <div className="metric"><strong>{totalEndpoints}</strong><span>Endpoint</span></div>
                 <div className="metric"><strong>{switchCount}</strong><span>Switch OVS</span></div>

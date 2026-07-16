@@ -414,7 +414,7 @@ def test_privileged_mininet_operations_are_split_into_control_agent():
     flows_body = live_source.split("def ovs_flows(", 1)[1].split("def current_metrics", 1)[0]
     block_body = live_source.split("def temporary_block", 1)[1].split("def live_status", 1)[0]
 
-    assert "mininet_control.ping(" in ping_body
+    assert "mininet_control.ping_detailed(" in ping_body
     assert "mininet_control.dump_flows(switch)" in flows_body
     assert "mininet_control.add_manual_drop" in block_body
     assert "mininet_control.delete_cookie_flows" in block_body
@@ -446,9 +446,17 @@ def test_operator_actions_require_it_token(monkeypatch):
     sys.path.insert(0, str(backend_root))
 
     from fastapi.testclient import TestClient
+    from app import api as api_module
     from app.main import app
 
     client = TestClient(app)
+    monkeypatch.setattr(api_module, "run_ping", lambda *_args: {
+        "ok": True,
+        "message": "ping ok",
+        "decision": {"action": "allow", "path": []},
+        "result": {"reachable": True},
+        "raw": "0% packet loss",
+    })
 
     status_response = client.get("/api/auth/status")
     assert status_response.status_code == 200

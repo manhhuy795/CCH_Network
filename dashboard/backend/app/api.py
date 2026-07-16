@@ -1,18 +1,61 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 
 from . import mininet_control
+from .errors import ERROR_HTTP_STATUS
 from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
 from .security import auth_status, require_operator
 from .topology import get_topology
+from .runtime_health import live_health_payload, system_health
 
 
 router = APIRouter(prefix="/api")
 operator_required = Depends(require_operator)
+
+
+def _normalize_operation_error(payload: dict) -> dict:
+    result = dict(payload)
+    code = str(result.get("error_code") or "")
+    infrastructure_codes = {
+        "MININET_NOT_RUNNING",
+        "AGENT_NOT_READY",
+        "AGENT_TIMEOUT",
+        "AGENT_DISCONNECTED",
+        "CONTROLLER_OFFLINE",
+        "OVS_UNAVAILABLE",
+    }
+    if (
+        result.get("decision", {}).get("action") == "deny"
+        and not result.get("ok")
+        and code not in infrastructure_codes
+    ):
+        code = "POLICY_DENIED"
+    elif code in {"IPERF_DESTINATION_BUSY", "IPERF_CONCURRENCY_LIMIT"}:
+        code = "IPERF_BUSY"
+    elif code in {"IPERF_SERVER_NOT_LISTENING", "IPERF_SERVER_START_FAILED"}:
+        code = "IPERF_SERVER_FAILED"
+    elif code in {"IPERF_CLIENT_ERROR"}:
+        code = "IPERF_CLIENT_FAILED"
+    elif code in {"IPERF_JSON_INVALID"} or result.get("parse_warning"):
+        code = "IPERF_PARSE_FAILED"
+    if code:
+        result["error_code"] = code
+    result.setdefault("message_vi", str(result.get("message") or "Tac vu hoan thanh."))
+    return result
+
+
+def operation_response(payload: dict) -> dict | JSONResponse:
+    normalized = _normalize_operation_error(payload)
+    code = str(normalized.get("error_code") or "")
+    if normalized.get("ok") or code == "POLICY_DENIED":
+        return normalized
+    status_code = ERROR_HTTP_STATUS.get(code, 503)
+    return JSONResponse(status_code=status_code, content=normalized)
 
 
 def failed_link_ids() -> list[str]:
@@ -58,22 +101,27 @@ def api_metrics_pair(payload: HostPair):
 
 @router.get("/live/status")
 def api_live_status():
-    return live_status()
+    return live_health_payload()
+
+
+@router.get("/health")
+def api_health():
+    return system_health()
 
 
 @router.post("/test/ping", dependencies=[operator_required])
 def api_test_ping(payload: HostPair):
-    return run_ping(payload.source, payload.destination)
+    return operation_response(run_ping(payload.source, payload.destination))
 
 
 @router.post("/test/iperf", dependencies=[operator_required])
 def api_test_iperf(payload: IperfRequest):
-    return run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds)
+    return operation_response(run_iperf(payload.source, payload.destination, payload.protocol, payload.seconds))
 
 
 @router.post("/test/call-quality", dependencies=[operator_required])
 def api_test_call_quality(payload: IperfRequest):
-    return run_call_quality(payload.source, payload.destination, payload.seconds)
+    return operation_response(run_call_quality(payload.source, payload.destination, payload.seconds))
 
 
 @router.post("/test/cluster-detail", dependencies=[operator_required])

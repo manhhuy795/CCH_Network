@@ -144,13 +144,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, options);
   if (!response.ok) {
     let detail = "";
+    let errorCode = "";
+    let requestId = response.headers.get("X-Request-ID") || "";
     try {
       const payload = await response.json();
-      detail = typeof payload.detail === "string" ? payload.detail : "";
+      detail = typeof payload.message_vi === "string" ? payload.message_vi :
+        (typeof payload.detail === "string" ? payload.detail : "");
+      errorCode = typeof payload.error_code === "string" ? payload.error_code : "";
+      requestId = typeof payload.request_id === "string" ? payload.request_id : requestId;
     } catch {
       detail = "";
     }
-    throw new Error(detail || `May chu tra ve HTTP ${response.status}`);
+    const suffix = [errorCode, requestId ? `request ${requestId}` : ""].filter(Boolean).join(" · ");
+    throw new Error(`${detail || `May chu tra ve HTTP ${response.status}`}${suffix ? ` (${suffix})` : ""}`);
   }
   return response.json() as Promise<T>;
 }
@@ -162,6 +168,7 @@ export const api = {
   policies: () => request<Record<string, unknown>>("/api/policies"),
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),
   status: () => request<Record<string, unknown>>("/api/live/status"),
+  health: () => request<Record<string, unknown>>("/api/health"),
   post: <T>(path: string, body: object) =>
     request<T>(path, {
       method: "POST",

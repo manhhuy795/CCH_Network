@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 import secrets
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header
+
+from .errors import ApiError
 
 
 TOKEN_ENV = "CCH_DASHBOARD_OPERATOR_TOKEN"
@@ -49,9 +51,10 @@ def require_operator(
 ) -> dict[str, str]:
     expected = configured_operator_token()
     if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Chua cau hinh {TOKEN_ENV} cho dashboard operator.",
+        raise ApiError(
+            status_code=503,
+            error_code="AUTH_NOT_CONFIGURED",
+            message_vi=f"Chua cau hinh {TOKEN_ENV} cho dashboard operator.",
         )
 
     provided = (x_cch_operator_token or "").strip()
@@ -61,14 +64,16 @@ def require_operator(
             provided = value.strip()
 
     if not provided:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Can IT operator token de thuc hien thao tac nay.",
+        raise ApiError(
+            status_code=401,
+            error_code="AUTH_REQUIRED",
+            message_vi="Can IT operator token de thuc hien thao tac nay.",
         )
 
     if not secrets.compare_digest(provided, expected):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chi IT operator co token hop le moi duoc thuc hien thao tac nay.",
+        raise ApiError(
+            status_code=403,
+            error_code="AUTH_INVALID",
+            message_vi="IT operator token khong hop le.",
         )
     return {"role": "it_operator"}

@@ -383,8 +383,21 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
     if not source_data or not destination_data:
         return {"ok": False, "message": "Nguồn hoặc đích không hợp lệ.", "raw": ""}
     decision = policy_decision(source, destination)
+    policy_action = decision.get("action")
     down_link = mininet_control.first_down_link(decision.get("path", []))
-    ok, output = mininet_control.ping(source, destination_data["ip"], count)
+    agent_response = mininet_control.ping_detailed(source, destination_data["ip"], count)
+    output = str(agent_response.get("raw") or agent_response.get("message") or "")
+    ok = bool(agent_response.get("ok"))
+    agent_error = agent_response.get("error_code")
+    if agent_error in {"MININET_NOT_RUNNING", "AGENT_NOT_READY", "AGENT_TIMEOUT", "AGENT_DISCONNECTED"}:
+        return {
+            "ok": False,
+            "error_code": agent_error,
+            "message": str(agent_response.get("message") or "Khong the gui ping qua Mininet Control Agent."),
+            "decision": enrich_decision(source, destination, decision),
+            "result": {"reachable": False, "raw": output},
+            "raw": output,
+        }
     result = parse_ping(output)
     reachable = bool(result["reachable"])
     if down_link and not reachable:
@@ -407,8 +420,14 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
             "reason": "Policy cho phép nhưng lab không nhận phản hồi. Hãy kiểm tra controller, flow và link Mininet.",
         }
     decision = enrich_decision(source, destination, decision)
+    error_code = None
+    if not reachable and policy_action == "deny":
+        error_code = "POLICY_DENIED"
+    elif not reachable:
+        error_code = "PING_FAILED"
     return {
         "ok": ok and reachable,
+        "error_code": error_code,
         "message": f"{source} → {destination}: {'PING THÀNH CÔNG' if reachable else 'PING THẤT BẠI'}",
         "decision": decision,
         "result": result,

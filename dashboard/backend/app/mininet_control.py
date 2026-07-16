@@ -19,10 +19,14 @@ MAX_REQUEST_TIMEOUT_SECONDS = 45.0
 MAX_RESPONSE_BYTES = 128 * 1024
 
 
-def _unavailable(message: str | None = None) -> dict[str, Any]:
+def _unavailable(
+    message: str | None = None,
+    error_code: str = "AGENT_NOT_READY",
+) -> dict[str, Any]:
     return {
         "ok": False,
         "available": False,
+        "error_code": error_code,
         "message": message or "Mininet control agent chua san sang. Hay chay sdn_mpls_demo/run_topology.sh.",
     }
 
@@ -81,9 +85,12 @@ def request_agent(
     **payload: Any,
 ) -> dict[str, Any]:
     if not hasattr(socket, "AF_UNIX"):
-        return _unavailable("He dieu hanh hien tai khong ho tro Unix socket cho Mininet control agent.")
+        return _unavailable(
+            "He dieu hanh hien tai khong ho tro Unix socket cho Mininet control agent.",
+            "AGENT_NOT_READY",
+        )
     if not CONTROL_SOCKET.exists():
-        return _unavailable()
+        return _unavailable(error_code="MININET_NOT_RUNNING")
 
     request_id = uuid.uuid4().hex
     request = {"token": CONTROL_TOKEN, "command": command, "request_id": request_id, **payload}
@@ -108,18 +115,18 @@ def request_agent(
                     break
                 chunks.append(chunk)
         if not chunks:
-            return _unavailable("Mininet control agent khong tra du lieu.")
+            return _unavailable("Mininet control agent khong tra du lieu.", "AGENT_DISCONNECTED")
         response = json.loads(b"".join(chunks).decode("utf-8"))
         if response.get("request_id") != request_id:
-            return _unavailable("Mininet control agent tra ve request_id khong khop.")
+            return _unavailable("Mininet control agent tra ve request_id khong khop.", "AGENT_NOT_READY")
         response.setdefault("available", True)
         return response
     except (socket.timeout, TimeoutError):
         return _timeout_response(command, effective_timeout)
     except OSError as exc:
-        return _unavailable(f"Khong ket noi duoc Mininet control agent: {exc}")
+        return _unavailable(f"Khong ket noi duoc Mininet control agent: {exc}", "AGENT_DISCONNECTED")
     except json.JSONDecodeError as exc:
-        return _unavailable(f"Mininet control agent tra ve JSON khong hop le: {exc}")
+        return _unavailable(f"Mininet control agent tra ve JSON khong hop le: {exc}", "AGENT_NOT_READY")
 
 
 def health() -> dict[str, Any]:
@@ -142,8 +149,12 @@ def live_status() -> dict[str, Any]:
 
 
 def ping(source: str, destination_ip: str, count: int) -> tuple[bool, str]:
-    response = request_agent("PING", source=source, destination_ip=destination_ip, count=count)
+    response = ping_detailed(source, destination_ip, count)
     return bool(response.get("ok")), str(response.get("raw") or response.get("message") or "")
+
+
+def ping_detailed(source: str, destination_ip: str, count: int) -> dict[str, Any]:
+    return request_agent("PING", source=source, destination_ip=destination_ip, count=count)
 
 
 def start_iperf_server(destination: str, port: int, log_path: str, session_id: str) -> dict[str, Any]:
