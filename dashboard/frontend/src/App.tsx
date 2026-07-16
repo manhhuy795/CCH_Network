@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type TestResult, type Topology } from "./api/client";
+import { ApiClientError, api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog, { type LogEntry } from "./components/EventLog";
@@ -10,11 +10,12 @@ import PolicyPanel from "./components/PolicyPanel";
 import RealtimePanel from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
+import { ensureTestResult, type NetworkTestType } from "./components/testWorkflow";
 import Drawer from "./components/ui/Drawer";
 import FeedbackState from "./components/ui/FeedbackState";
 import ToastRegion, { type ToastItem } from "./components/ui/ToastRegion";
 
-type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
+type Action = NetworkTestType | "simulate" | "block" | "unblock";
 
 export default function App() {
   const [page, setPage] = useState<DashboardPage>("overview");
@@ -24,7 +25,10 @@ export default function App() {
   const [source, setSource] = useState("h20_01");
   const [destination, setDestination] = useState("h90");
   const [seconds, setSeconds] = useState(5);
+  const [testType, setTestType] = useState<NetworkTestType>("ping");
+  const [resultType, setResultType] = useState<NetworkTestType>("ping");
   const [busy, setBusy] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [policyBusy, setPolicyBusy] = useState(false);
   const [result, setResult] = useState<TestResult>();
   const [decision, setDecision] = useState<Decision>();
@@ -43,6 +47,8 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
   const timer = useRef<number>();
+  const taskTimer = useRef<number>();
+  const abortController = useRef<AbortController>();
   const actionInFlight = useRef(false);
   const toastSequence = useRef(0);
 
@@ -108,8 +114,23 @@ export default function App() {
         .catch(() => setOperatorToken(""))
         .finally(() => setAuthChecking(false));
     }
-    return () => window.clearInterval(timer.current);
+    return () => {
+      window.clearInterval(timer.current);
+      window.clearInterval(taskTimer.current);
+      abortController.current?.abort();
+    };
   }, [refresh]);
+
+  useEffect(() => {
+    window.clearInterval(taskTimer.current);
+    if (!busy) return;
+    setElapsedSeconds(0);
+    const startedAt = Date.now();
+    taskTimer.current = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 250);
+    return () => window.clearInterval(taskTimer.current);
+  }, [busy]);
 
   const animate = (path: string[]) => {
     window.clearInterval(timer.current);
@@ -129,17 +150,23 @@ export default function App() {
   const runAction = async (action: Action) => {
     if (actionInFlight.current) return;
     actionInFlight.current = true;
+    if (action === "ping" || action === "tcp" || action === "udp" || action === "quality") {
+      setResultType(action);
+    }
     setBusy(true);
+    const controller = new AbortController();
+    abortController.current = controller;
     try {
       const pair = { source, destination };
-      let payload: TestResult;
-      if (action === "ping") payload = await api.post("/api/test/ping", pair);
-      else if (action === "tcp" || action === "udp") payload = await api.post("/api/test/iperf", { ...pair, protocol: action, seconds });
-      else if (action === "quality") payload = await api.post("/api/test/call-quality", { ...pair, protocol: "udp", seconds });
+      let rawPayload: unknown;
+      if (action === "ping") rawPayload = await api.post("/api/test/ping", pair, controller.signal);
+      else if (action === "tcp" || action === "udp") rawPayload = await api.post("/api/test/iperf", { ...pair, protocol: action, seconds }, controller.signal);
+      else if (action === "quality") rawPayload = await api.post("/api/test/call-quality", { ...pair, protocol: "udp", seconds }, controller.signal);
       else if (action === "simulate") {
         const simulated = await api.post<Decision & { src: string; dst: string }>("/api/simulate/path", pair);
-        payload = { ok: simulated.action === "allow", message: `Mô phỏng ${source} → ${destination}`, decision: simulated, raw: simulated.reason };
-      } else payload = await api.post(action === "block" ? "/api/live/block" : "/api/live/unblock", pair);
+        rawPayload = { ok: simulated.action === "allow", message: `Mô phỏng ${source} → ${destination}`, decision: simulated, raw: simulated.reason };
+      } else rawPayload = await api.post(action === "block" ? "/api/live/block" : "/api/live/unblock", pair, controller.signal);
+      const payload = ensureTestResult(rawPayload);
 
       setResult(payload);
       if (payload.decision) {
@@ -153,10 +180,12 @@ export default function App() {
       setFlows(flowData.flows);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Thao tác thất bại.";
-      setResult({ ok: false, message, raw: message });
+      const errorCode = error instanceof ApiClientError ? error.errorCode : "UNKNOWN_ERROR";
+      setResult({ ok: false, message, error_code: errorCode, raw: message });
       addEvent(message, "deny");
       notify(message, "error");
     } finally {
+      abortController.current = undefined;
       actionInFlight.current = false;
       setBusy(false);
     }
@@ -215,8 +244,10 @@ export default function App() {
       <div className="workspace-grid">
         <TopologyCanvas {...topologyProps} />
         <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
-          busy={busy} result={result} onSource={setSource} onDestination={setDestination}
-          onSeconds={setSeconds} onRun={(action) => void runAction(action)} />
+          policyMap={topology?.policy_map} testType={testType} resultType={resultType} busy={busy} elapsedSeconds={elapsedSeconds}
+          websocketOnline={websocketOnline} result={result} onSource={setSource} onDestination={setDestination}
+          onSeconds={setSeconds} onTestType={setTestType} onRun={(action) => void runAction(action)}
+          onCancel={() => abortController.current?.abort()} />
       </div>
     );
     if (page === "policy") return (

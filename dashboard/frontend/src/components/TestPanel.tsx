@@ -1,20 +1,31 @@
-import { Activity, Ban, Gauge, Network, PhoneCall, ShieldCheck } from "lucide-react";
+import { Activity, Ban, Gauge, Network, PhoneCall, Play, RotateCcw, ShieldCheck, Square } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { Host, TestResult } from "../api/client";
+import type { Host, TestResult, Topology } from "../api/client";
+import ConfirmDialog from "./ui/ConfirmDialog";
+import StatusBadge from "./ui/StatusBadge";
+import TaskProgress from "./ui/TaskProgress";
+import { errorGuidance, testLabels, type NetworkTestType } from "./testWorkflow";
 
-type Action = "ping" | "tcp" | "udp" | "quality" | "simulate" | "block" | "unblock";
+type Action = NetworkTestType | "simulate" | "block" | "unblock";
 
 type Props = {
   hosts: Host[];
+  policyMap?: Topology["policy_map"];
   source: string;
   destination: string;
   seconds: number;
+  testType: NetworkTestType;
+  resultType: NetworkTestType;
   busy: boolean;
+  elapsedSeconds: number;
+  websocketOnline: boolean;
   result?: TestResult;
   onSource: (value: string) => void;
   onDestination: (value: string) => void;
   onSeconds: (value: number) => void;
+  onTestType: (value: NetworkTestType) => void;
   onRun: (action: Action) => void;
+  onCancel: () => void;
 };
 
 function hostText(host: Host) {
@@ -28,22 +39,37 @@ function endpointLabel(host?: Host) {
 }
 
 function groupBucket(host: Host) {
-  if (host.kind === "service") return host.group === "h90" ? "HQ - Voice" : "Service";
-  return `${host.site} - ${host.group_label}`;
+  if (host.kind === "service") return host.group === "h90" ? "HQ · Voice" : "Internet / Services";
+  return `${host.site} · ${host.group_label} · VLAN ${host.vlan}`;
 }
 
-function EndpointCombobox({ label, value, hosts, onChange }: { label: string; value: string; hosts: Host[]; onChange: (value: string) => void }) {
+function EndpointCombobox({
+  label,
+  value,
+  hosts,
+  exclude,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  hosts: Host[];
+  exclude?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const selected = hosts.find((host) => host.name === value);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return (needle ? hosts.filter((host) => hostText(host).includes(needle)) : hosts).slice(0, 40);
-  }, [hosts, query]);
-  useEffect(() => {
-    setActive(0);
-  }, [query]);
+    return hosts
+      .filter((host) => host.name !== exclude)
+      .filter((host) => !needle || hostText(host).includes(needle))
+      .slice(0, 60);
+  }, [hosts, query, exclude]);
+  useEffect(() => setActive(0), [query]);
   const groups = useMemo(() => {
     const data = new Map<string, Host[]>();
     filtered.forEach((host) => {
@@ -62,8 +88,9 @@ function EndpointCombobox({ label, value, hosts, onChange }: { label: string; va
       <div className="endpoint-combobox" role="combobox" aria-expanded={open} aria-haspopup="listbox">
         <input
           aria-label={`${label} endpoint`}
-          placeholder={selected ? endpointLabel(selected) : "Tim hostname, IP, VLAN, Project, site..."}
+          placeholder="Tìm hostname, IP, VLAN, site hoặc group..."
           value={query}
+          disabled={disabled}
           onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(event) => {
@@ -73,7 +100,7 @@ function EndpointCombobox({ label, value, hosts, onChange }: { label: string; va
             if (event.key === "Escape") setOpen(false);
           }}
         />
-        <button type="button" onClick={() => setOpen((current) => !current)}>{selected ? endpointLabel(selected) : "Chon endpoint"}</button>
+        <button type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>{selected ? endpointLabel(selected) : "Chọn endpoint"}</button>
         {open && (
           <div className="combo-list" role="listbox">
             {groups.map(([group, items]) => (
@@ -82,16 +109,8 @@ function EndpointCombobox({ label, value, hosts, onChange }: { label: string; va
                 {items.map((host) => {
                   const flatIndex = filtered.findIndex((item) => item.name === host.name);
                   return (
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={host.name === value}
-                      className={flatIndex === active ? "active" : ""}
-                      value={host.name}
-                      key={host.name}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => choose(host)}
-                    >
+                    <button type="button" disabled={disabled} role="option" aria-selected={host.name === value} className={flatIndex === active ? "active" : ""} key={host.name}
+                      onMouseDown={(event) => event.preventDefault()} onClick={() => choose(host)}>
                       <span>{endpointLabel(host)}</span>
                       <small>{host.site} · VLAN {host.vlan ?? "service"} · {host.group_label}</small>
                     </button>
@@ -99,7 +118,7 @@ function EndpointCombobox({ label, value, hosts, onChange }: { label: string; va
                 })}
               </div>
             ))}
-            {!filtered.length && <p>Khong tim thay endpoint phu hop.</p>}
+            {!filtered.length && <p>Không tìm thấy endpoint phù hợp.</p>}
           </div>
         )}
       </div>
@@ -107,58 +126,167 @@ function EndpointCombobox({ label, value, hosts, onChange }: { label: string; va
   );
 }
 
+function Metric({ label, value, unit }: { label: string; value: unknown; unit?: string }) {
+  return <div className="result-metric"><span>{label}</span><strong>{value == null ? "--" : String(value)}{value == null || !unit ? "" : ` ${unit}`}</strong></div>;
+}
+
 export default function TestPanel(props: Props) {
+  const [confirmAction, setConfirmAction] = useState<"block" | "unblock" | null>(null);
+  const sourceHost = props.hosts.find((host) => host.name === props.source);
+  const destinationHost = props.hosts.find((host) => host.name === props.destination);
+  const sourcePolicyId = sourceHost?.kind === "user" ? sourceHost.group : sourceHost?.name;
+  const destinationPolicyId = destinationHost?.kind === "user" ? destinationHost.group : destinationHost?.name;
+  const policyEntry = sourcePolicyId ? props.policyMap?.[sourcePolicyId] : undefined;
+  const policyAllowed = destinationPolicyId ? policyEntry?.allow.includes(destinationPolicyId) : undefined;
+  const policyNote = destinationPolicyId ? policyEntry?.notes[destinationPolicyId] : undefined;
+  const metrics = props.result?.result || {};
   const decision = props.result?.decision;
-  const confirmControl = (action: "block" | "unblock") => {
-    const verb = action === "block" ? "cai flow DROP" : "go flow DROP";
-    if (window.confirm(`Ban co chac muon ${verb} cho ${props.source} -> ${props.destination} khong?`)) {
-      props.onRun(action);
-    }
+  const sameEndpoint = props.source === props.destination;
+  const canRun = !props.busy && !sameEndpoint && Boolean(props.source && props.destination);
+  const testIcons = { ping: Activity, tcp: Gauge, udp: Gauge, quality: PhoneCall };
+  const ActiveIcon = testIcons[props.resultType];
+
+  const retry = () => {
+    if (!props.busy) props.onRun(props.resultType);
   };
+
   return (
-    <section>
-      <div className="section-title"><h2>Do kiem mang</h2><span>Ket qua that tu Mininet/OVS</span></div>
-      <div className="panel-body">
-        <div className="form-grid">
-          <EndpointCombobox label="Nguon" value={props.source} hosts={props.hosts} onChange={props.onSource} />
-          <EndpointCombobox label="Dich" value={props.destination} hosts={props.hosts} onChange={props.onDestination} />
-          <label className="full">Thoi gian do chu dong (giay)<input type="number" min={1} max={30} value={props.seconds} onChange={(event) => props.onSeconds(Number(event.target.value))} /></label>
-        </div>
-        <h3 className="button-group-title">Do kiem mang</h3>
-        <div className="action-grid">
-          <button className="primary" disabled={props.busy} onClick={() => props.onRun("ping")}><Activity size={16} />Kiem tra Ping</button>
-          <button disabled={props.busy} onClick={() => props.onRun("tcp")}><Gauge size={16} />Throughput TCP</button>
-          <button disabled={props.busy} onClick={() => props.onRun("udp")}><Gauge size={16} />Jitter UDP</button>
-          <button disabled={props.busy} onClick={() => props.onRun("quality")}><PhoneCall size={16} />Uoc luong chat luong thoai</button>
-          <button disabled={props.busy} onClick={() => props.onRun("simulate")}><Network size={16} />Mo phong path</button>
-        </div>
-        <h3 className="button-group-title">Dieu khien SDN</h3>
-        <div className="action-grid">
-          <button className="danger" disabled={props.busy} onClick={() => confirmControl("block")}><Ban size={16} />Chan luong</button>
-          <button disabled={props.busy} onClick={() => confirmControl("unblock")}><ShieldCheck size={16} />Go chan</button>
-        </div>
-        <div className={`result-box ${props.result?.ok ? "ok" : props.result ? "bad" : ""}`}>
-          <strong>{props.busy ? "Dang thuc hien..." : props.result?.message || "San sang do kiem"}</strong>
-          <p>{decision?.reason || "Chon tung user cu the roi chay phep do."}</p>
-          {decision && (
-            <div className="decision-meta">
-              <span>Enforce: {decision.enforcement_switch || "n/a"}</span>
-              <span>Policy: {decision.policy || "n/a"}</span>
-              <span>Cookie: {decision.cookie || "n/a"}</span>
-              <span>Priority: {decision.priority ?? "n/a"}</span>
-              {decision.failed_link && <span>Failed link: {decision.failed_link}</span>}
-            </div>
-          )}
-          {(props.result?.error_code || props.result?.parse_warning || props.result?.cleanup_warning) && (
-            <div className="decision-meta">
-              {props.result.error_code && <span>Error: {props.result.error_code}</span>}
-              {props.result.parse_warning && <span>Parse: {props.result.parse_warning}</span>}
-              {props.result.cleanup_warning && <span>Cleanup: {props.result.cleanup_warning}</span>}
-            </div>
-          )}
-        </div>
-        <pre>{props.result?.raw || "Output ping/iperf3/OVS se hien thi tai day."}</pre>
+    <section className="network-test-workspace">
+      <div className="section-title">
+        <div><h2>Kiểm tra kết nối</h2><span>Kết quả thật từ Mininet, OVS và iperf3</span></div>
+        <StatusBadge status={props.websocketOnline ? "online" : "unknown"} label={props.websocketOnline ? "Realtime online" : "Realtime chưa kết nối"} />
       </div>
+      <div className="panel-body">
+        {!props.websocketOnline && (
+          <div className="realtime-warning" role="status">
+            <strong>WebSocket mất kết nối</strong>
+            <p>{errorGuidance("WEBSOCKET_OFFLINE")}</p>
+          </div>
+        )}
+        <div className="endpoint-pair-grid">
+          <EndpointCombobox label="Nguồn" value={props.source} hosts={props.hosts} exclude={props.destination} disabled={props.busy} onChange={props.onSource} />
+          <EndpointCombobox label="Đích" value={props.destination} hosts={props.hosts} exclude={props.source} disabled={props.busy} onChange={props.onDestination} />
+        </div>
+        {sameEndpoint && <p className="field-error">Nguồn và đích phải khác nhau.</p>}
+
+        <div className="policy-preview">
+          <div><strong>Policy preview</strong><StatusBadge status={policyAllowed === true ? "online" : policyAllowed === false ? "offline" : "unknown"} label={policyAllowed === true ? "ALLOW dự kiến" : policyAllowed === false ? "DENY dự kiến" : "Chưa xác định"} /></div>
+          <p>{policyNote || "Chọn endpoint để xem policy preview từ backend topology payload."}</p>
+        </div>
+
+        <div className="test-config-grid">
+          <div>
+            <span className="field-label">Loại kiểm tra</span>
+            <div className="test-type-selector">
+              {(Object.keys(testLabels) as NetworkTestType[]).map((type) => {
+                const Icon = testIcons[type];
+                return <button className={props.testType === type ? "active" : ""} disabled={props.busy} key={type} onClick={() => props.onTestType(type)}><Icon size={16} />{testLabels[type]}</button>;
+              })}
+            </div>
+          </div>
+          <label>Thời gian đo
+            <input type="number" min={1} max={30} disabled={props.busy || props.testType === "ping"} value={props.seconds}
+              onChange={(event) => props.onSeconds(Math.max(1, Math.min(Number(event.target.value) || 5, 30)))} />
+          </label>
+        </div>
+
+        <div className="run-bar">
+          <button className="primary run-button" disabled={!canRun} onClick={() => props.onRun(props.testType)}>
+            <Play size={17} /><span>Chạy {testLabels[props.testType]}</span>
+          </button>
+          {props.busy && <button className="danger" onClick={props.onCancel}><Square size={15} />Hủy chờ</button>}
+          {!props.busy && props.result && <button onClick={retry}><RotateCcw size={15} />Chạy lại</button>}
+        </div>
+        {props.busy && <TaskProgress label={`Đang chạy ${testLabels[props.testType]}`} elapsedSeconds={props.elapsedSeconds} />}
+
+        {props.result && (
+          <div className={`test-result ${props.result.ok ? "success" : props.result.error_code === "POLICY_DENIED" ? "deny" : "error"}`}>
+            <div className="result-heading">
+              <div><ActiveIcon size={20} /><strong>{props.result.message}</strong></div>
+              <StatusBadge status={props.result.ok ? "online" : "offline"} label={props.result.ok ? "Thành công" : props.result.error_code === "POLICY_DENIED" ? "Policy DENY" : "Thất bại"} />
+            </div>
+            {props.result.error_code && (
+              <div className="error-guidance" role="alert">
+                <code>{props.result.error_code}</code>
+                <p>{errorGuidance(props.result.error_code)}</p>
+              </div>
+            )}
+            {props.resultType === "ping" && (
+              <div className="result-metrics-grid">
+                <Metric label="Kết quả" value={decision?.action?.toUpperCase() || (props.result.ok ? "ALLOW" : "DENY")} />
+                <Metric label="Packet loss" value={metrics.packet_loss_percent} unit="%" />
+                <Metric label="RTT trung bình" value={metrics.rtt_avg_ms} unit="ms" />
+                <Metric label="Enforcement" value={decision?.enforcement_switch || decision?.blocked_at} />
+              </div>
+            )}
+            {props.resultType === "udp" && (
+              <div className="result-metrics-grid">
+                <Metric label="Throughput" value={metrics.throughput_mbps} unit="Mbps" />
+                <Metric label="Jitter" value={metrics.jitter_ms} unit="ms" />
+                <Metric label="Packet loss" value={metrics.packet_loss_percent} unit="%" />
+                <Metric label="Datagram mất/tổng" value={`${metrics.lost_packets ?? "--"}/${metrics.total_datagrams ?? "--"}`} />
+                <Metric label="Duration" value={props.result.duration || props.seconds} unit="s" />
+                <Metric label="Session ID" value={props.result.session_id} />
+              </div>
+            )}
+            {props.resultType === "tcp" && (
+              <div className="result-metrics-grid">
+                <Metric label="Throughput" value={metrics.throughput_mbps} unit="Mbps" />
+                <Metric label="Transferred" value={metrics.transferred_bytes} unit="bytes" />
+                <Metric label="Duration" value={props.result.duration || props.seconds} unit="s" />
+                <Metric label="Session ID" value={props.result.session_id} />
+              </div>
+            )}
+            {props.resultType === "quality" && (
+              <>
+                <div className="result-metrics-grid">
+                  <Metric label="RTT" value={metrics.rtt_avg_ms} unit="ms" />
+                  <Metric label="Jitter" value={metrics.jitter_ms} unit="ms" />
+                  <Metric label="Packet loss" value={metrics.packet_loss_percent} unit="%" />
+                  <Metric label="MOS" value={metrics.mos} />
+                  <Metric label="R-factor" value={metrics.r_factor} />
+                  <Metric label="Rating" value={metrics.rating} />
+                </div>
+                <p className="estimation-note">MOS/R-factor chỉ là ước tính từ RTT, jitter và packet loss; không phải cuộc gọi SIP/RTP thật.</p>
+              </>
+            )}
+            {decision && (
+              <div className="decision-summary">
+                <strong>Reason</strong><p>{decision.reason}</p>
+                <strong>Path backend</strong><p>{decision.path.join(" → ") || "Không có path"}</p>
+                {decision.blocked_at && <p><strong>Chặn tại:</strong> {decision.blocked_at}</p>}
+                {decision.failed_link && <p><strong>Liên kết lỗi:</strong> {decision.failed_link}</p>}
+                <span>Policy {decision.policy || "n/a"} · Cookie {decision.cookie || "n/a"} · Priority {decision.priority ?? "n/a"}</span>
+              </div>
+            )}
+            <details className="technical-output">
+              <summary>Chi tiết kỹ thuật</summary>
+              <pre>{props.result.raw || "Backend không trả raw output."}</pre>
+            </details>
+          </div>
+        )}
+
+        <details className="advanced-actions">
+          <summary>Thao tác SDN nâng cao</summary>
+          <div className="action-grid">
+            <button onClick={() => props.onRun("simulate")} disabled={props.busy}><Network size={16} />Xem path policy</button>
+            <button className="danger" onClick={() => setConfirmAction("block")} disabled={props.busy}><Ban size={16} />Chặn luồng</button>
+            <button onClick={() => setConfirmAction("unblock")} disabled={props.busy}><ShieldCheck size={16} />Gỡ chặn</button>
+          </div>
+        </details>
+      </div>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction === "block" ? "Chặn luồng tạm thời?" : "Gỡ chặn luồng?"}
+        message={`${props.source} → ${props.destination}. Backend sẽ thao tác flow thật trên OVS enforcement.`}
+        danger={confirmAction === "block"}
+        confirmLabel={confirmAction === "block" ? "Chặn luồng" : "Gỡ chặn"}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={() => {
+          if (confirmAction) props.onRun(confirmAction);
+          setConfirmAction(null);
+        }}
+      />
     </section>
   );
 }

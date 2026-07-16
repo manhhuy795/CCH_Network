@@ -117,6 +117,7 @@ def test_voice_softphone_wording_is_estimation_not_real_sip_call():
     from app.live_mininet import estimate_voice_quality
 
     frontend_test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+    frontend_test_workflow = (repo_root / "dashboard" / "frontend" / "src" / "components" / "testWorkflow.ts").read_text(encoding="utf-8")
     metrics_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "MetricsPanel.tsx").read_text(encoding="utf-8")
     controller = (repo_root / "sdn_mpls_demo" / "controller_policy.py").read_text(encoding="utf-8")
 
@@ -126,7 +127,8 @@ def test_voice_softphone_wording_is_estimation_not_real_sip_call():
     assert "khong phai cuoc goi SIP/RTP hoan chinh" in quality["estimation_note"]
     assert "PBX/SBC Voice Service" in live_mininet
     assert "Softphone Cfone/Gphone" in live_mininet
-    assert "Uoc luong chat luong thoai" in frontend_test_panel
+    assert "Voice Quality" in frontend_test_workflow
+    assert "không phải cuộc gọi SIP/RTP thật" in frontend_test_panel
     assert "MOS/R-factor la uoc luong" in metrics_panel
     assert "QoS dam bao" not in controller
 
@@ -304,8 +306,9 @@ def test_ping_result_preserves_backend_packet_path_contract():
     assert "decision = enrich_decision(source, destination, decision)" in ping_body
     for field in ("enforcement_switch", "policy", "cookie", "priority", "failed_link"):
         assert field in client_source
-    assert "Enforce:" in panel_source
-    assert "Failed link:" in panel_source
+    assert 'label="Enforcement"' in panel_source
+    assert "decision.failed_link" in panel_source
+    assert "Liên kết lỗi:" in panel_source
 
 
 def test_realtime_metrics_contract_uses_pair_and_flow_delta():
@@ -559,6 +562,7 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     shell_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "layout" / "AppShell.tsx").read_text(encoding="utf-8")
     overview_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "OverviewPage.tsx").read_text(encoding="utf-8")
     test_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TestPanel.tsx").read_text(encoding="utf-8")
+    test_workflow = (repo_root / "dashboard" / "frontend" / "src" / "components" / "testWorkflow.ts").read_text(encoding="utf-8")
     event_log = (repo_root / "dashboard" / "frontend" / "src" / "components" / "EventLog.tsx").read_text(encoding="utf-8")
     policy_panel = (repo_root / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
 
@@ -567,8 +571,9 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
         assert label in shell_source
     for overview_item in ("Controller", "Backend", "Mininet", "Control Agent", "Open vSwitch", "WebSocket", "Host online", "Link/cảnh báo"):
         assert overview_item in overview_source
-    for measurement_item in ("Kiem tra Ping", "Throughput TCP", "Jitter UDP", "Uoc luong chat luong thoai"):
-        assert measurement_item in test_panel
+    for measurement_item in ("Ping", "TCP Throughput", "UDP Jitter", "Voice Quality"):
+        assert measurement_item in test_workflow
+    assert "testLabels" in test_panel
     assert "animate(payload.decision.path)" in app_source
     assert "TopologyCanvas" in app_source
     assert "Toggle policy ghi policy.yml atomic" in policy_panel
@@ -588,11 +593,11 @@ def test_endpoint_selector_is_searchable_grouped_combobox():
     assert 'role="option"' in test_panel
     for key in ("ArrowDown", "ArrowUp", "Enter", "Escape"):
         assert key in test_panel
-    for search_term in ("hostname", "IP", "VLAN", "Project", "site"):
+    for search_term in ("hostname", "IP", "VLAN", "site", "group"):
         assert search_term in test_panel
     assert "groupBucket(host)" in test_panel
-    assert "HQ - Voice" in test_panel
-    assert "Service" in test_panel
+    assert "HQ · Voice" in test_panel
+    assert "Internet / Services" in test_panel
     assert " · " in test_panel
     assert ".endpoint-combobox" in styles
 
@@ -644,8 +649,8 @@ def test_policy_is_not_rendered_as_topology_node_or_overlay():
         assert forbidden not in styles
     assert "props.topology?.policy_map" not in topology_canvas
     assert "Chinh sach SDN Edge" in policy_panel
-    assert "Policy:" in test_panel
-    assert "decision?.reason" in test_panel
+    assert "Policy preview" in test_panel
+    assert "decision.reason" in test_panel
 
 
 def test_readme_documents_automation_and_sdn_runtime_boundaries():

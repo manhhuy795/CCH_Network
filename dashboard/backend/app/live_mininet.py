@@ -469,6 +469,7 @@ def parse_iperf3(output: str) -> dict[str, Any]:
         "jitter_ms": summary.get("jitter_ms"),
         "packet_loss_percent": summary.get("lost_percent"),
         "lost_packets": summary.get("lost_packets"),
+        "total_datagrams": summary.get("packets"),
         "transferred_bytes": summary.get("bytes"),
         "raw": output,
     }

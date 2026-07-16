@@ -624,6 +624,7 @@ class MininetControlAgent:
             "jitter_ms": summary.get("jitter_ms"),
             "packet_loss_percent": summary.get("lost_percent"),
             "lost_packets": summary.get("lost_packets"),
+            "total_datagrams": summary.get("packets"),
             "transferred_bytes": summary.get("bytes"),
         }
         required = ["bits_per_second", "bytes"]

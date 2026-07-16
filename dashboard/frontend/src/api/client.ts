@@ -71,10 +71,28 @@ export type TestResult = {
   error_code?: string | null;
   parse_warning?: string | null;
   cleanup_warning?: string | null;
+  session_id?: string;
+  duration?: number;
+  protocol?: string;
+  measurement_completed?: boolean;
   decision?: Decision;
   result?: Record<string, number | string | boolean | object | null>;
   raw?: string;
 };
+
+export class ApiClientError extends Error {
+  errorCode: string;
+  status: number;
+  requestId: string;
+
+  constructor(message: string, errorCode = "BACKEND_OFFLINE", status = 0, requestId = "") {
+    super(message);
+    this.name = "ApiClientError";
+    this.errorCode = errorCode;
+    this.status = status;
+    this.requestId = requestId;
+  }
+}
 
 export type RealtimeMetric = {
   timestamp: string;
@@ -144,7 +162,15 @@ function authHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, options);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, options);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new ApiClientError("Đã hủy chờ kết quả trên dashboard.", "TASK_CANCELLED");
+    }
+    throw new ApiClientError("Không kết nối được FastAPI backend.", "BACKEND_OFFLINE");
+  }
   if (!response.ok) {
     let detail = "";
     let errorCode = "";
@@ -159,7 +185,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       detail = "";
     }
     const suffix = [errorCode, requestId ? `request ${requestId}` : ""].filter(Boolean).join(" · ");
-    throw new Error(`${detail || `May chu tra ve HTTP ${response.status}`}${suffix ? ` (${suffix})` : ""}`);
+    throw new ApiClientError(
+      `${detail || `Máy chủ trả về HTTP ${response.status}`}${suffix ? ` (${suffix})` : ""}`,
+      errorCode || `HTTP_${response.status}`,
+      response.status,
+      requestId,
+    );
   }
   return response.json() as Promise<T>;
 }
@@ -175,11 +206,12 @@ export const api = {
   verifyOperator: () => request<{ ok: boolean; authenticated: boolean; role: string }>("/api/auth/verify", {
     headers: authHeaders(),
   }),
-  post: <T>(path: string, body: object) =>
+  post: <T>(path: string, body: object, signal?: AbortSignal) =>
     request<T>(path, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
+      signal,
     }),
 };
 

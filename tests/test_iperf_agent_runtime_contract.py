@@ -124,6 +124,7 @@ def test_tcp_and_udp_results_include_runtime_metrics(monkeypatch):
                 "jitter_ms": 1.25,
                 "lost_percent": 0.5,
                 "lost_packets": 2,
+                "packets": 400,
             },
         },
     })
@@ -156,6 +157,7 @@ def test_tcp_and_udp_results_include_runtime_metrics(monkeypatch):
             assert response["result"]["jitter_ms"] == 1.25
             assert response["result"]["packet_loss_percent"] == 0.5
             assert response["result"]["lost_packets"] == 2
+            assert response["result"]["total_datagrams"] == 400
 
 
 def test_missing_json_fields_returns_parse_warning(monkeypatch):

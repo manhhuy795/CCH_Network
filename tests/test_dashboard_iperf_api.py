@@ -28,9 +28,17 @@ UDP_OUTPUT = json.dumps({
             "jitter_ms": 2.2,
             "lost_percent": 0.25,
             "lost_packets": 1,
+            "packets": 400,
         },
     },
 })
+
+
+def test_udp_parser_preserves_lost_and_total_datagrams():
+    result = live_mininet.parse_iperf3(UDP_OUTPUT)
+
+    assert result["lost_packets"] == 1
+    assert result["total_datagrams"] == 400
 
 
 def _reset_sessions():
