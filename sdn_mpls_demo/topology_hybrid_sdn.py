@@ -41,6 +41,7 @@ CONTROL_PROTOCOL_VERSION = 1
 CONTROL_MAX_REQUEST_BYTES = 128 * 1024
 CONTROL_CONNECTION_TIMEOUT_SECONDS = 5
 CONTROL_START_TIMEOUT_SECONDS = 5
+CONTROL_AGENT_LOG = BASE_DIR / "runtime" / "mininet_control_agent.log"
 ALLOWED_CONTROL_COMMANDS = {
     "HEALTH",
     "PING_AGENT",
@@ -319,16 +320,21 @@ class MininetControlAgent:
             pass
 
     def _log_connection_error(self, command, request_id, exc: BaseException) -> None:
-        emit(json.dumps(
-            {
-                "event": "mininet_control_error",
-                "command": command,
-                "request_id": request_id,
-                "error_type": type(exc).__name__,
-                "message": str(exc),
-            },
-            ensure_ascii=False,
-        ))
+        record = {
+            "event": "mininet_control_error",
+            "command": command,
+            "request_id": request_id,
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+        }
+        line = json.dumps(record, ensure_ascii=False)
+        emit(line)
+        try:
+            CONTROL_AGENT_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with CONTROL_AGENT_LOG.open("a", encoding="utf-8") as log_file:
+                log_file.write(line + "\n")
+        except OSError:
+            pass
 
     @staticmethod
     def _error_code(exc: BaseException) -> str:

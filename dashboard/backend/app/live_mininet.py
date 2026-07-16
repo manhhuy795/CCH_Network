@@ -540,6 +540,16 @@ def _finish_iperf_session(session_id: str) -> None:
         _IPERF_ACTIVE_SESSIONS.pop(session_id, None)
 
 
+def iperf_runtime_status() -> dict[str, Any]:
+    with _IPERF_GLOBAL_LOCK:
+        sessions = list(_IPERF_ACTIVE_SESSIONS.values())
+    return {
+        "active_count": len(sessions),
+        "max_concurrent": IPERF_MAX_CONCURRENT,
+        "destinations": sorted({str(session.get("destination")) for session in sessions}),
+    }
+
+
 def iperf(source: str, destination: str, protocol: str = "tcp", seconds: int = 5) -> dict[str, Any]:
     protocol = protocol.lower()
     seconds = max(1, min(int(seconds), 30))

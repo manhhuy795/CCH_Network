@@ -132,6 +132,17 @@ def test_operation_error_mapping_is_stable():
     })["error_code"] == "AGENT_DISCONNECTED"
 
 
+def test_completed_voice_measurement_is_http_success_even_when_quality_is_poor():
+    response = api.operation_response({
+        "ok": False,
+        "measurement_completed": True,
+        "message": "Chat luong chua dat nguong.",
+        "result": {"mos": 3.2},
+    })
+    assert isinstance(response, dict)
+    assert response["measurement_completed"] is True
+
+
 def test_auth_error_codes_and_http_status(monkeypatch):
     pytest.importorskip("fastapi.testclient")
     monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "health-secret")

@@ -8,6 +8,7 @@ backups/*.cfg
 backups/*.txt
 *.log
 logs/
+runtime_reports/
 node_modules/
 dist/
 *.tsbuildinfo

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from . import mininet_control
 from .errors import ERROR_HTTP_STATUS
-from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
+from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
@@ -52,7 +52,7 @@ def _normalize_operation_error(payload: dict) -> dict:
 def operation_response(payload: dict) -> dict | JSONResponse:
     normalized = _normalize_operation_error(payload)
     code = str(normalized.get("error_code") or "")
-    if normalized.get("ok") or code == "POLICY_DENIED":
+    if normalized.get("ok") or normalized.get("measurement_completed") or code == "POLICY_DENIED":
         return normalized
     status_code = ERROR_HTTP_STATUS.get(code, 503)
     return JSONResponse(status_code=status_code, content=normalized)
@@ -101,7 +101,12 @@ def api_metrics_pair(payload: HostPair):
 
 @router.get("/live/status")
 def api_live_status():
-    return live_health_payload()
+    return {**live_health_payload(), "iperf_sessions": iperf_runtime_status()}
+
+
+@router.get("/live/iperf-sessions", dependencies=[operator_required])
+def api_live_iperf_sessions():
+    return iperf_runtime_status()
 
 
 @router.get("/health")
