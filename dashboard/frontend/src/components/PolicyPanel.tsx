@@ -1,42 +1,104 @@
-const labels: Record<string, string> = {
-  isolate_hq_projects: "Cach ly cac du an tai HQ",
-  isolate_branch_vlan_50_60: "Cach ly VLAN 50 va VLAN 60",
-  allow_voice: "Cho phep PBX/SBC Voice Service",
-  allow_zalo: "Cho phep Zalo",
-  allow_call_app: "Cho phep Call App / CRM",
-  allow_general_internet: "Cho phep General Internet",
-  block_social_media: "Chan Social Media",
-  allow_it_support_controlled_access: "IT Support quan tri co kiem soat",
-  voice_flow_priority: "Voice Flow Priority",
-  intersite_via_mpls_l3vpn: "Lien site qua MPLS L3VPN Logic Cloud",
-};
+import { Power } from "lucide-react";
+import { useState } from "react";
+import type { PolicyInventoryItem, PolicyPayload } from "../api/client";
+import ConfirmDialog from "./ui/ConfirmDialog";
+import StatusBadge from "./ui/StatusBadge";
 
 type Props = {
-  policies: Record<string, unknown>;
-  onToggle?: (key: string, enabled: boolean) => void;
+  policies: PolicyPayload;
+  onToggle?: (key: string, enabled: boolean) => Promise<void> | void;
   busy?: boolean;
 };
 
+function lifecycleTone(status: PolicyInventoryItem["lifecycle_status"]) {
+  if (status === "Applied") return "online";
+  if (status === "Failed") return "offline";
+  if (status === "Applying" || status === "Out of sync") return "degraded";
+  return "unknown";
+}
+
+function formatTime(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value || "Chưa có" : parsed.toLocaleString("vi-VN");
+}
+
 export default function PolicyPanel({ policies, onToggle, busy = false }: Props) {
-  const policyData = (policies.policies || {}) as Record<string, unknown>;
+  const [pending, setPending] = useState<PolicyInventoryItem>();
+  const [applyingKey, setApplyingKey] = useState("");
+  const inventory = policies.inventory || [];
+
+  const confirmToggle = async () => {
+    if (!pending || !onToggle) return;
+    setApplyingKey(pending.key);
+    try {
+      await onToggle(pending.key, !pending.enabled);
+    } finally {
+      setApplyingKey("");
+      setPending(undefined);
+    }
+  };
+
   return (
     <section>
-      <div className="section-title"><h2>Chinh sach SDN Edge</h2><span>Mac dinh tu choi</span></div>
-      <div className="policy-list">
-        {Object.entries(policyData).filter(([, value]) => typeof value === "boolean").map(([key, value]) => (
-          <div key={key}>
-            <span>{labels[key] || key.replaceAll("_", " ")}</span>
-            <strong className={value ? "enabled" : "disabled"}>{value ? "Bat" : "Tat"}</strong>
-            {onToggle && <button disabled={busy} onClick={() => onToggle(key, !value)}>{value ? "Tat" : "Bat"}</button>}
-          </div>
-        ))}
+      <div className="section-title">
+        <div><h2>Chính sách SDN Edge</h2><span>Trạng thái áp dụng phải có controller acknowledgement</span></div>
+        <StatusBadge status={inventory.some((item) => item.lifecycle_status === "Failed") ? "offline" : inventory.some((item) => item.lifecycle_status !== "Applied") ? "degraded" : "online"} />
+      </div>
+      <div className="policy-inventory" aria-live="polite">
+        {inventory.map((policy) => {
+          const lifecycle = applyingKey === policy.key ? "Applying" : policy.lifecycle_status;
+          return (
+            <article className="policy-row" key={policy.key}>
+              <div className="policy-heading">
+                <div><strong>{policy.name}</strong><code>{policy.key}</code></div>
+                <div className="policy-statuses">
+                  <StatusBadge status={policy.enabled ? "online" : policy.enabled === false ? "offline" : "unknown"} label={policy.configuration_status} />
+                  <StatusBadge status={lifecycleTone(lifecycle)} label={lifecycle} />
+                </div>
+              </div>
+              <p>{policy.description}</p>
+              <dl className="policy-facts">
+                <div><dt>Nguồn</dt><dd>{policy.source}</dd></div>
+                <div><dt>Đích</dt><dd>{policy.destination}</dd></div>
+                <div><dt>Action</dt><dd><span className={`pill ${policy.action === "ALLOW" ? "allow" : "deny"}`}>{policy.action}</span></dd></div>
+                <div><dt>Enforcement</dt><dd>{policy.enforcement_point}</dd></div>
+                <div><dt>Priority</dt><dd>{policy.priority}</dd></div>
+                <div><dt>Cookie</dt><dd><code>{policy.cookie}</code></dd></div>
+                <div><dt>Controller ACK</dt><dd>{policy.controller_acknowledged ? "Đã xác nhận" : "Chưa xác nhận"}</dd></div>
+                <div><dt>Cập nhật</dt><dd>{formatTime(policy.updated_at)}</dd></div>
+              </dl>
+              {onToggle && policy.enabled !== null && (
+                <div className="policy-actions">
+                  <button
+                    className={policy.enabled ? "danger" : "primary"}
+                    disabled={busy || Boolean(applyingKey)}
+                    onClick={() => setPending(policy)}
+                  >
+                    <Power size={15} />{policy.enabled ? "Tắt policy" : "Bật policy"}
+                  </button>
+                </div>
+              )}
+            </article>
+          );
+        })}
+        {!inventory.length && <p className="empty-inline">Backend chưa trả policy inventory.</p>}
       </div>
       <div className="explanation">
-        <h3>Chot noi thuc thi policy</h3>
-        <p>Project isolation drop tai HQ Core SDN/L3. VLAN 50/60 va Social Media cua Branch drop tai Branch Distribution SDN/L3.</p>
-        <p>Controller chi dieu khien OVS qua OpenFlow 1.3. CE, Internet Edge Boundary va MPLS L3VPN Logic Cloud khong nam trong OpenFlow control domain.</p>
-        <p>Toggle policy ghi policy.yml atomic va chi bao thanh cong khi OS-Ken xac nhan reload.</p>
+        <h3>Ranh giới thực thi</h3>
+        <p>Policy HQ thực thi tại core_hq; policy Branch thực thi tại dist_branch. CE, Firewall, MPLS và Internet Edge Boundary không được coi là OpenFlow device.</p>
+        <p>Ghi policy.yml chỉ là thay đổi cấu hình. Trạng thái Applied chỉ xuất hiện sau khi OS-Ken reload và acknowledgement thành công.</p>
       </div>
+      <ConfirmDialog
+        open={Boolean(pending)}
+        title={pending?.enabled ? "Tắt chính sách đang áp dụng?" : "Bật chính sách này?"}
+        message={pending
+          ? `Tác động: ${pending.action} ${pending.source} → ${pending.destination} tại ${pending.enforcement_point}. Controller sẽ reconcile flow cookie ${pending.cookie}; lưu lượng đang chạy có thể thay đổi ngay.`
+          : ""}
+        confirmLabel={pending?.enabled ? "Tắt policy" : "Bật policy"}
+        danger={Boolean(pending?.enabled)}
+        onClose={() => setPending(undefined)}
+        onConfirm={() => void confirmToggle()}
+      />
     </section>
   );
 }

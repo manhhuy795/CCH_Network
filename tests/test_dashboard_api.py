@@ -576,7 +576,8 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     assert "testLabels" in test_panel
     assert "animate(payload.decision.path)" in app_source
     assert "TopologyCanvas" in app_source
-    assert "Toggle policy ghi policy.yml atomic" in policy_panel
+    assert "controller acknowledgement" in policy_panel
+    assert "Ghi policy.yml chỉ là thay đổi cấu hình" in policy_panel
     for log_item in ("Packet-In", "FlowMod", "policy reload", "link down/up", "measurement", "warning", "error"):
         assert log_item in event_log
 
@@ -648,7 +649,7 @@ def test_policy_is_not_rendered_as_topology_node_or_overlay():
         assert forbidden not in topology_canvas
         assert forbidden not in styles
     assert "props.topology?.policy_map" not in topology_canvas
-    assert "Chinh sach SDN Edge" in policy_panel
+    assert "Chính sách SDN Edge" in policy_panel
     assert "Policy preview" in test_panel
     assert "decision.reason" in test_panel
 

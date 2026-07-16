@@ -146,6 +146,32 @@ export type AuthStatus = {
   role: string;
 };
 
+export type PolicyLifecycleStatus = "Draft" | "Applying" | "Applied" | "Failed" | "Out of sync";
+
+export type PolicyInventoryItem = {
+  key: string;
+  name: string;
+  description: string;
+  source: string;
+  destination: string;
+  action: "ALLOW" | "DROP";
+  enforcement_point: string;
+  priority: number;
+  cookie: string;
+  enabled: boolean | null;
+  configuration_status: "Enabled" | "Disabled" | "Draft";
+  lifecycle_status: PolicyLifecycleStatus;
+  controller_acknowledged: boolean;
+  updated_at: string;
+  technical_detail?: unknown;
+};
+
+export type PolicyPayload = {
+  metadata?: Record<string, unknown>;
+  policies: Record<string, unknown>;
+  inventory: PolicyInventoryItem[];
+};
+
 export function getOperatorToken() {
   return window.localStorage.getItem(OPERATOR_TOKEN_KEY) || "";
 }
@@ -199,7 +225,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   topology: () => request<Topology>("/api/topology"),
   authStatus: () => request<AuthStatus>("/api/auth/status"),
-  policies: () => request<Record<string, unknown>>("/api/policies"),
+  policies: () => request<PolicyPayload>("/api/policies"),
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),
   status: () => request<Record<string, unknown>>("/api/live/status"),
   health: () => request<Record<string, unknown>>("/api/health"),

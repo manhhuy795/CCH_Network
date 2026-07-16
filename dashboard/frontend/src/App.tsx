@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiClientError, api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type TestResult, type Topology } from "./api/client";
+import { ApiClientError, api, getOperatorToken, setOperatorToken, type AuthStatus, type Decision, type PolicyPayload, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog, { type LogEntry } from "./components/EventLog";
@@ -16,11 +16,12 @@ import FeedbackState from "./components/ui/FeedbackState";
 import ToastRegion, { type ToastItem } from "./components/ui/ToastRegion";
 
 type Action = NetworkTestType | "simulate" | "block" | "unblock";
+type LinkOperation = { linkId: string; action: "fail" | "recover"; status: "running" | "success" | "failed"; message: string };
 
 export default function App() {
   const [page, setPage] = useState<DashboardPage>("overview");
   const [topology, setTopology] = useState<Topology>();
-  const [policies, setPolicies] = useState<Record<string, unknown>>({});
+  const [policies, setPolicies] = useState<PolicyPayload>({ policies: {}, inventory: [] });
   const [flows, setFlows] = useState<Array<Record<string, unknown>>>([]);
   const [source, setSource] = useState("h20_01");
   const [destination, setDestination] = useState("h90");
@@ -37,6 +38,7 @@ export default function App() {
   const [events, setEvents] = useState<LogEntry[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [failedLinks, setFailedLinks] = useState<string[]>([]);
+  const [linkOperation, setLinkOperation] = useState<LinkOperation>();
   const [online, setOnline] = useState(0);
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
   const [websocketOnline, setWebsocketOnline] = useState(false);
@@ -192,14 +194,24 @@ export default function App() {
   };
 
   const changeLink = async (linkId: string, fail: boolean) => {
-    const payload = await api.post<{ ok: boolean; message: string; failed_links: string[] }>(
-      fail ? "/api/link/fail" : "/api/link/recover",
-      { link_id: linkId },
-    );
-    setFailedLinks(payload.failed_links);
-    addEvent(payload.message, payload.ok ? (fail ? "deny" : "allow") : "deny");
-    notify(payload.message, payload.ok ? "success" : "error");
-    await refresh();
+    const action = fail ? "fail" : "recover";
+    setLinkOperation({ linkId, action, status: "running", message: fail ? "Đang ngắt liên kết thật trong Mininet." : "Đang khôi phục liên kết thật trong Mininet." });
+    try {
+      const payload = await api.post<{ ok: boolean; message: string; failed_links: string[] }>(
+        fail ? "/api/link/fail" : "/api/link/recover",
+        { link_id: linkId },
+      );
+      setFailedLinks(payload.failed_links);
+      setLinkOperation({ linkId, action, status: payload.ok ? "success" : "failed", message: payload.message });
+      addEvent(payload.message, payload.ok ? (fail ? "deny" : "allow") : "deny");
+      notify(payload.message, payload.ok ? "success" : "error");
+      await refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thay đổi được trạng thái link.";
+      setLinkOperation({ linkId, action, status: "failed", message });
+      addEvent(message, "deny");
+      notify(message, "error");
+    }
   };
 
   const togglePolicy = async (key: string, enabled: boolean) => {
@@ -227,6 +239,7 @@ export default function App() {
     liveLinkControl: Boolean(topology?.summary.live_link_control),
     flows,
     metrics,
+    linkOperation,
     authenticated,
     source,
     onFail: (id: string) => void changeLink(id, true),
@@ -252,7 +265,7 @@ export default function App() {
     );
     if (page === "policy") return (
       <div className="policy-workspace">
-        <div className="main-column"><PolicyPanel policies={policies} onToggle={(key, enabled) => void togglePolicy(key, enabled)} busy={policyBusy} /><FlowTable flows={flows} /></div>
+        <div className="main-column"><PolicyPanel policies={policies} onToggle={togglePolicy} busy={policyBusy} /><FlowTable flows={flows} /></div>
         <aside><ClusterDetailPanel /><MetricsPanel metrics={metrics} /></aside>
       </div>
     );

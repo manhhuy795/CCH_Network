@@ -166,14 +166,25 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .case span, .case small { color: #607084; font-size: 11px; line-height: 1.35; }
 .openflow-note { border-bottom: 1px solid #e7edf2; color: #4b5d73; font-size: 12px; line-height: 1.45; padding: 10px 12px; }
 table { border-collapse: collapse; min-width: 1200px; width: 100%; }
-.flow-filters { display: grid; gap: 8px; grid-template-columns: 220px 1fr; padding: 10px 12px; }
+.flow-filters { display: grid; gap: 8px; grid-template-columns: 180px 180px minmax(240px, 1fr); padding: 10px 12px; }
 th, td { border-bottom: 1px solid #e7edf2; font-size: 11px; padding: 7px; text-align: left; vertical-align: top; }
 th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
+.table-sort { background: transparent; border: 0; border-radius: 3px; font-size: 11px; font-weight: 700; min-height: 24px; padding: 2px; }
+.flow-table { min-width: 980px; }.flow-table td:nth-child(4) { max-width: 280px; overflow-wrap: anywhere; }
+.sr-only { height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .pill { border-radius: 999px; display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 7px; }
 .pill.allow { background: #dcfce7; color: #087f5b; }.pill.deny { background: #fee2e2; color: #b42318; }
-.policy-list { padding: 8px 12px; }
-.policy-list > div { align-items: center; border-bottom: 1px solid #edf1f5; display: flex; font-size: 12px; justify-content: space-between; padding: 7px 0; }
-.policy-list span { text-transform: capitalize; }.enabled { color: #087f5b; }.disabled { color: #a51d1d; }
+.policy-inventory { display: grid; gap: 0; }
+.policy-row { border-bottom: 1px solid #e5ebf0; display: grid; gap: 8px; padding: 12px; }
+.policy-heading { align-items: flex-start; display: flex; gap: 10px; justify-content: space-between; }
+.policy-heading > div:first-child { display: grid; gap: 3px; }.policy-heading code { color: var(--text-muted); font-size: 10px; }
+.policy-statuses { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+.policy-row > p { font-size: 11px; }
+.policy-facts { display: grid; gap: 6px 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
+.policy-facts > div { min-width: 0; }.policy-facts dt { color: var(--text-muted); font-size: 9px; text-transform: uppercase; }
+.policy-facts dd { font-size: 11px; font-weight: 650; margin: 2px 0 0; overflow-wrap: anywhere; }
+.policy-actions { display: flex; justify-content: flex-end; }.policy-actions button { min-height: 32px; }
+.empty-inline { padding: 14px; }
 .explanation { border-left: 4px solid #7c3aed; margin: 4px 12px 12px; padding: 8px 10px; }
 .explanation p { font-size: 12px; margin-bottom: 6px; }
 .event-log { max-height: 250px; overflow: auto; padding: 8px 12px; }
@@ -288,6 +299,8 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
 .inspector-grid dt { color: var(--text-muted); }.inspector-grid dd { font-weight: 650; overflow-wrap: anywhere; }
 .inspector-hosts { display: grid; gap: 5px; }.inspector-hosts span { color: var(--text-muted); font-size: 11px; }
 .drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.link-operation-state { background: #f7f9fb; border: 1px solid var(--border); border-radius: var(--radius-sm); display: grid; gap: 6px; padding: 8px; }
+.link-operation-state p { font-size: 11px; }
 .network-test-workspace .panel-body { display: grid; gap: 12px; }
 .endpoint-pair-grid { display: grid; gap: 10px; }
 .combo-field, .test-config-grid label {
@@ -329,6 +342,7 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
   .app-sidebar .brand-block > div, .app-sidebar .nav-item span, .app-sidebar .sidebar-foot { display: none; }
   .app-sidebar .nav-item { justify-content: center; }
   .workspace-grid, .policy-workspace, .performance-grid { grid-template-columns: 1fr; }
+  .policy-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 1fr; }

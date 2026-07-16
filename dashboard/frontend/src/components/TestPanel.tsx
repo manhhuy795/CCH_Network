@@ -278,7 +278,7 @@ export default function TestPanel(props: Props) {
       <ConfirmDialog
         open={Boolean(confirmAction)}
         title={confirmAction === "block" ? "Chặn luồng tạm thời?" : "Gỡ chặn luồng?"}
-        message={`${props.source} → ${props.destination}. Backend sẽ thao tác flow thật trên OVS enforcement.`}
+        message={`Tác động: ${confirmAction === "block" ? "cài flow DROP" : "xóa flow DROP tạm thời"} cho ${props.source} → ${props.destination} trên OVS enforcement. Ping và packet animation tiếp theo sẽ phản ánh flow runtime mới.`}
         danger={confirmAction === "block"}
         confirmLabel={confirmAction === "block" ? "Chặn luồng" : "Gỡ chặn"}
         onClose={() => setConfirmAction(null)}

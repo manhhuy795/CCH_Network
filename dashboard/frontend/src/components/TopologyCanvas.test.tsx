@@ -49,4 +49,12 @@ describe("TopologyCanvas", () => {
     expect(screen.getByTestId("blocked-at")).toBeInTheDocument();
     expect(screen.getByLabelText("Node OS-Ken").getAttribute("class")).not.toContain("current");
   });
+
+  it("shows link operation lifecycle and impact confirmation", () => {
+    const fail = vi.fn();
+    render(<TopologyCanvas {...props} onFail={fail} linkOperation={{ linkId: "project_a-access_hq_a", action: "fail", status: "running", message: "Đang ngắt link thật." }} />);
+    fireEvent.click(screen.getByLabelText("Link project_a đến access_hq_a"));
+    expect(screen.getByLabelText(/Link · project_a/)).toHaveTextContent("Đang thực hiện");
+    expect(screen.getByLabelText(/Link · project_a/)).toHaveTextContent("Đang ngắt link thật.");
+  });
 });

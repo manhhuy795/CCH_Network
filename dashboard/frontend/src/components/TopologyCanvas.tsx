@@ -44,6 +44,7 @@ type Props = {
   failedLinks: string[];
   liveLinkControl: boolean;
   authenticated?: boolean;
+  linkOperation?: { linkId: string; action: "fail" | "recover"; status: "running" | "success" | "failed"; message: string };
   source: string;
   onFail: (linkId: string) => void;
   onRecover: (linkId: string) => void;
@@ -136,6 +137,7 @@ export default function TopologyCanvas(props: Props) {
   const linkStatus = selectedLink
     ? (props.failedLinks.includes(selectedLink.id) || selectedLink.status === "down" ? "offline" : selectedLink.status === "degraded" ? "degraded" : "online")
     : "unknown";
+  const selectedLinkOperation = selectedLink && props.linkOperation?.linkId === selectedLink.id ? props.linkOperation : undefined;
 
   const chooseEndpoint = (kind: "source" | "destination") => {
     if (!selectedNode) return;
@@ -259,6 +261,15 @@ export default function TopologyCanvas(props: Props) {
         {selectedLink && (
           <div className="inspector-grid">
             <StatusBadge status={linkStatus} />
+            {selectedLinkOperation && (
+              <div className="link-operation-state" aria-live="polite">
+                <StatusBadge
+                  status={selectedLinkOperation.status === "success" ? "online" : selectedLinkOperation.status === "failed" ? "offline" : "degraded"}
+                  label={selectedLinkOperation.status === "running" ? "Đang thực hiện" : selectedLinkOperation.status === "success" ? "Thành công" : "Thất bại"}
+                />
+                <p>{selectedLinkOperation.message}</p>
+              </div>
+            )}
             <dl>
               <dt>Endpoint A</dt><dd>{selectedLink.source}</dd>
               <dt>Endpoint B</dt><dd>{selectedLink.target}</dd>
@@ -269,8 +280,8 @@ export default function TopologyCanvas(props: Props) {
             </dl>
             {props.liveLinkControl && selectedLink.type !== "control" && (
               <div className="drawer-actions">
-                <button className="danger" disabled={!props.authenticated} onClick={() => setConfirmLink({ id: selectedLink.id, action: "fail" })}><Unplug size={15} />Fail link</button>
-                <button disabled={!props.authenticated} onClick={() => setConfirmLink({ id: selectedLink.id, action: "recover" })}><RotateCcw size={15} />Recover</button>
+                <button className="danger" disabled={!props.authenticated || selectedLinkOperation?.status === "running"} onClick={() => setConfirmLink({ id: selectedLink.id, action: "fail" })}><Unplug size={15} />Fail link</button>
+                <button disabled={!props.authenticated || selectedLinkOperation?.status === "running"} onClick={() => setConfirmLink({ id: selectedLink.id, action: "recover" })}><RotateCcw size={15} />Recover</button>
               </div>
             )}
           </div>
@@ -279,7 +290,7 @@ export default function TopologyCanvas(props: Props) {
       <ConfirmDialog
         open={Boolean(confirmLink)}
         title={confirmLink?.action === "fail" ? "Ngắt liên kết Mininet?" : "Khôi phục liên kết?"}
-        message={`Thao tác sẽ áp dụng lên link thật ${confirmLink?.id || ""} trong topology đang chạy.`}
+        message={`Tác động: đổi link thật ${confirmLink?.id || ""} sang ${confirmLink?.action === "fail" ? "DOWN" : "UP"} trong Mininet. Ping tiếp theo và packet animation sẽ phải dùng path backend mới; packet không được đi qua link DOWN.`}
         confirmLabel={confirmLink?.action === "fail" ? "Fail link" : "Recover link"}
         danger={confirmLink?.action === "fail"}
         onClose={() => setConfirmLink(null)}
