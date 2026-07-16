@@ -1,5 +1,5 @@
 import { Focus, Layers3, Maximize2, RotateCcw, Search, Unplug, ZoomIn, ZoomOut } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Decision, Host, Link, Topology } from "../api/client";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Drawer from "./ui/Drawer";
@@ -121,11 +121,6 @@ export default function TopologyCanvas(props: Props) {
       .map((node) => String(node.id)));
   }, [props.topology, query]);
 
-  useEffect(() => {
-    const sourceHost = props.topology?.hosts.find((host) => host.name === props.source);
-    if (sourceHost?.group && query) setQuery(sourceHost.group);
-  }, [props.source, props.topology]);
-
   const nodeVisible = (id: string) => region === "all" || regions[id] === region || (region === "hq" && id === "c0");
   const flowForNode = selectedNode
     ? (props.flows || []).filter((flow) => String(flow.switch || "") === String(selectedNode.id))
@@ -190,8 +185,40 @@ export default function TopologyCanvas(props: Props) {
             const route = routedLinks[link.id];
             const visible = nodeVisible(link.source) && nodeVisible(link.target);
             const className = `topology-link data-link ${link.type} ${active ? props.decision?.action : ""} ${failed ? "failed" : ""} ${visible ? "" : "region-hidden"}`;
-            if (route) return <polyline key={link.id} aria-label={`Link ${link.source} đến ${link.target}`} points={route.map(([x, y]) => `${x},${y}`).join(" ")} className={className} onClick={() => setInspector({ kind: "link", id: link.id })} />;
-            return <line key={link.id} aria-label={`Link ${link.source} đến ${link.target}`} x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]} className={className} onClick={() => setInspector({ kind: "link", id: link.id })} />;
+            const openLink = () => setInspector({ kind: "link", id: link.id });
+            const keyboardOpen = (event: React.KeyboardEvent) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openLink();
+              }
+            };
+            const renderHitSegments = (points: Array<[number, number]>) => points.slice(0, -1).map(([x1, y1], index) => {
+              const [x2, y2] = points[index + 1];
+              const width = Math.max(Math.abs(x2 - x1), 18);
+              const height = Math.max(Math.abs(y2 - y1), 18);
+              const x = Math.abs(x2 - x1) < 18 ? (x1 + x2) / 2 - width / 2 : Math.min(x1, x2);
+              const y = Math.abs(y2 - y1) < 18 ? (y1 + y2) / 2 - height / 2 : Math.min(y1, y2);
+              return <rect key={`${link.id}-hit-${index}`} className="link-hit-segment" x={x} y={y} width={width} height={height} />;
+            });
+            if (route) {
+              const points = route.map(([x, y]) => `${x},${y}`).join(" ");
+              return (
+                <g key={link.id}>
+                  <polyline points={points} className={className} aria-hidden="true" />
+                  <g className={`link-hit-target ${visible ? "" : "region-hidden"}`} role="button" tabIndex={0} aria-label={`Link ${link.source} đến ${link.target}`} onClick={openLink} onKeyDown={keyboardOpen}>
+                    {renderHitSegments(route)}
+                  </g>
+                </g>
+              );
+            }
+            return (
+              <g key={link.id}>
+                <line x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]} className={className} aria-hidden="true" />
+                <g className={`link-hit-target ${visible ? "" : "region-hidden"}`} role="button" tabIndex={0} aria-label={`Link ${link.source} đến ${link.target}`} onClick={openLink} onKeyDown={keyboardOpen}>
+                  {renderHitSegments([from, to])}
+                </g>
+              </g>
+            );
           })}
 
           {Object.entries(positions).filter(([id]) => labels[id]).map(([id, [x, y]]) => {

@@ -246,7 +246,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       errorCode = typeof payload.error_code === "string" ? payload.error_code : "";
       requestId = typeof payload.request_id === "string" ? payload.request_id : requestId;
     } catch {
-      detail = "";
+      // Preserve the generic HTTP message when the response body is not JSON.
     }
     const suffix = [errorCode, requestId ? `request ${requestId}` : ""].filter(Boolean).join(" · ");
     throw new ApiClientError(

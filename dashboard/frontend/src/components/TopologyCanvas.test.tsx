@@ -57,4 +57,10 @@ describe("TopologyCanvas", () => {
     expect(screen.getByLabelText(/Link · project_a/)).toHaveTextContent("Đang thực hiện");
     expect(screen.getByLabelText(/Link · project_a/)).toHaveTextContent("Đang ngắt link thật.");
   });
+
+  it("opens a link inspector with keyboard activation", () => {
+    render(<TopologyCanvas {...props} />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Link project_a đến access_hq_a" }), { key: "Enter" });
+    expect(screen.getByLabelText(/Link · project_a/)).toBeInTheDocument();
+  });
 });

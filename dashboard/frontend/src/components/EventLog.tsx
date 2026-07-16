@@ -17,6 +17,7 @@ function eventTone(severity: ActivityEvent["severity"]) {
 }
 
 export default function EventLog({ entries, tasks }: { entries: ActivityEvent[]; tasks: TaskHistoryItem[] }) {
+  const [filterReferenceTime] = useState(() => Date.now());
   const [timeRange, setTimeRange] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [component, setComponent] = useState("all");
@@ -25,18 +26,17 @@ export default function EventLog({ entries, tasks }: { entries: ActivityEvent[];
   const components = [...new Set(entries.map((entry) => entry.component))].sort();
   const eventTypes = [...new Set(entries.map((entry) => entry.event_type))].sort();
   const visible = useMemo(() => {
-    const now = Date.now();
     const rangeMs = timeRange === "15m" ? 15 * 60_000 : timeRange === "1h" ? 3_600_000 : timeRange === "24h" ? 86_400_000 : 0;
     const needle = pairQuery.trim().toLowerCase();
     return entries.filter((entry) => {
-      if (rangeMs && now - new Date(entry.timestamp).getTime() > rangeMs) return false;
+      if (rangeMs && filterReferenceTime - new Date(entry.timestamp).getTime() > rangeMs) return false;
       if (severity !== "all" && entry.severity !== severity) return false;
       if (component !== "all" && entry.component !== component) return false;
       if (eventType !== "all" && entry.event_type !== eventType) return false;
       if (needle && !`${entry.source || ""} ${entry.destination || ""}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [entries, timeRange, severity, component, eventType, pairQuery]);
+  }, [entries, timeRange, severity, component, eventType, pairQuery, filterReferenceTime]);
 
   const copyDetail = async (entry: ActivityEvent) => {
     await navigator.clipboard.writeText(JSON.stringify(entry.technical_detail || entry, null, 2));

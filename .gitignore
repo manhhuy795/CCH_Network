@@ -12,6 +12,8 @@ runtime_reports/
 node_modules/
 dist/
 *.tsbuildinfo
+playwright-report/
+test-results/
 sdn_mpls_demo/runtime/
 *.iso
 *.flp

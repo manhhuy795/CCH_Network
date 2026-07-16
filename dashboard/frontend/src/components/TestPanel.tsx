@@ -200,7 +200,7 @@ export default function TestPanel(props: Props) {
         {props.busy && <TaskProgress label={`Đang chạy ${testLabels[props.testType]}`} elapsedSeconds={props.elapsedSeconds} />}
 
         {props.result && (
-          <div className={`test-result ${props.result.ok ? "success" : props.result.error_code === "POLICY_DENIED" ? "deny" : "error"}`}>
+          <div aria-live="polite" className={`test-result ${props.result.ok ? "success" : props.result.error_code === "POLICY_DENIED" ? "deny" : "error"}`}>
             <div className="result-heading">
               <div><ActiveIcon size={20} /><strong>{props.result.message}</strong></div>
               <StatusBadge status={props.result.ok ? "online" : "offline"} label={props.result.ok ? "Thành công" : props.result.error_code === "POLICY_DENIED" ? "Policy DENY" : "Thất bại"} />

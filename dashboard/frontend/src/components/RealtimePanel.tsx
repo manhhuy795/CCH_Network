@@ -44,8 +44,11 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
   const [rangeMinutes, setRangeMinutes] = useState(5);
   const [history, setHistory] = useState<RealtimeMetric[]>([]);
   const [socketState, setSocketState] = useState<"idle" | "connecting" | "online" | "closed" | "error">("idle");
-  const [clock, setClock] = useState(Date.now());
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
   const socketRef = useRef<WebSocket>();
+  const reconnectTimer = useRef<number>();
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -56,23 +59,28 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
     setRunning(false);
     setHistory([]);
     setSocketState("idle");
+    setReconnectAttempt(0);
     socketRef.current?.close();
     onStatus(false);
   }, [source, destination, onStatus]);
 
   useEffect(() => {
     if (!running) return;
-    setHistory([]);
+    let disposed = false;
     setSocketState("connecting");
     const socket = new WebSocket(wsUrl(source, destination, interval));
     socketRef.current = socket;
     socket.onopen = () => {
       setSocketState("online");
+      setReconnectAttempt(0);
       onStatus(true);
     };
     socket.onclose = () => {
+      if (disposed) return;
       setSocketState("closed");
       onStatus(false);
+      setReconnectAttempt((current) => current + 1);
+      reconnectTimer.current = window.setTimeout(() => setReconnectNonce((current) => current + 1), 1200);
     };
     socket.onerror = () => {
       setSocketState("error");
@@ -87,8 +95,12 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
         setSocketState("error");
       }
     };
-    return () => socket.close();
-  }, [running, source, destination, interval, rangeMinutes, onStatus]);
+    return () => {
+      disposed = true;
+      window.clearTimeout(reconnectTimer.current);
+      socket.close();
+    };
+  }, [running, source, destination, interval, rangeMinutes, reconnectNonce, onStatus]);
 
   const latest = history.at(-1);
   const updated = useMemo(
@@ -104,7 +116,7 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
       <div className="section-title">
         <div><h2>Giám sát hiệu năng theo thời gian thực</h2><span>Ping định kỳ và OpenFlow counter; không chạy iperf liên tục</span></div>
         <div className="realtime-statuses">
-          <StatusBadge status={socketState === "online" ? "online" : socketState === "error" ? "offline" : socketState === "connecting" ? "degraded" : "unknown"} label={`WebSocket ${socketState}`} />
+          <StatusBadge status={socketState === "online" ? "online" : socketState === "error" ? "offline" : socketState === "connecting" || reconnectAttempt ? "degraded" : "unknown"} label={reconnectAttempt ? `WebSocket reconnect lần ${reconnectAttempt}` : `WebSocket ${socketState}`} />
           {stale && <StatusBadge status="degraded" label="Dữ liệu stale" />}
         </div>
       </div>

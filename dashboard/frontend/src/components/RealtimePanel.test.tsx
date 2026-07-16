@@ -64,4 +64,15 @@ describe("RealtimePanel", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeEnabled();
   });
+
+  it("reconnects after an unexpected WebSocket close", () => {
+    vi.useFakeTimers();
+    render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));
+    act(() => FakeWebSocket.instances[0].onclose?.());
+    expect(screen.getByText("WebSocket reconnect lần 1")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(1200));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    vi.useRealTimers();
+  });
 });

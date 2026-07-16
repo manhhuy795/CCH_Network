@@ -23,6 +23,10 @@ function compareFlows(left: Flow, right: Flow, key: SortKey) {
   return flowText(left, key, "").localeCompare(flowText(right, key, ""), "vi");
 }
 
+function SortButton({ field, onSort, children }: { field: SortKey; onSort: (field: SortKey) => void; children: React.ReactNode }) {
+  return <button className="table-sort" onClick={() => onSort(field)}>{children}<ArrowUpDown size={12} /></button>;
+}
+
 export default function FlowTable({ flows }: { flows: Flow[] }) {
   const [actionFilter, setActionFilter] = useState("all");
   const [switchFilter, setSwitchFilter] = useState("all");
@@ -52,10 +56,6 @@ export default function FlowTable({ flows }: { flows: Flow[] }) {
     }
   };
 
-  const SortButton = ({ field, children }: { field: SortKey; children: React.ReactNode }) => (
-    <button className="table-sort" onClick={() => sort(field)}>{children}<ArrowUpDown size={12} /></button>
-  );
-
   return (
     <section>
       <div className="section-title">
@@ -81,12 +81,12 @@ export default function FlowTable({ flows }: { flows: Flow[] }) {
         <table className="flow-table">
           <thead>
             <tr>
-              <th><SortButton field="switch">Switch</SortButton></th>
-              <th><SortButton field="cookie">Cookie</SortButton></th>
-              <th><SortButton field="priority">Priority</SortButton></th>
+              <th><SortButton field="switch" onSort={sort}>Switch</SortButton></th>
+              <th><SortButton field="cookie" onSort={sort}>Cookie</SortButton></th>
+              <th><SortButton field="priority" onSort={sort}>Priority</SortButton></th>
               <th>Match</th><th>Action</th>
-              <th><SortButton field="packets">Packets</SortButton></th>
-              <th><SortButton field="bytes">Bytes</SortButton></th>
+              <th><SortButton field="packets" onSort={sort}>Packets</SortButton></th>
+              <th><SortButton field="bytes" onSort={sort}>Bytes</SortButton></th>
               <th><span className="sr-only">Chi tiết</span></th>
             </tr>
           </thead>

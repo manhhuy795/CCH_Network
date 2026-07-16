@@ -27,6 +27,14 @@ describe("dashboard design system", () => {
     expect(confirm).toHaveBeenCalledOnce();
   });
 
+  it("traps focus inside confirmation and closes with Escape", () => {
+    const close = vi.fn();
+    render(<><button>Outside</button><ConfirmDialog open title="Xác nhận?" message="Tác động" onConfirm={() => undefined} onClose={close} /></>);
+    expect(screen.getByRole("button", { name: "Hủy" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("supports drawer and dismissible toast", () => {
     const dismiss = vi.fn();
     render(<><Drawer open title="Node Inspector" onClose={() => undefined}>Chi tiết node</Drawer><ToastRegion items={[{ id: "1", message: "Đã lưu", tone: "success" }]} onDismiss={dismiss} /></>);

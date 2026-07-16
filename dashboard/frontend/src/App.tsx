@@ -247,7 +247,7 @@ export default function App() {
       const payload = await api.post<{ ok: boolean; message: string }>("/api/policy/toggle", { key, enabled });
       addEvent(payload.message, payload.ok ? "allow" : "deny");
       notify(payload.message, payload.ok ? "success" : "error");
-      if (payload.ok) await refresh();
+      await refresh();
       await refreshActivity();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Không áp dụng được policy.", "error");
