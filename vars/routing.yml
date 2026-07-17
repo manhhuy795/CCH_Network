@@ -1,84 +1,204 @@
+transit_addressing:
+  prefix_length: 30
+  rationale: "Dung /30 de tuong thich on dinh voi Mininet, Linux network namespace va template thiet bi hien tai; moi link co network, broadcast va dung hai dia chi host rieng."
+
 links:
-  hq:
-    core_to_ce:
-      core_interface: GigabitEthernet1/0/47
-      core_ip: 10.10.255.1/30
-      ce_interface: GigabitEthernet0/0
-      ce_ip: 10.10.255.2/30
-    core_to_firewall:
-      core_interface: GigabitEthernet1/0/48
-      core_ip: 10.10.254.1/30
-      firewall_inside_ip: 10.10.254.2/30
-    ce_to_pe:
-      ce_interface: GigabitEthernet0/1
-      ce_ip: 203.0.113.2/30
-      pe_ip: 203.0.113.1
-  branch:
-    distribution_to_ce:
-      distribution_interface: GigabitEthernet1/0/47
-      distribution_ip: 10.20.255.1/30
-      ce_interface: GigabitEthernet0/0
-      ce_ip: 10.20.255.2/30
-    distribution_to_firewall:
-      distribution_interface: GigabitEthernet1/0/48
-      distribution_ip: 10.20.254.1/30
-      firewall_inside_ip: 10.20.254.2/30
-    ce_to_pe:
-      ce_interface: GigabitEthernet0/1
-      ce_ip: 198.51.100.2/30
-      pe_ip: 198.51.100.1
+  core_hq_to_ce_hq:
+    site: hq
+    role: mpls_access
+    cidr: 10.10.255.0/30
+    status: kept
+    endpoint_a: {node: core_hq, interface: core-ce, ip: 10.10.255.1}
+    endpoint_b: {node: ce_hq, interface: ce-core, ip: 10.10.255.2}
+  ce_hq_to_mpls_cloud:
+    site: wan
+    role: mpls_transport
+    cidr: 10.255.0.0/30
+    status: changed
+    previous_cidr: 203.0.113.0/30
+    endpoint_a: {node: ce_hq, interface: ce-mpls, ip: 10.255.0.1}
+    endpoint_b: {node: mpls_cloud, interface: mpls-hq, ip: 10.255.0.2}
+  mpls_cloud_to_ce_telesale:
+    site: branch_telesale
+    role: mpls_transport
+    cidr: 10.255.0.4/30
+    status: changed
+    previous_cidr: 198.51.100.0/30
+    endpoint_a: {node: mpls_cloud, interface: mpls-telesale, ip: 10.255.0.6}
+    endpoint_b: {node: ce_telesale, interface: ce-mpls, ip: 10.255.0.5}
+  ce_telesale_to_dist_telesale:
+    site: branch_telesale
+    role: mpls_access
+    cidr: 10.20.255.0/30
+    status: kept
+    endpoint_a: {node: ce_telesale, interface: ce-dist, ip: 10.20.255.2}
+    endpoint_b: {node: dist_telesale, interface: dist-ce, ip: 10.20.255.1}
+  mpls_cloud_to_ce_backoffice:
+    site: branch_backoffice
+    role: mpls_transport
+    cidr: 10.255.0.8/30
+    status: new
+    endpoint_a: {node: mpls_cloud, interface: mpls-backoffice, ip: 10.255.0.10}
+    endpoint_b: {node: ce_backoffice, interface: ce-mpls, ip: 10.255.0.9}
+  ce_backoffice_to_dist_backoffice:
+    site: branch_backoffice
+    role: mpls_access
+    cidr: 10.30.255.0/30
+    status: new
+    endpoint_a: {node: ce_backoffice, interface: ce-dist, ip: 10.30.255.2}
+    endpoint_b: {node: dist_backoffice, interface: dist-ce, ip: 10.30.255.1}
+  core_hq_to_fw_hq:
+    site: hq
+    role: firewall_inside
+    cidr: 10.10.254.0/30
+    status: kept
+    endpoint_a: {node: core_hq, interface: core-fw, ip: 10.10.254.1}
+    endpoint_b: {node: fw_hq, interface: inside, ip: 10.10.254.2}
+  dist_telesale_to_fw_telesale:
+    site: branch_telesale
+    role: firewall_inside
+    cidr: 10.20.254.0/30
+    status: kept
+    endpoint_a: {node: dist_telesale, interface: dist-fw, ip: 10.20.254.1}
+    endpoint_b: {node: fw_telesale, interface: inside, ip: 10.20.254.2}
+  dist_backoffice_to_fw_backoffice:
+    site: branch_backoffice
+    role: firewall_inside
+    cidr: 10.30.254.0/30
+    status: new
+    endpoint_a: {node: dist_backoffice, interface: dist-fw, ip: 10.30.254.1}
+    endpoint_b: {node: fw_backoffice, interface: inside, ip: 10.30.254.2}
+  fw_hq_to_internet_zone:
+    site: hq
+    role: firewall_outside
+    cidr: 10.255.10.0/30
+    status: new
+    endpoint_a: {node: fw_hq, interface: outside, ip: 10.255.10.1}
+    endpoint_b: {node: internet_zone, interface: inet-hq, ip: 10.255.10.2}
+  fw_telesale_to_internet_zone:
+    site: branch_telesale
+    role: firewall_outside
+    cidr: 10.255.10.4/30
+    status: new
+    endpoint_a: {node: fw_telesale, interface: outside, ip: 10.255.10.5}
+    endpoint_b: {node: internet_zone, interface: inet-telesale, ip: 10.255.10.6}
+  fw_backoffice_to_internet_zone:
+    site: branch_backoffice
+    role: firewall_outside
+    cidr: 10.255.10.8/30
+    status: new
+    endpoint_a: {node: fw_backoffice, interface: outside, ip: 10.255.10.9}
+    endpoint_b: {node: internet_zone, interface: inet-backoffice, ip: 10.255.10.10}
+
+service_zone:
+  cidr: 10.255.30.0/24
+  gateway_node: internet_zone
+  gateway_ip: 10.255.30.1
+  service_nodes: [hzalo, hcall, hsocial, hinternet]
+
 routes:
-  hq-core-l3:
+  core_hq:
     default_route:
       next_hop: 10.10.254.2
-      description: "Internet default route to HQ firewall"
+      description: "Local Internet breakout qua fw_hq"
     intersite_routes:
-      - prefix: 172.16.50.0/24
-        next_hop: 10.10.255.2
-        description: "Branch Telesale via HQ CE"
-      - prefix: 172.16.60.0/24
-        next_hop: 10.10.255.2
-        description: "Branch Admin via HQ CE"
-  br-dist-l3:
+      - {prefix: 172.16.50.0/24, next_hop: 10.10.255.2, description: "Telesale qua ce_hq"}
+      - {prefix: 172.16.60.0/24, next_hop: 10.10.255.2, description: "BackOffice qua ce_hq"}
+  dist_telesale:
     default_route:
       next_hop: 10.20.254.2
-      description: "Internet default route to Branch firewall"
+      description: "Local Internet breakout qua fw_telesale"
     intersite_routes:
-      - prefix: 172.16.0.0/16
-        next_hop: 10.20.255.2
-        description: "HQ networks summarized via Branch CE"
-  hq-ce-router:
-    provider_next_hop: 203.0.113.1
+      - {prefix: 172.16.0.0/24, next_hop: 10.20.255.2}
+      - {prefix: 172.16.20.0/24, next_hop: 10.20.255.2}
+      - {prefix: 172.16.30.0/24, next_hop: 10.20.255.2}
+      - {prefix: 172.16.40.0/24, next_hop: 10.20.255.2}
+      - {prefix: 172.16.60.0/24, next_hop: 10.20.255.2}
+      - {prefix: 172.16.70.0/24, next_hop: 10.20.255.2}
+      - {prefix: 172.16.90.0/24, next_hop: 10.20.255.2}
+  dist_backoffice:
+    default_route:
+      next_hop: 10.30.254.2
+      description: "Local Internet breakout qua fw_backoffice"
+    intersite_routes:
+      - {prefix: 172.16.0.0/24, next_hop: 10.30.255.2}
+      - {prefix: 172.16.20.0/24, next_hop: 10.30.255.2}
+      - {prefix: 172.16.30.0/24, next_hop: 10.30.255.2}
+      - {prefix: 172.16.40.0/24, next_hop: 10.30.255.2}
+      - {prefix: 172.16.50.0/24, next_hop: 10.30.255.2}
+      - {prefix: 172.16.70.0/24, next_hop: 10.30.255.2}
+      - {prefix: 172.16.90.0/24, next_hop: 10.30.255.2}
+  ce_hq:
+    provider_next_hop: 10.255.0.2
     internal_routes:
-      - prefix: 172.16.0.0/24
-        next_hop: 10.10.255.1
-      - prefix: 172.16.20.0/24
-        next_hop: 10.10.255.1
-      - prefix: 172.16.30.0/24
-        next_hop: 10.10.255.1
-      - prefix: 172.16.40.0/24
-        next_hop: 10.10.255.1
-      - prefix: 172.16.90.0/24
-        next_hop: 10.10.255.1
+      - {prefix: 172.16.0.0/24, next_hop: 10.10.255.1}
+      - {prefix: 172.16.20.0/24, next_hop: 10.10.255.1}
+      - {prefix: 172.16.30.0/24, next_hop: 10.10.255.1}
+      - {prefix: 172.16.40.0/24, next_hop: 10.10.255.1}
+      - {prefix: 172.16.70.0/24, next_hop: 10.10.255.1}
+      - {prefix: 172.16.90.0/24, next_hop: 10.10.255.1}
     mpls_routes:
-      - prefix: 172.16.50.0/24
-        next_hop: 203.0.113.1
-      - prefix: 172.16.60.0/24
-        next_hop: 203.0.113.1
-  br-ce-router:
-    provider_next_hop: 198.51.100.1
+      - {prefix: 172.16.50.0/24, next_hop: 10.255.0.2}
+      - {prefix: 172.16.60.0/24, next_hop: 10.255.0.2}
+  ce_telesale:
+    provider_next_hop: 10.255.0.6
     internal_routes:
-      - prefix: 172.16.50.0/24
-        next_hop: 10.20.255.1
-      - prefix: 172.16.60.0/24
-        next_hop: 10.20.255.1
+      - {prefix: 172.16.50.0/24, next_hop: 10.20.255.1}
     mpls_routes:
-      - prefix: 172.16.0.0/16
-        next_hop: 198.51.100.1
+      - {prefix: 172.16.0.0/24, next_hop: 10.255.0.6}
+      - {prefix: 172.16.20.0/24, next_hop: 10.255.0.6}
+      - {prefix: 172.16.30.0/24, next_hop: 10.255.0.6}
+      - {prefix: 172.16.40.0/24, next_hop: 10.255.0.6}
+      - {prefix: 172.16.60.0/24, next_hop: 10.255.0.6}
+      - {prefix: 172.16.70.0/24, next_hop: 10.255.0.6}
+      - {prefix: 172.16.90.0/24, next_hop: 10.255.0.6}
+  ce_backoffice:
+    provider_next_hop: 10.255.0.10
+    internal_routes:
+      - {prefix: 172.16.60.0/24, next_hop: 10.30.255.1}
+    mpls_routes:
+      - {prefix: 172.16.0.0/24, next_hop: 10.255.0.10}
+      - {prefix: 172.16.20.0/24, next_hop: 10.255.0.10}
+      - {prefix: 172.16.30.0/24, next_hop: 10.255.0.10}
+      - {prefix: 172.16.40.0/24, next_hop: 10.255.0.10}
+      - {prefix: 172.16.50.0/24, next_hop: 10.255.0.10}
+      - {prefix: 172.16.70.0/24, next_hop: 10.255.0.10}
+      - {prefix: 172.16.90.0/24, next_hop: 10.255.0.10}
+  mpls_cloud:
+    internal_routes:
+      - {prefix: 172.16.0.0/24, next_hop: 10.255.0.1}
+      - {prefix: 172.16.20.0/24, next_hop: 10.255.0.1}
+      - {prefix: 172.16.30.0/24, next_hop: 10.255.0.1}
+      - {prefix: 172.16.40.0/24, next_hop: 10.255.0.1}
+      - {prefix: 172.16.70.0/24, next_hop: 10.255.0.1}
+      - {prefix: 172.16.90.0/24, next_hop: 10.255.0.1}
+      - {prefix: 172.16.50.0/24, next_hop: 10.255.0.5}
+      - {prefix: 172.16.60.0/24, next_hop: 10.255.0.9}
+  fw_hq:
+    default_route: {next_hop: 10.255.10.2, description: "Internet Zone"}
+    internal_routes:
+      - {prefix: 172.16.20.0/24, next_hop: 10.10.254.1}
+      - {prefix: 172.16.30.0/24, next_hop: 10.10.254.1}
+      - {prefix: 172.16.40.0/24, next_hop: 10.10.254.1}
+      - {prefix: 172.16.70.0/24, next_hop: 10.10.254.1}
+  fw_telesale:
+    default_route: {next_hop: 10.255.10.6, description: "Internet Zone"}
+    internal_routes:
+      - {prefix: 172.16.50.0/24, next_hop: 10.20.254.1}
+  fw_backoffice:
+    default_route: {next_hop: 10.255.10.10, description: "Internet Zone"}
+    internal_routes:
+      - {prefix: 172.16.60.0/24, next_hop: 10.30.254.1}
+  internet_zone:
+    internal_routes:
+      - {prefix: 172.16.20.0/24, next_hop: 10.255.10.1}
+      - {prefix: 172.16.30.0/24, next_hop: 10.255.10.1}
+      - {prefix: 172.16.40.0/24, next_hop: 10.255.10.1}
+      - {prefix: 172.16.70.0/24, next_hop: 10.255.10.1}
+      - {prefix: 172.16.50.0/24, next_hop: 10.255.10.5}
+      - {prefix: 172.16.60.0/24, next_hop: 10.255.10.9}
+
 ce_router_ips:
-  hq-ce-router:
-    lan_ip: 10.10.255.2
-    wan_ip: 203.0.113.2
-  br-ce-router:
-    lan_ip: 10.20.255.2
-    wan_ip: 198.51.100.2
+  ce_hq: {lan_ip: 10.10.255.2, wan_ip: 10.255.0.1}
+  ce_telesale: {lan_ip: 10.20.255.2, wan_ip: 10.255.0.5}
+  ce_backoffice: {lan_ip: 10.30.255.2, wan_ip: 10.255.0.9}

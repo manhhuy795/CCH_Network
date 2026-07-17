@@ -10,12 +10,12 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NETWORK_MODEL_FILE = REPO_ROOT / "vars" / "network_model.yml"
 EXPECTED_HOST_GROUPS = {
-    "project_a": {"vlan": 20, "count": 20, "prefix": "h20", "subnet": "172.16.20.0/24", "gateway": "172.16.20.1", "first_ip": "172.16.20.11", "last_ip": "172.16.20.30"},
-    "project_b": {"vlan": 30, "count": 20, "prefix": "h30", "subnet": "172.16.30.0/24", "gateway": "172.16.30.1", "first_ip": "172.16.30.11", "last_ip": "172.16.30.30"},
-    "project_c": {"vlan": 40, "count": 20, "prefix": "h40", "subnet": "172.16.40.0/24", "gateway": "172.16.40.1", "first_ip": "172.16.40.11", "last_ip": "172.16.40.30"},
-    "telesale": {"vlan": 50, "count": 20, "prefix": "h50", "subnet": "172.16.50.0/24", "gateway": "172.16.50.1", "first_ip": "172.16.50.11", "last_ip": "172.16.50.30"},
-    "backoffice": {"vlan": 60, "count": 20, "prefix": "h60", "subnet": "172.16.60.0/24", "gateway": "172.16.60.1", "first_ip": "172.16.60.11", "last_ip": "172.16.60.30"},
-    "it_support": {"vlan": 70, "count": 10, "prefix": "h70", "subnet": "172.16.70.0/24", "gateway": "172.16.70.1", "first_ip": "172.16.70.11", "last_ip": "172.16.70.20"},
+    "project_a": {"vlan": 20, "count": 20, "prefix": "h20", "subnet": "172.16.20.0/24", "gateway": "172.16.20.1", "site": "hq", "switch": "access_hq_a", "first_ip": "172.16.20.11", "last_ip": "172.16.20.30"},
+    "project_b": {"vlan": 30, "count": 20, "prefix": "h30", "subnet": "172.16.30.0/24", "gateway": "172.16.30.1", "site": "hq", "switch": "access_hq_b", "first_ip": "172.16.30.11", "last_ip": "172.16.30.30"},
+    "project_c": {"vlan": 40, "count": 20, "prefix": "h40", "subnet": "172.16.40.0/24", "gateway": "172.16.40.1", "site": "hq", "switch": "access_hq_c", "first_ip": "172.16.40.11", "last_ip": "172.16.40.30"},
+    "telesale": {"vlan": 50, "count": 20, "prefix": "h50", "subnet": "172.16.50.0/24", "gateway": "172.16.50.1", "site": "branch_telesale", "switch": "access_telesale", "first_ip": "172.16.50.11", "last_ip": "172.16.50.30"},
+    "backoffice": {"vlan": 60, "count": 20, "prefix": "h60", "subnet": "172.16.60.0/24", "gateway": "172.16.60.1", "site": "branch_backoffice", "switch": "access_backoffice", "first_ip": "172.16.60.11", "last_ip": "172.16.60.30"},
+    "it_support": {"vlan": 70, "count": 10, "prefix": "h70", "subnet": "172.16.70.0/24", "gateway": "172.16.70.1", "site": "hq", "switch": "access_hq_it", "first_ip": "172.16.70.11", "last_ip": "172.16.70.20"},
 }
 EXPECTED_SERVICES = {
     "h90": "172.16.90.10",
@@ -23,6 +23,18 @@ EXPECTED_SERVICES = {
     "hcall": "172.16.201.10",
     "hsocial": "172.16.202.10",
     "hinternet": "172.16.203.10",
+}
+EXPECTED_SITES = {"hq", "branch_telesale", "branch_backoffice", "wan", "internet"}
+EXPECTED_CONTROLLED_SWITCHES = {
+    "access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq",
+    "access_telesale", "dist_telesale", "access_backoffice", "dist_backoffice",
+}
+EXPECTED_CE_NODES = {"ce_hq", "ce_telesale", "ce_backoffice"}
+EXPECTED_FIREWALL_NODES = {"fw_hq", "fw_telesale", "fw_backoffice"}
+LEGACY_SHARED_BRANCH_NODES = {"access_branch", "dist_branch", "ce_branch", "fw_branch"}
+EXPECTED_BRANCH_COMPONENTS = {
+    "branch_telesale": {"access": "access_telesale", "distribution": "dist_telesale", "ce": "ce_telesale", "firewall": "fw_telesale"},
+    "branch_backoffice": {"access": "access_backoffice", "distribution": "dist_backoffice", "ce": "ce_backoffice", "firewall": "fw_backoffice"},
 }
 
 
@@ -59,8 +71,8 @@ def build_host_inventory(model: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "group": name,
             "group_label": service["label"],
             "vlan": service.get("vlan"),
-            "site": service.get("site", "Internet"),
-            "switch": service.get("switch", "internet"),
+            "site": service.get("site", "internet"),
+            "switch": service.get("switch", "internet_zone"),
         }
     return hosts
 
@@ -78,12 +90,18 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
     if int(model.get("host_groups", {}).get("it_support", {}).get("count", 0)) != 10:
         errors.append("IT Support must have exactly 10 users")
 
+    if set(model.get("sites", {})) != EXPECTED_SITES:
+        errors.append(
+            f"Network model sites must be {sorted(EXPECTED_SITES)}, "
+            f"found {sorted(model.get('sites', {}))}"
+        )
+
     for group_name, expected in EXPECTED_HOST_GROUPS.items():
         group = model.get("host_groups", {}).get(group_name)
         if not group:
             errors.append(f"Missing required host group {group_name}")
             continue
-        for key in ("vlan", "count", "prefix", "subnet", "gateway"):
+        for key in ("vlan", "count", "prefix", "subnet", "gateway", "site", "switch"):
             if group.get(key) != expected[key]:
                 errors.append(f"Host group {group_name} {key} must be {expected[key]}, found {group.get(key)}")
         first_name = f"{expected['prefix']}_01"
@@ -147,7 +165,71 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
     if actual_services != expected_services:
         errors.append(f"Service endpoints must be {sorted(expected_services)}, found {sorted(actual_services)}")
 
-    node_ids = set(model.get("host_groups", {})) | set(model.get("services", {})) | set(model.get("switches", {})) | set(model.get("infrastructure", {}))
+    node_categories = {
+        "host_groups": set(model.get("host_groups", {})),
+        "services": set(model.get("services", {})),
+        "switches": set(model.get("switches", {})),
+        "infrastructure": set(model.get("infrastructure", {})),
+    }
+    node_occurrences: dict[str, list[str]] = {}
+    for category, names in node_categories.items():
+        for name in names:
+            node_occurrences.setdefault(name, []).append(category)
+    duplicate_nodes = {
+        name: categories for name, categories in node_occurrences.items() if len(categories) > 1
+    }
+    if duplicate_nodes:
+        errors.append(f"Duplicate topology node IDs across categories: {duplicate_nodes}")
+
+    node_ids = set().union(*node_categories.values())
+    legacy_nodes = sorted(node_ids & LEGACY_SHARED_BRANCH_NODES)
+    if legacy_nodes:
+        errors.append(f"Legacy shared Branch nodes are forbidden: {legacy_nodes}")
+
+    switches_data = model.get("switches", {})
+    controlled = {name for name, data in switches_data.items() if bool(data.get("controlled"))}
+    if controlled != EXPECTED_CONTROLLED_SWITCHES:
+        errors.append(
+            f"Controlled OpenFlow OVS must be exactly {sorted(EXPECTED_CONTROLLED_SWITCHES)}, "
+            f"found {sorted(controlled)}"
+        )
+    dpids = [str(data.get("dpid", "")) for data in switches_data.values() if data.get("dpid")]
+    duplicate_dpids = sorted({dpid for dpid in dpids if dpids.count(dpid) > 1})
+    if duplicate_dpids:
+        errors.append(f"Duplicate switch DPIDs found: {duplicate_dpids}")
+    for switch_name, switch in switches_data.items():
+        dpid = str(switch.get("dpid", ""))
+        if switch.get("controlled") and (len(dpid) != 16 or any(char not in "0123456789abcdefABCDEF" for char in dpid)):
+            errors.append(f"Controlled switch {switch_name} has invalid 16-hex DPID {dpid!r}")
+
+    infrastructure = model.get("infrastructure", {})
+    ce_nodes = {name for name, data in infrastructure.items() if data.get("type") == "router"}
+    firewall_nodes = {name for name, data in infrastructure.items() if data.get("type") == "firewall"}
+    if ce_nodes != EXPECTED_CE_NODES:
+        errors.append(f"CE nodes must be exactly {sorted(EXPECTED_CE_NODES)}, found {sorted(ce_nodes)}")
+    if firewall_nodes != EXPECTED_FIREWALL_NODES:
+        errors.append(
+            f"Firewall nodes must be exactly {sorted(EXPECTED_FIREWALL_NODES)}, "
+            f"found {sorted(firewall_nodes)}"
+        )
+
+    for site, components in EXPECTED_BRANCH_COMPONENTS.items():
+        for component_role, node_name in components.items():
+            node = switches_data.get(node_name) or infrastructure.get(node_name)
+            if not node:
+                errors.append(f"{site} is missing {component_role} node {node_name}")
+            elif node.get("site") != site:
+                errors.append(f"{node_name} must belong to {site}, found {node.get('site')}")
+            elif component_role == "access" and node.get("role") != "access":
+                errors.append(f"{node_name} must have access role")
+            elif component_role == "distribution" and node.get("role") != "branch_distribution":
+                errors.append(f"{node_name} must have branch_distribution role")
+            elif component_role == "ce" and node.get("type") != "router":
+                errors.append(f"{node_name} must be a CE router")
+            elif component_role == "firewall" and node.get("type") != "firewall":
+                errors.append(f"{node_name} must be a firewall")
+
+    topology_edges: set[frozenset[str]] = set()
     for index, link in enumerate(model.get("links", []), start=1):
         if len(link) != 3:
             errors.append(f"Topology link #{index} must have [source, target, type], found {link}")
@@ -157,6 +239,37 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
             errors.append(f"Topology link #{index} references missing source node {source}")
         if target not in node_ids:
             errors.append(f"Topology link #{index} references missing target node {target}")
+        edge = frozenset((source, target))
+        if edge in topology_edges:
+            errors.append(f"Duplicate topology link between {source} and {target}")
+        topology_edges.add(edge)
+
+    required_edges = {
+        frozenset(("telesale", "access_telesale")),
+        frozenset(("access_telesale", "dist_telesale")),
+        frozenset(("dist_telesale", "ce_telesale")),
+        frozenset(("dist_telesale", "fw_telesale")),
+        frozenset(("ce_telesale", "mpls_cloud")),
+        frozenset(("backoffice", "access_backoffice")),
+        frozenset(("access_backoffice", "dist_backoffice")),
+        frozenset(("dist_backoffice", "ce_backoffice")),
+        frozenset(("dist_backoffice", "fw_backoffice")),
+        frozenset(("ce_backoffice", "mpls_cloud")),
+        frozenset(("core_hq", "fw_hq")),
+        frozenset(("fw_hq", "internet_zone")),
+        frozenset(("fw_telesale", "internet_zone")),
+        frozenset(("fw_backoffice", "internet_zone")),
+    }
+    missing_edges = required_edges - topology_edges
+    if missing_edges:
+        errors.append(f"Dual-branch topology is missing required links: {sorted(map(sorted, missing_edges))}")
+
+    for firewall in EXPECTED_FIREWALL_NODES:
+        firewall_edges = [edge for edge in topology_edges if firewall in edge]
+        if len(firewall_edges) != 2:
+            errors.append(f"{firewall} must have exactly one inside and one outside link")
+        if frozenset((firewall, "internet_zone")) not in topology_edges:
+            errors.append(f"{firewall} is missing its outside link to internet_zone")
 
     for group_name, path in model.get("group_paths", {}).items():
         if group_name not in model.get("host_groups", {}):

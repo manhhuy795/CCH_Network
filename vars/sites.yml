@@ -4,6 +4,7 @@ sites:
     description: "HQ call center campus"
     devices:
       - name: hq-access-a
+        model_node: access_hq_a
         role: access_switch
         site: hq
         platform: cisco_ios
@@ -11,6 +12,7 @@ sites:
         management_ip: 192.0.2.11
         access_vlans: [20]
       - name: hq-access-b
+        model_node: access_hq_b
         role: access_switch
         site: hq
         platform: cisco_ios
@@ -18,6 +20,7 @@ sites:
         management_ip: 192.0.2.12
         access_vlans: [30]
       - name: hq-access-c
+        model_node: access_hq_c
         role: access_switch
         site: hq
         platform: cisco_ios
@@ -25,61 +28,124 @@ sites:
         management_ip: 192.0.2.13
         access_vlans: [40]
       - name: hq-voice-access
+        model_node: voice_access
         role: voice_access_switch
         site: hq
         platform: cisco_ios
         template: cisco_ios/voice_access_switch.j2
         management_ip: 192.0.2.14
         access_vlans: [10, 90]
+      - name: hq-access-it
+        model_node: access_hq_it
+        role: access_switch
+        site: hq
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.17
+        access_vlans: [70]
       - name: hq-core-l3
+        model_node: core_hq
         role: core_hq
         site: hq
         platform: cisco_ios
         template: cisco_ios/core_hq.j2
         management_ip: 192.0.2.10
-        svi_vlans: [10, 20, 30, 40, 90]
+        svi_vlans: [10, 20, 30, 40, 70, 90]
       - name: hq-ce-router
+        model_node: ce_hq
         role: ce_router
         site: hq
         platform: cisco_ios
         template: cisco_ios/ce_router.j2
         management_ip: 192.0.2.15
       - name: hq-firewall
+        model_node: fw_hq
         role: firewall
         site: hq
         platform: vendor_neutral
         template: firewall/firewall_policy_vendor_neutral.j2
         management_ip: 192.0.2.16
-  branch:
-    name: "Site Chi nhanh - Telesale"
-    description: "Branch telesale office"
+
+  branch_telesale:
+    name: "Chi nhanh Telesale"
+    description: "Dia diem vat ly rieng cho Telesale VLAN 50"
     devices:
-      - name: br-access
+      - name: telesale-access
+        model_node: access_telesale
         role: access_switch
-        site: branch
+        site: branch_telesale
         platform: cisco_ios
         template: cisco_ios/access_switch.j2
         management_ip: 192.0.2.50
-        access_vlans: [50, 60]
-      - name: br-dist-l3
+        access_vlans: [50]
+      - name: telesale-dist-l3
+        model_node: dist_telesale
         role: distribution_branch
-        site: branch
+        site: branch_telesale
         platform: cisco_ios
         template: cisco_ios/distribution_branch.j2
         management_ip: 192.0.2.51
-        svi_vlans: [50, 60]
-      - name: br-ce-router
+        svi_vlans: [50]
+      - name: telesale-ce-router
+        model_node: ce_telesale
         role: ce_router
-        site: branch
+        site: branch_telesale
         platform: cisco_ios
         template: cisco_ios/ce_router.j2
         management_ip: 192.0.2.52
-      - name: br-firewall
+      - name: telesale-firewall
+        model_node: fw_telesale
         role: firewall
-        site: branch
+        site: branch_telesale
         platform: vendor_neutral
         template: firewall/firewall_policy_vendor_neutral.j2
         management_ip: 192.0.2.53
+
+  branch_backoffice:
+    name: "Chi nhanh BackOffice"
+    description: "Dia diem vat ly rieng cho BackOffice VLAN 60"
+    devices:
+      - name: backoffice-access
+        model_node: access_backoffice
+        role: access_switch
+        site: branch_backoffice
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.60
+        access_vlans: [60]
+      - name: backoffice-dist-l3
+        model_node: dist_backoffice
+        role: distribution_branch
+        site: branch_backoffice
+        platform: cisco_ios
+        template: cisco_ios/distribution_branch.j2
+        management_ip: 192.0.2.61
+        svi_vlans: [60]
+      - name: backoffice-ce-router
+        model_node: ce_backoffice
+        role: ce_router
+        site: branch_backoffice
+        platform: cisco_ios
+        template: cisco_ios/ce_router.j2
+        management_ip: 192.0.2.62
+      - name: backoffice-firewall
+        model_node: fw_backoffice
+        role: firewall
+        site: branch_backoffice
+        platform: vendor_neutral
+        template: firewall/firewall_policy_vendor_neutral.j2
+        management_ip: 192.0.2.63
+
+  wan:
+    name: "MPLS L3VPN Logic WAN"
+    description: "Logical transport only; khong co managed PE/P trong automation inventory"
+    devices: []
+
+  internet:
+    name: "Internet va dich vu mo phong"
+    description: "Service zone; khong co managed OpenFlow device"
+    devices: []
+
 deployment_order:
   - access_switch
   - voice_access_switch
