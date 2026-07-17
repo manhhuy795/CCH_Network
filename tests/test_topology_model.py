@@ -13,6 +13,7 @@ TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
 CONTROLLER_PATH = REPO_ROOT / "sdn_mpls_demo" / "controller_policy.py"
 
 
+# NHOM A: topology tests assert inventory, role, node va runtime contract cu the.
 def test_network_model_is_single_source_of_truth():
     model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
     hosts = build_host_inventory(model)
@@ -26,10 +27,16 @@ def test_network_model_is_single_source_of_truth():
     assert model["host_groups"]["telesale"]["count"] == 20
     assert model["host_groups"]["backoffice"]["count"] == 20
     assert model["host_groups"]["it_support"]["count"] == 10
+    assert model["host_groups"]["backoffice"]["site"] == "hq"
+    assert model["host_groups"]["backoffice"]["gateway_node"] == "core_hq"
     assert model["services"]["h90"]["label"] == "PBX/SBC Voice Service"
     assert len(hosts) == len(set(hosts))
     assert len(ips) == len(set(ips))
     assert "voice_access" in controlled_switches(model)
+    assert set(controlled_switches(model)) == {
+        "access_hq_a", "access_hq_b", "access_hq_c", "voice_access", "core_hq",
+        "access_telesale", "dist_telesale", "access_hq_it", "access_backoffice",
+    }
     assert validate_network_model(model) == []
 
     policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))
@@ -173,7 +180,7 @@ def test_internet_edge_boundary_is_not_claimed_as_stateful_firewall():
     frontend_policy = (REPO_ROOT / "dashboard" / "frontend" / "src" / "components" / "PolicyPanel.tsx").read_text(encoding="utf-8")
 
     assert model["infrastructure"]["fw_hq"]["label"] == "HQ Internet Edge Boundary"
-    assert model["infrastructure"]["fw_branch"]["label"] == "Branch Internet Edge Boundary"
+    assert model["infrastructure"]["fw_telesale"]["label"] == "Telesale Internet Edge Boundary"
     assert "khong phai stateful firewall" in model["infrastructure"]["fw_hq"]["subtitle"]
     assert "Simulation Honesty" in readme
     assert "Internet Edge Boundary" in sdn_readme
@@ -207,9 +214,9 @@ def test_controller_enforces_drop_policies_only_at_core_and_distribution():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 
     assert model["switches"]["core_hq"]["role"] == "hq_core"
-    assert model["switches"]["dist_branch"]["role"] == "branch_distribution"
+    assert model["switches"]["dist_telesale"]["role"] == "branch_distribution"
     assert model["switches"]["access_hq_a"]["role"] == "access"
-    assert model["switches"]["access_branch"]["role"] == "access"
+    assert model["switches"]["access_telesale"]["role"] == "access"
     assert 'switch_name == "core_hq" and self.policy.policies["isolate_hq_projects"]' in controller
     assert 'switch_name == "dist_branch" and self.policy.policies["isolate_branch_vlan_50_60"]' in controller
     assert 'Khong cai isolation DROP tren %s; access OVS chi transit/local switching.' in controller

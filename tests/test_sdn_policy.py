@@ -6,6 +6,7 @@ from scripts.common import load_vars
 from sdn_mpls_demo.policy_engine import ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, PolicyEngine
 
 
+# NHOM A: SDN policy tests assert action, path va enforcement point cu the.
 def test_sdn_intents_reference_known_vlans_and_devices():
     config = load_vars()
     assert validate_sdn(config) == []
@@ -27,13 +28,13 @@ def test_real_sdn_policy_required_allow_deny_paths():
 
     assert engine.decide("h20_01", "h30_01")["action"] == "deny"
     assert engine.decide("h20_01", "h90")["action"] == "allow"
-    assert engine.decide("h20_01", "hcall")["path"][-3:] == ["fw_hq", "internet", "hcall"]
-    assert engine.decide("h50_01", "hcall")["path"][-3:] == ["fw_branch", "internet", "hcall"]
+    assert engine.decide("h20_01", "hcall")["path"][-3:] == ["fw_hq", "internet_zone", "hcall"]
+    assert engine.decide("h50_01", "hcall")["path"][-3:] == ["fw_telesale", "internet_zone", "hcall"]
     assert engine.decide("h20_01", "hsocial")["blocked_at"] == "core_hq"
-    assert engine.decide("h50_01", "hsocial")["blocked_at"] == "dist_branch"
+    assert engine.decide("h50_01", "hsocial")["blocked_at"] == "dist_telesale"
     intersite_user = engine.decide("h50_01", "h20_01")
     assert intersite_user["action"] == "deny"
-    assert intersite_user["blocked_at"] == "dist_branch"
+    assert intersite_user["blocked_at"] == "dist_telesale"
 
 
 def test_it_support_controlled_access_schema_is_explicit():

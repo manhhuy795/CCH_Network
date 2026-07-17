@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 
+# NHOM A: cac test topology/policy ben duoi assert count, path va enforcement cu the.
 def test_dashboard_api_topology_and_policy_endpoints():
     pytest.importorskip("fastapi")
 
@@ -21,7 +22,7 @@ def test_dashboard_api_topology_and_policy_endpoints():
     assert topology["links"]
     assert len(topology["hosts"]) == 115
     assert topology["summary"]["user_count"] == 110
-    assert topology["summary"]["controlled_ovs_count"] == 8
+    assert topology["summary"]["controlled_ovs_count"] == 9
     mpls_node = next(node for node in topology["nodes"] if node["id"] == "mpls_cloud")
     assert mpls_node["label"] == "MPLS L3VPN Logic Cloud"
     assert "WAN transport" in mpls_node["subtitle"]
@@ -70,12 +71,17 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     assert denied["blocked_at"] == "core_hq"
 
     social = policy_decision("h50_01", "hsocial")
-    assert social["path"] == ["telesale", "access_branch", "dist_branch"]
-    assert social["blocked_at"] == "dist_branch"
+    assert social["path"] == ["telesale", "access_telesale", "dist_telesale"]
+    assert social["blocked_at"] == "dist_telesale"
+    assert social["enforcement_point"] == "dist_telesale"
 
     intersite = policy_decision("h50_01", "h20_01")
     assert intersite["action"] == "deny"
-    assert intersite["blocked_at"] == "dist_branch"
+    assert intersite["blocked_at"] == "dist_telesale"
+
+    reverse_intersite = policy_decision("h60_01", "h50_01")
+    assert reverse_intersite["action"] == "deny"
+    assert reverse_intersite["blocked_at"] == "core_hq"
 
     support = policy_decision("h70_01", "h20_01")
     assert support["action"] == "allow"
@@ -163,7 +169,8 @@ def test_manual_block_uses_cookie_and_single_enforcement_switch():
     from app.live_mininet import manual_block_cookie, manual_enforcement_switch, parse_flow_line
 
     assert manual_enforcement_switch("h20_01", "h30_01") == "core_hq"
-    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_branch"
+    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_telesale"
+    assert manual_enforcement_switch("h60_01", "h50_01") == "core_hq"
     assert manual_enforcement_switch("h70_01", "h50_01") == "core_hq"
     assert manual_block_cookie("h20_01", "h30_01") == manual_block_cookie("h30_01", "h20_01")
 

@@ -12,8 +12,9 @@ from scripts.common import load_vars
 from scripts.network_model import (
     EXPECTED_CE_NODES,
     EXPECTED_FIREWALL_NODES,
+    EXPECTED_PHYSICAL_SITES,
     EXPECTED_SITES,
-    LEGACY_SHARED_BRANCH_NODES,
+    FORBIDDEN_TOPOLOGY_NODES,
     build_host_inventory,
     load_network_model,
     validate_network_model,
@@ -30,18 +31,17 @@ REQUIRED_TRANSIT_LINKS = {
     "ce_hq_to_mpls_cloud": {"ce_hq", "mpls_cloud"},
     "mpls_cloud_to_ce_telesale": {"mpls_cloud", "ce_telesale"},
     "ce_telesale_to_dist_telesale": {"ce_telesale", "dist_telesale"},
-    "mpls_cloud_to_ce_backoffice": {"mpls_cloud", "ce_backoffice"},
-    "ce_backoffice_to_dist_backoffice": {"ce_backoffice", "dist_backoffice"},
     "core_hq_to_fw_hq": {"core_hq", "fw_hq"},
     "dist_telesale_to_fw_telesale": {"dist_telesale", "fw_telesale"},
-    "dist_backoffice_to_fw_backoffice": {"dist_backoffice", "fw_backoffice"},
     "fw_hq_to_internet_zone": {"fw_hq", "internet_zone"},
     "fw_telesale_to_internet_zone": {"fw_telesale", "internet_zone"},
-    "fw_backoffice_to_internet_zone": {"fw_backoffice", "internet_zone"},
 }
 EXPECTED_SITE_MODEL_NODES = {
+    "hq": {
+        "access_hq_a", "access_hq_b", "access_hq_c", "access_backoffice",
+        "voice_access", "access_hq_it", "core_hq", "ce_hq", "fw_hq",
+    },
     "branch_telesale": {"access_telesale", "dist_telesale", "ce_telesale", "fw_telesale"},
-    "branch_backoffice": {"access_backoffice", "dist_backoffice", "ce_backoffice", "fw_backoffice"},
 }
 
 
@@ -55,7 +55,7 @@ def _all_route_entries(routes: dict[str, Any]) -> list[tuple[str, str, str]]:
         default_route = route_data.get("default_route")
         if default_route:
             entries.append((device_name, "0.0.0.0/0", str(default_route["next_hop"])))
-        for key in ("intersite_routes", "internal_routes", "mpls_routes"):
+        for key in ("intersite_routes", "internal_routes", "mpls_routes", "service_routes"):
             for route in route_data.get(key, []):
                 entries.append((device_name, str(route["prefix"]), str(route["next_hop"])))
     return entries
@@ -109,14 +109,26 @@ def validate_all(config: dict[str, Any]) -> list[str]:
             if destination not in vlan_by_id:
                 errors.append(f"{policy['name']} references missing destination VLAN {destination}")
 
-    branch_sources = {int(policy["source_vlan"]) for policy in config.get("branch_policies", [])}
-    if branch_sources != {50, 60}:
-        errors.append("Branch VLAN 50 and VLAN 60 must each have an explicit policy")
+    intersite_sources = {int(policy["source_vlan"]) for policy in config.get("branch_policies", [])}
+    if intersite_sources != {50, 60}:
+        errors.append("Telesale VLAN 50 and HQ BackOffice VLAN 60 must each have an explicit intersite policy")
 
     node_ids = _model_node_ids(model)
     sites = config.get("sites", {})
     if set(sites) != EXPECTED_SITES:
         errors.append(f"Automation sites must be exactly {sorted(EXPECTED_SITES)}, found {sorted(sites)}")
+    physical_sites = {name for name, site in sites.items() if site.get("kind") == "physical"}
+    if physical_sites != EXPECTED_PHYSICAL_SITES:
+        errors.append(
+            f"Automation physical sites must be exactly {sorted(EXPECTED_PHYSICAL_SITES)}, "
+            f"found {sorted(physical_sites)}"
+        )
+
+    expected_vlan_sites = {10: "hq", 20: "hq", 30: "hq", 40: "hq", 50: "branch_telesale", 60: "hq", 70: "hq", 90: "hq"}
+    for vlan_id, expected_site in expected_vlan_sites.items():
+        actual_site = vlan_by_id.get(vlan_id, {}).get("site")
+        if actual_site != expected_site:
+            errors.append(f"VLAN {vlan_id} site must be {expected_site}, found {actual_site}")
 
     device_names: list[str] = []
     management_ips: list[str] = []
@@ -139,6 +151,32 @@ def validate_all(config: dict[str, Any]) -> list[str]:
         actual_nodes = {str(device.get("model_node")) for device in sites.get(site_name, {}).get("devices", [])}
         if actual_nodes != expected_nodes:
             errors.append(f"{site_name} managed nodes must be {sorted(expected_nodes)}, found {sorted(actual_nodes)}")
+
+    interfaces = config.get("interfaces", {})
+    for site in sites.values():
+        for device in site.get("devices", []):
+            if device.get("role") != "access_switch":
+                continue
+            device_name = str(device.get("name"))
+            mapping = interfaces.get(device_name, {})
+            access_ports = mapping.get("access_ports", [])
+            uplink = mapping.get("uplink", {})
+            expected_access_vlans = {int(vlan) for vlan in device.get("access_vlans", [])}
+            mapped_access_vlans = {int(port["vlan"]) for port in access_ports if "vlan" in port}
+            uplink_vlans = {int(vlan) for vlan in uplink.get("allowed_vlans", [])}
+            if not access_ports:
+                errors.append(f"Access switch {device_name} must define at least one access_ports mapping")
+            if mapped_access_vlans != expected_access_vlans:
+                errors.append(
+                    f"Access switch {device_name} access port VLANs must be {sorted(expected_access_vlans)}, "
+                    f"found {sorted(mapped_access_vlans)}"
+                )
+            if not uplink.get("name"):
+                errors.append(f"Access switch {device_name} must define an uplink interface")
+            if not expected_access_vlans.issubset(uplink_vlans):
+                errors.append(
+                    f"Access switch {device_name} uplink must carry VLANs {sorted(expected_access_vlans)}"
+                )
 
     links = config.get("links", {})
     if set(links) != set(REQUIRED_TRANSIT_LINKS):
@@ -246,18 +284,17 @@ def validate_all(config: dict[str, Any]) -> list[str]:
         for device in site.get("devices", []):
             record_address(device.get("management_ip"), f"management {device.get('name')}")
     for service_name, service in model.get("services", {}).items():
-        if service.get("transit_ip"):
-            record_address(service["transit_ip"], f"service transit {service_name}")
+        if service.get("interface_ip"):
+            record_address(service["interface_ip"], f"service interface {service_name}")
     record_address(config.get("service_zone", {}).get("gateway_ip"), "service zone gateway")
     for ip_text, link_name in transit_ips.items():
         record_address(ip_text, f"transit {link_name}")
 
     firewall_sites = config.get("firewall_policy", {}).get("sites", {})
-    expected_firewall_sites = {"hq", "branch_telesale", "branch_backoffice"}
+    expected_firewall_sites = {"hq", "branch_telesale"}
     expected_firewall_ownership = {
-        "hq": ("fw_hq", "core_hq", {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24"}),
+        "hq": ("fw_hq", "core_hq", {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24"}),
         "branch_telesale": ("fw_telesale", "dist_telesale", {"172.16.50.0/24"}),
-        "branch_backoffice": ("fw_backoffice", "dist_backoffice", {"172.16.60.0/24"}),
     }
     if set(firewall_sites) != expected_firewall_sites:
         errors.append(f"Firewall policy sites must be {sorted(expected_firewall_sites)}")
@@ -280,12 +317,38 @@ def validate_all(config: dict[str, Any]) -> list[str]:
             errors.append(f"Firewall policy {site_name} owns incorrect subnets")
 
     routes = config.get("routes", {})
-    legacy_route_nodes = sorted(set(routes) & LEGACY_SHARED_BRANCH_NODES)
+    legacy_route_nodes = sorted(set(routes) & FORBIDDEN_TOPOLOGY_NODES)
     if legacy_route_nodes:
-        errors.append(f"Routes still reference legacy shared Branch nodes: {legacy_route_nodes}")
+        errors.append(f"Routes still reference legacy or retired topology nodes: {legacy_route_nodes}")
     for device_name in routes:
         if device_name not in node_ids:
             errors.append(f"Routes reference missing topology node {device_name}")
+
+    service_zone = config.get("service_zone", {})
+    service_network = ipaddress.ip_network(str(service_zone.get("cidr", "0.0.0.0/32")), strict=True)
+    expected_service_routes = {}
+    for service_name in service_zone.get("service_nodes", []):
+        service = model.get("services", {}).get(service_name, {})
+        interface_ip = str(service.get("interface_ip", ""))
+        try:
+            interface_address = ipaddress.ip_address(interface_ip)
+        except ValueError:
+            errors.append(f"Service {service_name} has invalid interface IP {interface_ip!r}")
+            continue
+        if interface_address not in service_network:
+            errors.append(f"Service {service_name} interface IP {interface_ip} is outside {service_network}")
+        adjacent_next_hops.setdefault("internet_zone", set()).add(interface_ip)
+        expected_service_routes[f"{service.get('ip')}/32"] = interface_ip
+    actual_service_routes = {
+        str(route.get("prefix")): str(route.get("next_hop"))
+        for route in routes.get("internet_zone", {}).get("service_routes", [])
+    }
+    if actual_service_routes != expected_service_routes:
+        errors.append(
+            f"internet_zone service routes must be {expected_service_routes}, found {actual_service_routes}"
+        )
+    if service_zone.get("addressing_model") != "interface_plus_service_vip":
+        errors.append("service_zone must declare interface_plus_service_vip addressing")
 
     for device_name, prefix, next_hop in _all_route_entries(routes):
         try:
@@ -319,10 +382,8 @@ def validate_all(config: dict[str, Any]) -> list[str]:
     expected_defaults = {
         "core_hq": "10.10.254.2",
         "dist_telesale": "10.20.254.2",
-        "dist_backoffice": "10.30.254.2",
         "fw_hq": "10.255.10.2",
         "fw_telesale": "10.255.10.6",
-        "fw_backoffice": "10.255.10.10",
     }
     for node_name, expected_next_hop in expected_defaults.items():
         actual = str(routes.get(node_name, {}).get("default_route", {}).get("next_hop", ""))

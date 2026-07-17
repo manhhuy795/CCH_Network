@@ -1,8 +1,8 @@
 # Generated vendor-neutral firewall policy for br-firewall
 # Convert to the target firewall vendor syntax and validate before production.
 
-firewall: br-firewall
-site: branch
+firewall: fw_telesale
+site: branch_telesale
 interfaces:
   inside: inside
   outside: outside
@@ -11,9 +11,6 @@ nat:
   outbound:
     - source_vlan: 50
       source_subnet: 172.16.50.0/24
-      translated_to: outside_interface
-    - source_vlan: 60
-      source_subnet: 172.16.60.0/24
       translated_to: outside_interface
 
 objects:
@@ -35,19 +32,19 @@ objects:
 policies:
   - name: allow-zalo
     action: allow
-    source_vlans: [50, 60]
+    source_vlans: [50]
     destination: ['internet']
     applications: ['zalo']
     log: True
   - name: allow-call-app
     action: allow
-    source_vlans: [50, 60]
+    source_vlans: [50]
     destination: ['internet']
     applications: ['call_app']
     log: True
   - name: deny-social-media
     action: deny
-    source_vlans: [50, 60]
+    source_vlans: [50]
     destination: ['internet']
     applications: ['social_media']
     log: True

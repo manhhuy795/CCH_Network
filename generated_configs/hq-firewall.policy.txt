@@ -1,7 +1,7 @@
 # Generated vendor-neutral firewall policy for hq-firewall
 # Convert to the target firewall vendor syntax and validate before production.
 
-firewall: hq-firewall
+firewall: fw_hq
 site: hq
 interfaces:
   inside: inside
@@ -18,8 +18,11 @@ nat:
     - source_vlan: 40
       source_subnet: 172.16.40.0/24
       translated_to: outside_interface
-    - source_vlan: 90
-      source_subnet: 172.16.90.0/24
+    - source_vlan: 60
+      source_subnet: 172.16.60.0/24
+      translated_to: outside_interface
+    - source_vlan: 70
+      source_subnet: 172.16.70.0/24
       translated_to: outside_interface
 
 objects:
@@ -41,19 +44,19 @@ objects:
 policies:
   - name: allow-zalo
     action: allow
-    source_vlans: [20, 30, 40]
+    source_vlans: [20, 30, 40, 60, 70]
     destination: ['internet']
     applications: ['zalo']
     log: True
   - name: allow-call-app
     action: allow
-    source_vlans: [20, 30, 40]
+    source_vlans: [20, 30, 40, 60, 70]
     destination: ['internet']
     applications: ['call_app']
     log: True
   - name: deny-social-media
     action: deny
-    source_vlans: [20, 30, 40]
+    source_vlans: [20, 30, 40, 60, 70]
     destination: ['internet']
     applications: ['social_media']
     log: True

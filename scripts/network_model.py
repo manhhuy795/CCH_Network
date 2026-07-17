@@ -14,7 +14,7 @@ EXPECTED_HOST_GROUPS = {
     "project_b": {"vlan": 30, "count": 20, "prefix": "h30", "subnet": "172.16.30.0/24", "gateway": "172.16.30.1", "site": "hq", "switch": "access_hq_b", "first_ip": "172.16.30.11", "last_ip": "172.16.30.30"},
     "project_c": {"vlan": 40, "count": 20, "prefix": "h40", "subnet": "172.16.40.0/24", "gateway": "172.16.40.1", "site": "hq", "switch": "access_hq_c", "first_ip": "172.16.40.11", "last_ip": "172.16.40.30"},
     "telesale": {"vlan": 50, "count": 20, "prefix": "h50", "subnet": "172.16.50.0/24", "gateway": "172.16.50.1", "site": "branch_telesale", "switch": "access_telesale", "first_ip": "172.16.50.11", "last_ip": "172.16.50.30"},
-    "backoffice": {"vlan": 60, "count": 20, "prefix": "h60", "subnet": "172.16.60.0/24", "gateway": "172.16.60.1", "site": "branch_backoffice", "switch": "access_backoffice", "first_ip": "172.16.60.11", "last_ip": "172.16.60.30"},
+    "backoffice": {"vlan": 60, "count": 20, "prefix": "h60", "subnet": "172.16.60.0/24", "gateway": "172.16.60.1", "gateway_node": "core_hq", "site": "hq", "switch": "access_backoffice", "first_ip": "172.16.60.11", "last_ip": "172.16.60.30"},
     "it_support": {"vlan": 70, "count": 10, "prefix": "h70", "subnet": "172.16.70.0/24", "gateway": "172.16.70.1", "site": "hq", "switch": "access_hq_it", "first_ip": "172.16.70.11", "last_ip": "172.16.70.20"},
 }
 EXPECTED_SERVICES = {
@@ -24,17 +24,27 @@ EXPECTED_SERVICES = {
     "hsocial": "172.16.202.10",
     "hinternet": "172.16.203.10",
 }
-EXPECTED_SITES = {"hq", "branch_telesale", "branch_backoffice", "wan", "internet"}
+EXPECTED_SITES = {"hq", "branch_telesale", "wan", "internet"}
+EXPECTED_PHYSICAL_SITES = {"hq", "branch_telesale"}
 EXPECTED_CONTROLLED_SWITCHES = {
     "access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq",
-    "access_telesale", "dist_telesale", "access_backoffice", "dist_backoffice",
+    "access_telesale", "dist_telesale", "access_backoffice",
 }
-EXPECTED_CE_NODES = {"ce_hq", "ce_telesale", "ce_backoffice"}
-EXPECTED_FIREWALL_NODES = {"fw_hq", "fw_telesale", "fw_backoffice"}
+EXPECTED_CE_NODES = {"ce_hq", "ce_telesale"}
+EXPECTED_FIREWALL_NODES = {"fw_hq", "fw_telesale"}
 LEGACY_SHARED_BRANCH_NODES = {"access_branch", "dist_branch", "ce_branch", "fw_branch"}
+RETIRED_REMOTE_BACKOFFICE_NODES = {"branch_backoffice", "dist_backoffice", "ce_backoffice", "fw_backoffice"}
+FORBIDDEN_TOPOLOGY_NODES = LEGACY_SHARED_BRANCH_NODES | RETIRED_REMOTE_BACKOFFICE_NODES
 EXPECTED_BRANCH_COMPONENTS = {
     "branch_telesale": {"access": "access_telesale", "distribution": "dist_telesale", "ce": "ce_telesale", "firewall": "fw_telesale"},
-    "branch_backoffice": {"access": "access_backoffice", "distribution": "dist_backoffice", "ce": "ce_backoffice", "firewall": "fw_backoffice"},
+}
+EXPECTED_REFERENCE_PATHS = {
+    "hq_internet_hzalo": ["project_a", "access_hq_a", "core_hq", "fw_hq", "internet_zone", "hzalo"],
+    "backoffice_internet_hzalo": ["backoffice", "access_backoffice", "core_hq", "fw_hq", "internet_zone", "hzalo"],
+    "telesale_internet_hzalo": ["telesale", "access_telesale", "dist_telesale", "fw_telesale", "internet_zone", "hzalo"],
+    "backoffice_voice": ["backoffice", "access_backoffice", "core_hq", "voice_access", "h90"],
+    "telesale_voice": ["telesale", "access_telesale", "dist_telesale", "ce_telesale", "mpls_cloud", "ce_hq", "core_hq", "voice_access", "h90"],
+    "backoffice_to_telesale": ["backoffice", "access_backoffice", "core_hq", "ce_hq", "mpls_cloud", "ce_telesale", "dist_telesale", "access_telesale", "telesale"],
 }
 
 
@@ -95,6 +105,13 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
             f"Network model sites must be {sorted(EXPECTED_SITES)}, "
             f"found {sorted(model.get('sites', {}))}"
         )
+    physical_sites = {
+        name for name, site in model.get("sites", {}).items() if site.get("kind") == "physical"
+    }
+    if physical_sites != EXPECTED_PHYSICAL_SITES:
+        errors.append(
+            f"Physical sites must be exactly {sorted(EXPECTED_PHYSICAL_SITES)}, found {sorted(physical_sites)}"
+        )
 
     for group_name, expected in EXPECTED_HOST_GROUPS.items():
         group = model.get("host_groups", {}).get(group_name)
@@ -104,6 +121,12 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         for key in ("vlan", "count", "prefix", "subnet", "gateway", "site", "switch"):
             if group.get(key) != expected[key]:
                 errors.append(f"Host group {group_name} {key} must be {expected[key]}, found {group.get(key)}")
+        expected_gateway_node = expected.get("gateway_node", "dist_telesale" if group_name == "telesale" else "core_hq")
+        if group.get("gateway_node") != expected_gateway_node:
+            errors.append(
+                f"Host group {group_name} gateway_node must be {expected_gateway_node}, "
+                f"found {group.get('gateway_node')}"
+            )
         first_name = f"{expected['prefix']}_01"
         last_name = f"{expected['prefix']}_{int(expected['count']):02d}"
         if hosts.get(first_name, {}).get("ip") != expected["first_ip"]:
@@ -153,6 +176,33 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         if service.get("subnet") and service_ip not in ipaddress.ip_network(str(service["subnet"]), strict=True):
             errors.append(f"Service {service_name} IP {service_ip} is outside {service['subnet']}")
 
+    service_addressing = model.get("service_addressing", {})
+    expected_service_zone = ipaddress.ip_network("10.255.30.0/24")
+    if service_addressing.get("model") != "interface_plus_service_vip":
+        errors.append("Service addressing model must be interface_plus_service_vip")
+    if service_addressing.get("interface_subnet") != str(expected_service_zone):
+        errors.append(f"Service interface subnet must be {expected_service_zone}")
+    if service_addressing.get("gateway_node") != "internet_zone" or service_addressing.get("gateway_ip") != "10.255.30.1":
+        errors.append("Service addressing gateway must be internet_zone at 10.255.30.1")
+    for service_name in ("hzalo", "hcall", "hsocial", "hinternet"):
+        service = model.get("services", {}).get(service_name, {})
+        try:
+            vip_network = ipaddress.ip_network(str(service.get("subnet", "")), strict=True)
+            interface = ipaddress.ip_interface(str(service.get("interface_cidr", "")))
+        except ValueError as exc:
+            errors.append(f"Service {service_name} has invalid VIP/interface addressing: {exc}")
+            continue
+        if vip_network.prefixlen != 32 or str(vip_network.network_address) != str(service.get("ip")):
+            errors.append(f"Service {service_name} must expose its service IP as a /32 VIP")
+        if interface.network != expected_service_zone:
+            errors.append(f"Service {service_name} interface must belong to {expected_service_zone}")
+        if str(interface.ip) != str(service.get("interface_ip")):
+            errors.append(f"Service {service_name} interface_cidr and interface_ip must match")
+        if service.get("transit_ip") != service.get("interface_ip"):
+            errors.append(f"Service {service_name} transit_ip compatibility alias must equal interface_ip")
+        if service.get("gateway") != "10.255.30.1":
+            errors.append(f"Service {service_name} gateway must be 10.255.30.1")
+
     for service_name, expected_ip in EXPECTED_SERVICES.items():
         service = model.get("services", {}).get(service_name)
         if not service:
@@ -182,9 +232,9 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         errors.append(f"Duplicate topology node IDs across categories: {duplicate_nodes}")
 
     node_ids = set().union(*node_categories.values())
-    legacy_nodes = sorted(node_ids & LEGACY_SHARED_BRANCH_NODES)
-    if legacy_nodes:
-        errors.append(f"Legacy shared Branch nodes are forbidden: {legacy_nodes}")
+    forbidden_nodes = sorted(node_ids & FORBIDDEN_TOPOLOGY_NODES)
+    if forbidden_nodes:
+        errors.append(f"Legacy or retired topology nodes are forbidden: {forbidden_nodes}")
 
     switches_data = model.get("switches", {})
     controlled = {name for name, data in switches_data.items() if bool(data.get("controlled"))}
@@ -251,18 +301,14 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         frozenset(("dist_telesale", "fw_telesale")),
         frozenset(("ce_telesale", "mpls_cloud")),
         frozenset(("backoffice", "access_backoffice")),
-        frozenset(("access_backoffice", "dist_backoffice")),
-        frozenset(("dist_backoffice", "ce_backoffice")),
-        frozenset(("dist_backoffice", "fw_backoffice")),
-        frozenset(("ce_backoffice", "mpls_cloud")),
+        frozenset(("access_backoffice", "core_hq")),
         frozenset(("core_hq", "fw_hq")),
         frozenset(("fw_hq", "internet_zone")),
         frozenset(("fw_telesale", "internet_zone")),
-        frozenset(("fw_backoffice", "internet_zone")),
     }
     missing_edges = required_edges - topology_edges
     if missing_edges:
-        errors.append(f"Dual-branch topology is missing required links: {sorted(map(sorted, missing_edges))}")
+        errors.append(f"Two-site topology is missing required links: {sorted(map(sorted, missing_edges))}")
 
     for firewall in EXPECTED_FIREWALL_NODES:
         firewall_edges = [edge for edge in topology_edges if firewall in edge]
@@ -277,6 +323,17 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         for node in path:
             if node not in node_ids:
                 errors.append(f"group_paths[{group_name}] references missing node {node}")
+
+    reference_paths = model.get("reference_paths", {})
+    if reference_paths != EXPECTED_REFERENCE_PATHS:
+        errors.append("reference_paths must define the approved HQ/Telesale Voice and Internet paths")
+    for path_name, path in reference_paths.items():
+        for node in path:
+            if node not in node_ids:
+                errors.append(f"reference_paths[{path_name}] references missing node {node}")
+        for source, target in zip(path, path[1:]):
+            if frozenset((source, target)) not in topology_edges:
+                errors.append(f"reference_paths[{path_name}] uses missing link {source}<->{target}")
 
     return errors
 

@@ -13,27 +13,18 @@ firewall_policy:
     applications:
       zalo:
         type: placeholder
-        fqdn:
-          - "*.zalo.me"
-          - "*.zaloapp.com"
+        fqdn: ["*.zalo.me", "*.zaloapp.com"]
         app_id: "ZALO_APP_ID_TBD"
         notes: "Update with vendor-supported App-ID/FQDN object before production."
       call_app:
         type: placeholder
-        fqdn:
-          - "call-app.example.com"
-        ip:
-          - 203.0.113.200/32
-        ports:
-          - tcp/443
-          - udp/10000-20000
+        fqdn: ["call-app.example.com"]
+        ip: [203.0.113.200/32]
+        ports: [tcp/443, udp/10000-20000]
         notes: "Replace with actual customer calling application FQDN/IP/ports."
       social_media:
         type: category
-        categories:
-          - social-networking
-          - streaming-media
-          - gaming
+        categories: [social-networking, streaming-media, gaming]
 
   sites:
     hq:
@@ -47,24 +38,25 @@ firewall_policy:
         - 172.16.20.0/24
         - 172.16.30.0/24
         - 172.16.40.0/24
+        - 172.16.60.0/24
         - 172.16.70.0/24
-      nat_source_vlans: [20, 30, 40, 70]
+      nat_source_vlans: [20, 30, 40, 60, 70]
       policies:
         - name: allow-zalo
           action: allow
-          sources: [20, 30, 40, 70]
+          sources: [20, 30, 40, 60, 70]
           destinations: [internet]
           applications: [zalo]
           log: true
         - name: allow-call-app
           action: allow
-          sources: [20, 30, 40, 70]
+          sources: [20, 30, 40, 60, 70]
           destinations: [internet]
           applications: [call_app]
           log: true
         - name: deny-social-media
           action: deny
-          sources: [20, 30, 40, 70]
+          sources: [20, 30, 40, 60, 70]
           destinations: [internet]
           applications: [social_media]
           log: true
@@ -76,8 +68,7 @@ firewall_policy:
       outside_node: internet_zone
       inside_interface: inside
       outside_interface: outside
-      owned_subnets:
-        - 172.16.50.0/24
+      owned_subnets: [172.16.50.0/24]
       nat_source_vlans: [50]
       policies:
         - name: allow-zalo
@@ -95,36 +86,6 @@ firewall_policy:
         - name: deny-social-media
           action: deny
           sources: [50]
-          destinations: [internet]
-          applications: [social_media]
-          log: true
-
-    branch_backoffice:
-      firewall_name: fw_backoffice
-      site: branch_backoffice
-      inside_node: dist_backoffice
-      outside_node: internet_zone
-      inside_interface: inside
-      outside_interface: outside
-      owned_subnets:
-        - 172.16.60.0/24
-      nat_source_vlans: [60]
-      policies:
-        - name: allow-zalo
-          action: allow
-          sources: [60]
-          destinations: [internet]
-          applications: [zalo]
-          log: true
-        - name: allow-call-app
-          action: allow
-          sources: [60]
-          destinations: [internet]
-          applications: [call_app]
-          log: true
-        - name: deny-social-media
-          action: deny
-          sources: [60]
           destinations: [internet]
           applications: [social_media]
           log: true

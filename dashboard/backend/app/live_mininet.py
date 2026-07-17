@@ -321,7 +321,8 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
     if source_data and source_data.get("kind") == "service" and destination_data and destination_data.get("kind") == "user":
         return "internet_inbound_block"
     if destination == "hsocial" or source == "hsocial":
-        return "branch_social_block" if decision.get("blocked_at") == "dist_branch" else "hq_social_block"
+        blocked_switch = ENGINE.switches.get(str(decision.get("blocked_at")), {})
+        return "branch_social_block" if blocked_switch.get("role") == "branch_distribution" else "hq_social_block"
     if "vlan 50" in reason or "vlan 60" in reason:
         return "branch_isolation"
     if "vlan" in reason or "cach ly" in reason:
@@ -335,9 +336,10 @@ def _fallback_enforcement_switch(decision: dict[str, Any]) -> str | None:
     blocked_at = decision.get("blocked_at")
     if blocked_at in CONTROLLED_SWITCHES:
         return str(blocked_at)
-    for preferred in ("core_hq", "dist_branch"):
-        if preferred in decision.get("path", []):
-            return preferred
+    for node in reversed(decision.get("path", [])):
+        switch = ENGINE.switches.get(str(node), {})
+        if node in CONTROLLED_SWITCHES and switch.get("role") in {"hq_core", "branch_distribution"}:
+            return str(node)
     return next((node for node in decision.get("path", []) if node in CONTROLLED_SWITCHES), None)
 
 
@@ -945,13 +947,22 @@ def manual_enforcement_switch(source: str, destination: str) -> str:
     blocked_at = decision.get("blocked_at")
     if blocked_at in CONTROLLED_SWITCHES:
         return str(blocked_at)
-    for node in decision.get("path", []):
-        if node in {"core_hq", "dist_branch"}:
-            return str(node)
     source_data = ENGINE.endpoint(source)
+    if source_data and source_data.get("kind") == "user":
+        source_path = ENGINE.group_paths.get(str(source_data.get("group")), [])
+        if source_path and source_path[-1] in CONTROLLED_SWITCHES:
+            return str(source_path[-1])
+    for node in reversed(decision.get("path", [])):
+        switch = ENGINE.switches.get(str(node), {})
+        if node in CONTROLLED_SWITCHES and switch.get("role") in {"hq_core", "branch_distribution"}:
+            return str(node)
     destination_data = ENGINE.endpoint(destination)
     endpoint = source_data if source_data and source_data["kind"] == "user" else destination_data
-    return "dist_branch" if endpoint and endpoint.get("site") == "Branch" else "core_hq"
+    if endpoint and endpoint.get("kind") == "user":
+        group_path = ENGINE.group_paths.get(str(endpoint.get("group")), [])
+        if group_path and group_path[-1] in CONTROLLED_SWITCHES:
+            return str(group_path[-1])
+    raise ValueError(f"Khong tim thay enforcement switch cho {source} -> {destination}")
 
 
 def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any]:
