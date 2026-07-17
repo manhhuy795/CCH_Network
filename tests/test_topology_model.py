@@ -11,6 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = REPO_ROOT / "sdn_mpls_demo" / "policy.yml"
 TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
 CONTROLLER_PATH = REPO_ROOT / "sdn_mpls_demo" / "controller_policy.py"
+PHASE42_GATE_PATH = REPO_ROOT / "scripts" / "phase42_resource_gate.sh"
+PHASE42_NAMESPACE_INVENTORY_PATH = REPO_ROOT / "scripts" / "phase42_namespace_inventory.py"
 
 
 # NHOM A: topology tests assert inventory, role, node va runtime contract cu the.
@@ -103,22 +105,24 @@ def test_topology_forces_intersite_path_through_ce_and_mpls():
     source = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
     assert 'net.addHost("hq_l3_gateway", cls=LinuxRouter, ip=None)' in source
-    assert 'net.addHost("branch_l3_gateway", cls=LinuxRouter, ip=None)' in source
+    assert 'net.addHost("telesale_l3_gateway", cls=LinuxRouter, ip=None)' in source
     assert 'switches["core_hq"], hq_l3,' in source
     assert "hq_l3, ce_hq," in source
     assert "ce_hq, mpls_cloud," in source
-    assert "ce_branch, mpls_cloud," in source
-    assert 'switches["dist_branch"], branch_l3,' in source
-    assert "branch_l3, ce_branch," in source
-    assert 'net.addLink(switches["dist_branch"], switches["core_hq"]' not in source
+    assert "ce_telesale, mpls_cloud," in source
+    assert 'switches["dist_telesale"], telesale_l3,' in source
+    assert "telesale_l3, ce_telesale," in source
+    assert 'switches["dist_telesale"], switches["core_hq"]' not in source
+    assert 'switches["access_backoffice"],' in source
+    assert 'switches["access_telesale"],' in source
     assert 'intfName2=f"{group[\'prefix\']}-u{index:02d}"' in source
-    assert 'intfName1="br-eth99"' in source
-    assert 'intfName2="dist-eth01"' in source
+    assert 'intfName1="tel-eth99"' in source
+    assert 'intfName2="tdist-eth01"' in source
 
     explicit_interfaces = re.findall(r'intfName[12]="([^"]+)"', source)
     assert explicit_interfaces
     assert all(len(name) <= 15 for name in explicit_interfaces)
-    assert all("-eth" in name for name in explicit_interfaces)
+    assert len(explicit_interfaces) == len(set(explicit_interfaces))
 
 
 def test_l3_gateways_own_user_gateways_and_ce_only_routes_wan():
@@ -128,32 +132,75 @@ def test_l3_gateways_own_user_gateways_and_ce_only_routes_wan():
     assert '"172.16.20.1/24"' in source
     assert '"172.16.30.1/24"' in source
     assert '"172.16.40.1/24"' in source
+    assert '"172.16.60.1/24"' in source
     assert '"172.16.70.1/24"' in source
     assert '"172.16.90.1/24"' in source
-    assert 'configure_router_interface(\n        branch_l3,\n        "branch_l3-eth0",' in source
-    assert '["172.16.50.1/24", "172.16.60.1/24"]' in source
-    assert 'configure_router_interface(ce_hq, "ce_hq-eth0", ["10.255.20.2/30"])' in source
-    assert 'configure_router_interface(ce_branch, "ce_branch-eth0", ["10.255.21.2/30"])' in source
-    assert 'add_route(hq_l3, "0.0.0.0/0", "10.255.22.2")' in source
-    assert 'add_route(branch_l3, "0.0.0.0/0", "10.255.23.2")' in source
-    assert 'configure_router_interface(ce_hq,\n        "ce_hq-eth0"' not in source
-    assert 'configure_router_interface(ce_branch,\n        "ce_branch-eth0"' not in source
+    assert 'configure_router_interface(\n        telesale_l3,\n        "tele_l3-eth0",\n        ["172.16.50.1/24"],' in source
+    assert '["172.16.50.1/24", "172.16.60.1/24"]' not in source
+    assert 'transit_cidr("core_hq_to_ce_hq", "endpoint_b")' in source
+    assert 'transit_cidr("ce_telesale_to_dist_telesale", "endpoint_a")' in source
+    assert 'transit_cidr("fw_hq_to_internet_zone", "endpoint_a")' in source
+    assert 'transit_cidr("fw_telesale_to_internet_zone", "endpoint_a")' in source
+    assert "configure_declared_routes(net)" in source
 
 
 def test_only_expected_ovs_are_controller_managed():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
     policy = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))
     topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
     assert policy["runtime"]["controller"] == "127.0.0.1:6653"
-    for switch in (
-        "access_hq_a", "access_hq_b", "access_hq_c", "voice_access",
-        "core_hq", "access_branch", "dist_branch", "access_hq_it",
-    ):
-        assert f'"{switch}"' in topology
-    assert '"mpls_cloud",' in topology
-    assert 'dpid="00000000000000f1"' in topology
-    assert '"internet",' in topology
-    assert 'dpid="00000000000000f2"' in topology
+    assert len(controlled_switches(model)) == 9
+    assert 'for name, dpid in DPIDS.items()' in topology
+    assert '"access_backoffice": "access_bo"' in topology
+    assert 'net.addHost("mpls_cloud", cls=LinuxRouter, ip=None)' in topology
+    assert 'net.addHost("internet_zone", cls=LinuxRouter, ip=None)' in topology
+    assert 'cls=LinuxBridgeSwitch' in topology
+    assert "OVSBridge" not in topology
+    assert 'dpid="00000000000000f1"' not in topology
+    assert 'dpid="00000000000000f2"' not in topology
+    for legacy in ('"access_branch"', '"dist_branch"', '"ce_branch"', '"fw_branch"'):
+        assert legacy not in topology
+
+
+def test_phase42_service_linux_bridge_has_bookkeeping_dpid_without_openflow_control():
+    model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
+    topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "sdn_mpls_demo" / "README.md").read_text(encoding="utf-8")
+    controlled_dpids = {switch["dpid"] for switch in model["switches"].values() if switch["controlled"]}
+    match = re.search(r'^SERVICE_NET_MININET_DPID = "([0-9a-fA-F]+)"$', topology, re.MULTILINE)
+
+    assert match is not None
+    bookkeeping_dpid = match.group(1)
+    assert re.fullmatch(r"[0-9a-fA-F]{16}", bookkeeping_dpid)
+    assert bookkeeping_dpid not in controlled_dpids
+    assert len(controlled_dpids) == 9
+    assert '"service_net",\n        cls=LinuxBridgeSwitch,\n        dpid=SERVICE_NET_MININET_DPID,' in topology
+    assert 'service_net.start([])' in topology
+    assert 'service_net.start([controller])' not in topology
+    assert '"controlled_ovs": list(DPIDS)' in topology
+    assert '"controlled_ovs_count": len(DPIDS)' in topology
+    assert "service_net" not in model["switches"]
+    assert "9 Open vSwitch" in readme
+    assert "SERVICE_NET_MININET_DPID=00000000000000fe" in readme
+    assert "khong phai OVS" in readme
+    assert "khong ket noi OS-Ken" in readme
+
+    assert '("internet_zone", "service_net")' in topology
+    service_ports = {
+        "hzalo": "svc-zalo",
+        "hcall": "svc-call",
+        "hsocial": "svc-social",
+        "hinternet": "svc-inet",
+    }
+    assert all(f'"{name}": "{port}"' in topology for name, port in service_ports.items())
+    assert len(model["services"]) == 5
+    assert model["services"]["h90"]["switch"] == "voice_access"
+    for service_name in ("hzalo", "hcall", "hsocial", "hinternet"):
+        service = model["services"][service_name]
+        assert service["interface_cidr"].startswith(service["interface_ip"] + "/")
+        assert service["subnet"] == f"{service['ip']}/32"
+        assert service["gateway"] == model["service_addressing"]["gateway_ip"]
 
 
 def test_mpls_is_labeled_as_logic_simulation_not_provider_core():
@@ -317,15 +364,56 @@ def test_topology_runner_auto_starts_and_waits_for_controller():
     assert "flock -n 9" in runner
     assert "[t]opology_hybrid_sdn.py" in runner
     assert "cleanup_stale_network" in runner
-    assert "hqa-core" in runner
     assert "hqa-eth99" in runner
+    assert "bo-eth99" in runner
+    assert "tel-eth99" in runner
+    assert "tdist-eth01" in runner
     assert "hq_l3-eth0" in runner
-    assert "branch_l3-eth0" in runner
+    assert "tele_l3-eth0" in runner
+    assert "ce_tel-eth0" in runner
+    assert "fw_tel-eth0" in runner
+    assert "access_bo" in runner
+    assert "phase42_resource_baseline.log" in runner
+    assert "export LANG=C.UTF-8" in runner
+    assert "export LC_ALL=C.UTF-8" in runner
+    assert "export PYTHONUTF8=1" in runner
+    assert 'sudo env LANG="$LANG" LC_ALL="$LC_ALL" PYTHONUTF8="$PYTHONUTF8"' in runner
     assert "seq -w 1 10" in runner
     assert 'interface="h70-u${index}"' in runner
     assert "printf 'h70-u%02d'" not in runner
     assert "NETWORK_MODEL = load_network_model()" in topology
     assert "DPIDS = dpid_map(NETWORK_MODEL)" in topology
+
+
+def test_phase42_ubuntu_resource_gate_is_strict_and_runtime_based():
+    gate = PHASE42_GATE_PATH.read_text(encoding="utf-8")
+    namespace_inventory = PHASE42_NAMESPACE_INVENTORY_PATH.read_text(encoding="utf-8")
+
+    assert "uname -s" in gate
+    assert "sudo -v" in gate
+    assert "export LANG=C.UTF-8" in gate
+    assert "export LC_ALL=C.UTF-8" in gate
+    assert "export PYTHONUTF8=1" in gate
+    assert "phase42_topology_runtime.json" in gate
+    assert "phase42_resource_baseline.log" in gate
+    assert "EXPECTED_SERVICES" in namespace_inventory
+    assert "EXPECTED_INFRA_NAMESPACES" in namespace_inventory
+    assert "EXPECTED_USERS" in namespace_inventory
+    assert "_report_set" in namespace_inventory
+    assert "phase42_namespace_inventory.py" in gate
+    assert "EXPECTED_OVS=(" in gate
+    assert "access_bo" in gate
+    assert "dist_telesale" in gate
+    assert "service_net" not in gate
+    assert "is_connected" in gate
+    assert "agent_request HEALTH" in gate
+    assert "agent_request LIVE_STATUS" in gate
+    assert "ovs-ofctl -O OpenFlow13 dump-flows" in gate
+    assert "vmstat 1 11" in gate
+    assert "RAM_AVAILABLE_PERCENT" in gate
+    assert "PHASE BLOCKED" in gate
+    assert "UBUNTU RESOURCE GATE PASSED." in gate
+    assert "exit 1" in gate
 
 
 def test_phase27_live_link_and_policy_reload_hooks_exist():
@@ -335,7 +423,7 @@ def test_phase27_live_link_and_policy_reload_hooks_exist():
     mininet_control = (REPO_ROOT / "dashboard" / "backend" / "app" / "mininet_control.py").read_text(encoding="utf-8")
     policy_module = (REPO_ROOT / "dashboard" / "backend" / "app" / "policy.py").read_text(encoding="utf-8")
 
-    assert "self.net.configLinkStatus(left, right, state)" in topology
+    assert "self.net.configLinkStatus(left_node.name, right_node.name, state)" in topology
     assert "left_intf.isUp()" in topology
     assert "right_intf.isUp()" in topology
     assert 'request_agent("LINK_DOWN"' not in mininet_control

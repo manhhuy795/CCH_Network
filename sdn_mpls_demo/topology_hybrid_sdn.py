@@ -10,7 +10,9 @@ import re
 import shutil
 import socket
 import stat
+import subprocess
 import threading
+import time
 import unicodedata
 import uuid
 from pathlib import Path
@@ -20,7 +22,7 @@ from mininet.cli import CLI
 from mininet.link import TCLink
 from mininet.log import info, setLogLevel
 from mininet.net import Mininet
-from mininet.node import Node, OVSBridge, OVSKernelSwitch, RemoteController
+from mininet.node import Node, OVSKernelSwitch, RemoteController, Switch
 
 try:
     from scripts.network_model import dpid_map, load_network_model
@@ -35,6 +37,8 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent
 POLICY_FILE = BASE_DIR / "policy.yml"
+ROUTING_FILE = BASE_DIR.parent / "vars" / "routing.yml"
+RUNTIME_INVENTORY_FILE = BASE_DIR / "runtime" / "phase42_topology_runtime.json"
 CONTROL_SOCKET = Path(os.environ.get("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
 CONTROL_PROTOCOL_VERSION = 1
@@ -64,17 +68,45 @@ ALLOWED_CONTROL_COMMANDS = {
 
 NETWORK_MODEL = load_network_model()
 DPIDS = dpid_map(NETWORK_MODEL)
+ROUTING = yaml.safe_load(ROUTING_FILE.read_text(encoding="utf-8"))
+SERVICE_NET_MININET_DPID = "00000000000000fe"
+
+# Linux interface names are limited to 15 bytes. Keep the source-of-truth ID
+# and DPID authoritative while using a short bridge name in the Linux runtime.
+RUNTIME_NODE_NAMES = {
+    "access_backoffice": "access_bo",
+}
+
+
+def runtime_node_name(logical_name: str) -> str:
+    return RUNTIME_NODE_NAMES.get(logical_name, logical_name)
 
 
 LOGICAL_LINK_SEGMENTS = {
     "core_hq-ce_hq": [("hq_l3_gateway", "ce_hq")],
     "ce_hq-core_hq": [("hq_l3_gateway", "ce_hq")],
-    "ce_branch-dist_branch": [("ce_branch", "branch_l3_gateway")],
-    "dist_branch-ce_branch": [("ce_branch", "branch_l3_gateway")],
+    "ce_hq-mpls_cloud": [("ce_hq", "mpls_cloud")],
+    "mpls_cloud-ce_hq": [("ce_hq", "mpls_cloud")],
+    "ce_telesale-mpls_cloud": [("ce_telesale", "mpls_cloud")],
+    "mpls_cloud-ce_telesale": [("ce_telesale", "mpls_cloud")],
+    "ce_telesale-dist_telesale": [("ce_telesale", "telesale_l3_gateway")],
+    "dist_telesale-ce_telesale": [("ce_telesale", "telesale_l3_gateway")],
     "core_hq-fw_hq": [("hq_l3_gateway", "fw_hq")],
     "fw_hq-core_hq": [("hq_l3_gateway", "fw_hq")],
-    "dist_branch-fw_branch": [("branch_l3_gateway", "fw_branch")],
-    "fw_branch-dist_branch": [("branch_l3_gateway", "fw_branch")],
+    "dist_telesale-fw_telesale": [("telesale_l3_gateway", "fw_telesale")],
+    "fw_telesale-dist_telesale": [("telesale_l3_gateway", "fw_telesale")],
+    "fw_hq-internet_zone": [("fw_hq", "internet_zone")],
+    "internet_zone-fw_hq": [("fw_hq", "internet_zone")],
+    "fw_telesale-internet_zone": [("fw_telesale", "internet_zone")],
+    "internet_zone-fw_telesale": [("fw_telesale", "internet_zone")],
+    "internet_zone-hzalo": [("internet_zone", "service_net"), ("service_net", "hzalo")],
+    "hzalo-internet_zone": [("hzalo", "service_net"), ("service_net", "internet_zone")],
+    "internet_zone-hcall": [("internet_zone", "service_net"), ("service_net", "hcall")],
+    "hcall-internet_zone": [("hcall", "service_net"), ("service_net", "internet_zone")],
+    "internet_zone-hsocial": [("internet_zone", "service_net"), ("service_net", "hsocial")],
+    "hsocial-internet_zone": [("hsocial", "service_net"), ("service_net", "internet_zone")],
+    "internet_zone-hinternet": [("internet_zone", "service_net"), ("service_net", "hinternet")],
+    "hinternet-internet_zone": [("hinternet", "service_net"), ("service_net", "internet_zone")],
 }
 
 
@@ -88,6 +120,24 @@ class LinuxRouter(Node):
     def terminate(self):
         self.cmd("sysctl -w net.ipv4.ip_forward=0 >/dev/null")
         super().terminate()
+
+
+class LinuxBridgeSwitch(Switch):
+    """Small kernel Linux bridge used only for the Internet service LAN."""
+
+    def start(self, _controllers):
+        self.cmd("ip link add name", self.name, "type bridge")
+        self.cmd("ip link set dev", self.name, "up")
+        for interface in self.intfList():
+            if str(interface) == "lo":
+                continue
+            self.cmd("ip link set dev", interface, "master", self.name)
+            self.cmd("ip link set dev", interface, "up")
+
+    def stop(self, deleteIntfs=True):
+        self.cmd("ip link set dev", self.name, "down")
+        self.cmd("ip link delete", self.name, "type bridge")
+        super().stop(deleteIntfs)
 
 
 class MininetControlAgent:
@@ -382,7 +432,7 @@ class MininetControlAgent:
         if not isinstance(name, str):
             return None
         try:
-            return self.net.get(name)
+            return self.net.get(runtime_node_name(name))
         except KeyError:
             return None
 
@@ -654,7 +704,7 @@ class MininetControlAgent:
         node = self._node(switch) if switch else None
         if not node:
             return {"ok": False, "message": "Switch khong hop le.", "raw": ""}
-        output = node.cmd(f"ovs-ofctl -O OpenFlow13 dump-flows {switch}")
+        output = node.cmd(f"ovs-ofctl -O OpenFlow13 dump-flows {node.name}")
         return {"ok": True, "raw": output}
 
     def _bridge_exists(self, switch_value) -> dict:
@@ -670,7 +720,7 @@ class MininetControlAgent:
         if not node or not src_ip or not dst_ip or not re.fullmatch(r"0x[0-9a-fA-F]+", cookie):
             return {"ok": False, "message": "ADD_MANUAL_DROP request khong hop le.", "raw": ""}
         flow = f"cookie={cookie},priority=500,ip,nw_src={src_ip},nw_dst={dst_ip},actions=drop"
-        output = node.cmd(f"ovs-ofctl -O OpenFlow13 add-flow {switch} '{flow}'")
+        output = node.cmd(f"ovs-ofctl -O OpenFlow13 add-flow {node.name} '{flow}'")
         return {"ok": True, "raw": output}
 
     def _delete_cookie_flows(self, request: dict) -> dict:
@@ -679,7 +729,7 @@ class MininetControlAgent:
         cookie_match = str(request.get("cookie_match", ""))
         if not node or not re.fullmatch(r"0x[0-9a-fA-F]+/0x[0-9a-fA-F]+", cookie_match):
             return {"ok": False, "message": "DEL_COOKIE_FLOWS request khong hop le.", "raw": ""}
-        output = node.cmd(f"ovs-ofctl -O OpenFlow13 del-flows {switch} cookie={cookie_match}")
+        output = node.cmd(f"ovs-ofctl -O OpenFlow13 del-flows {node.name} cookie={cookie_match}")
         return {"ok": True, "raw": output}
 
     def _logical_links(self) -> list[str]:
@@ -707,10 +757,9 @@ class MininetControlAgent:
         return [(left, right)]
 
     def _segment_interface_map(self, left: str, right: str) -> dict:
-        try:
-            left_node = self.net.get(left)
-            right_node = self.net.get(right)
-        except KeyError:
+        left_node = self._node(left)
+        right_node = self._node(right)
+        if left_node is None or right_node is None:
             return {"left": left, "right": right, "status": "missing", "interfaces": []}
         connections = left_node.connectionsTo(right_node)
         interfaces = [
@@ -745,7 +794,11 @@ class MininetControlAgent:
         changed = []
         for left, right in segments:
             try:
-                self.net.configLinkStatus(left, right, state)
+                left_node = self._node(left)
+                right_node = self._node(right)
+                if left_node is None or right_node is None:
+                    raise KeyError(f"Missing runtime node for {left}-{right}")
+                self.net.configLinkStatus(left_node.name, right_node.name, state)
                 changed.append({"left": left, "right": right, "state": state})
             except Exception as exc:  # Mininet raises generic Exception for missing links.
                 return {
@@ -796,7 +849,7 @@ class MininetControlAgent:
     def _live_status(self) -> dict:
         nodes = getattr(self.net, "nameToNode", {})
         hosts = {name: name in nodes for name in self.policy.get("hosts", {})}
-        bridges = {switch: switch in nodes for switch in DPIDS}
+        bridges = {switch: self._node(switch) is not None for switch in DPIDS}
         return {
             "ok": True,
             "available": True,
@@ -823,25 +876,25 @@ POLICY_TESTS = (
     ("Project isolation", "h30_01", "h40_01", False, "Project B cannot ping Project C"),
     ("Project isolation", "h40_01", "h20_01", False, "Project C cannot ping Project A"),
     ("Project isolation", "h40_01", "h30_01", False, "Project C cannot ping Project B"),
-    ("Branch isolation", "h50_01", "h60_01", False, "Telesale cannot ping BackOffice"),
-    ("Branch isolation", "h60_01", "h50_01", False, "BackOffice cannot ping Telesale"),
+    ("Site isolation", "h50_01", "h60_01", False, "Telesale cannot ping HQ BackOffice"),
+    ("Site isolation", "h60_01", "h50_01", False, "HQ BackOffice cannot ping Telesale"),
     ("Voice", "h20_01", "h90", True, "Project A can reach PBX/SBC Voice Service"),
     ("Voice", "h30_01", "h90", True, "Project B can reach PBX/SBC Voice Service"),
     ("Voice", "h40_01", "h90", True, "Project C can reach PBX/SBC Voice Service"),
     ("Voice", "h50_01", "h90", True, "Telesale can reach Voice via MPLS"),
-    ("Voice", "h60_01", "h90", True, "BackOffice can reach Voice via MPLS"),
+    ("Voice", "h60_01", "h90", True, "BackOffice can reach Voice locally at HQ"),
     ("Voice", "h70_01", "h90", True, "IT Support can reach Voice"),
     ("Internet services", "h20_01", "hzalo", True, "Project A can use Zalo via HQ Internet Edge Boundary"),
     ("Internet services", "h20_01", "hcall", True, "Project A can use Call App via HQ Internet Edge Boundary"),
     ("Internet services", "h20_01", "hinternet", True, "Project A can use Internet test via HQ Internet Edge Boundary"),
     ("Internet services", "h50_01", "hzalo", True, "Telesale can use Zalo via Branch Internet Edge Boundary"),
     ("Internet services", "h50_01", "hcall", True, "Telesale can use Call App via Branch Internet Edge Boundary"),
-    ("Internet services", "h60_01", "hinternet", True, "BackOffice can use Internet test via Branch Internet Edge Boundary"),
+    ("Internet services", "h60_01", "hinternet", True, "BackOffice can use Internet test via HQ Internet Edge Boundary"),
     ("Social block", "h20_01", "hsocial", False, "Project A is blocked from Social Media at HQ Core SDN"),
     ("Social block", "h30_01", "hsocial", False, "Project B is blocked from Social Media at HQ Core SDN"),
     ("Social block", "h40_01", "hsocial", False, "Project C is blocked from Social Media at HQ Core SDN"),
     ("Social block", "h50_01", "hsocial", False, "Telesale is blocked from Social Media at Branch Distribution SDN"),
-    ("Social block", "h60_01", "hsocial", False, "BackOffice is blocked from Social Media at Branch Distribution SDN"),
+    ("Social block", "h60_01", "hsocial", False, "BackOffice is blocked from Social Media at HQ Core SDN"),
     ("Controlled intersite", "h50_01", "h20_01", False, "Telesale cannot ping Project A; only IT has support access"),
     ("Controlled intersite", "h20_01", "h50_01", False, "Project A cannot ping Telesale; only IT has support access"),
     ("Controlled intersite", "h60_01", "h20_01", False, "BackOffice has no lateral access to Project A"),
@@ -935,10 +988,10 @@ class CallCenterCLI(CLI):
         "Hiá»ƒn thá»‹ cĂ¡c flow DROP priority 400 trĂªn OVS."
         info("\n*** Isolation flow priority 400\n")
         for switch_name in DPIDS:
-            switch = self.mn.get(switch_name)
+            switch = self.mn.get(runtime_node_name(switch_name))
             info(f"\n--- {switch_name} ---\n")
             info(switch.cmd(
-                f"ovs-ofctl -O OpenFlow13 dump-flows {switch_name} "
+                f"ovs-ofctl -O OpenFlow13 dump-flows {switch.name} "
                 f"| grep 'priority=400' || true"
             ))
 
@@ -988,13 +1041,36 @@ def configure_router_interface(node, interface, addresses):
         node.cmd(f"ip addr add {address} dev {interface}")
 
 
+def transit_cidr(link_name, endpoint_name):
+    link = ROUTING["links"][link_name]
+    endpoint = link[endpoint_name]
+    return f"{endpoint['ip']}/{ipaddress.ip_network(link['cidr']).prefixlen}"
+
+
+def configure_declared_routes(net):
+    runtime_router_names = {
+        "core_hq": "hq_l3_gateway",
+        "dist_telesale": "telesale_l3_gateway",
+    }
+    for owner, route_groups in ROUTING["routes"].items():
+        node = net.get(runtime_router_names.get(owner, owner))
+        default_route = route_groups.get("default_route")
+        if default_route:
+            add_route(node, "0.0.0.0/0", default_route["next_hop"])
+        for group_name in ("internal_routes", "intersite_routes", "mpls_routes", "service_routes"):
+            for route in route_groups.get(group_name, []):
+                add_route(node, route["prefix"], route["next_hop"])
+
+
 def configure_routing(net, policy):
     hq_l3 = net.get("hq_l3_gateway")
-    branch_l3 = net.get("branch_l3_gateway")
+    telesale_l3 = net.get("telesale_l3_gateway")
     ce_hq = net.get("ce_hq")
-    ce_branch = net.get("ce_branch")
+    ce_telesale = net.get("ce_telesale")
+    mpls_cloud = net.get("mpls_cloud")
     fw_hq = net.get("fw_hq")
-    fw_branch = net.get("fw_branch")
+    fw_telesale = net.get("fw_telesale")
+    internet_zone = net.get("internet_zone")
 
     configure_router_interface(
         hq_l3,
@@ -1003,65 +1079,92 @@ def configure_routing(net, policy):
             "172.16.20.1/24",
             "172.16.30.1/24",
             "172.16.40.1/24",
+            "172.16.60.1/24",
             "172.16.70.1/24",
             "172.16.90.1/24",
         ],
     )
-    configure_router_interface(hq_l3, "hq_l3-eth1", ["10.255.20.1/30"])
-    configure_router_interface(hq_l3, "hq_l3-eth2", ["10.255.22.1/30"])
-    configure_router_interface(ce_hq, "ce_hq-eth0", ["10.255.20.2/30"])
-    configure_router_interface(ce_hq, "ce_hq-eth1", ["10.255.10.1/29"])
+    configure_router_interface(hq_l3, "hq_l3-eth1", [transit_cidr("core_hq_to_ce_hq", "endpoint_a")])
+    configure_router_interface(hq_l3, "hq_l3-eth2", [transit_cidr("core_hq_to_fw_hq", "endpoint_a")])
+    configure_router_interface(ce_hq, "ce_hq-eth0", [transit_cidr("core_hq_to_ce_hq", "endpoint_b")])
+    configure_router_interface(ce_hq, "ce_hq-eth1", [transit_cidr("ce_hq_to_mpls_cloud", "endpoint_a")])
 
     configure_router_interface(
-        branch_l3,
-        "branch_l3-eth0",
-        ["172.16.50.1/24", "172.16.60.1/24"],
+        telesale_l3,
+        "tele_l3-eth0",
+        ["172.16.50.1/24"],
     )
-    configure_router_interface(branch_l3, "branch_l3-eth1", ["10.255.21.1/30"])
-    configure_router_interface(branch_l3, "branch_l3-eth2", ["10.255.23.1/30"])
-    configure_router_interface(ce_branch, "ce_branch-eth0", ["10.255.21.2/30"])
-    configure_router_interface(ce_branch, "ce_branch-eth1", ["10.255.10.2/29"])
+    configure_router_interface(
+        telesale_l3,
+        "tele_l3-eth1",
+        [transit_cidr("ce_telesale_to_dist_telesale", "endpoint_b")],
+    )
+    configure_router_interface(
+        telesale_l3,
+        "tele_l3-eth2",
+        [transit_cidr("dist_telesale_to_fw_telesale", "endpoint_a")],
+    )
+    configure_router_interface(
+        ce_telesale,
+        "ce_tel-eth0",
+        [transit_cidr("ce_telesale_to_dist_telesale", "endpoint_a")],
+    )
+    configure_router_interface(
+        ce_telesale,
+        "ce_tel-eth1",
+        [transit_cidr("mpls_cloud_to_ce_telesale", "endpoint_b")],
+    )
+    configure_router_interface(
+        mpls_cloud,
+        "mpls-eth0",
+        [transit_cidr("ce_hq_to_mpls_cloud", "endpoint_b")],
+    )
+    configure_router_interface(
+        mpls_cloud,
+        "mpls-eth1",
+        [transit_cidr("mpls_cloud_to_ce_telesale", "endpoint_a")],
+    )
 
-    configure_router_interface(fw_hq, "fw_hq-eth0", ["10.255.22.2/30"])
-    configure_router_interface(fw_hq, "fw_hq-eth1", ["10.255.30.1/24"])
-    configure_router_interface(fw_branch, "fw_branch-eth0", ["10.255.23.2/30"])
-    configure_router_interface(fw_branch, "fw_branch-eth1", ["10.255.30.2/24"])
+    configure_router_interface(fw_hq, "fw_hq-eth0", [transit_cidr("core_hq_to_fw_hq", "endpoint_b")])
+    configure_router_interface(fw_hq, "fw_hq-eth1", [transit_cidr("fw_hq_to_internet_zone", "endpoint_a")])
+    configure_router_interface(
+        fw_telesale,
+        "fw_tel-eth0",
+        [transit_cidr("dist_telesale_to_fw_telesale", "endpoint_b")],
+    )
+    configure_router_interface(
+        fw_telesale,
+        "fw_tel-eth1",
+        [transit_cidr("fw_telesale_to_internet_zone", "endpoint_a")],
+    )
+    configure_router_interface(
+        internet_zone,
+        "inet-eth0",
+        [transit_cidr("fw_hq_to_internet_zone", "endpoint_b")],
+    )
+    configure_router_interface(
+        internet_zone,
+        "inet-eth1",
+        [transit_cidr("fw_telesale_to_internet_zone", "endpoint_b")],
+    )
+    configure_router_interface(
+        internet_zone,
+        "inet-eth2",
+        [f"{NETWORK_MODEL['service_addressing']['gateway_ip']}/24"],
+    )
 
-    for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
-        add_route(hq_l3, prefix, "10.255.20.2")
-        add_route(ce_hq, prefix, "10.255.10.2")
-    for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
-        add_route(branch_l3, prefix, "10.255.21.2")
-        add_route(ce_branch, prefix, "10.255.10.1")
-        add_route(ce_hq, prefix, "10.255.20.1")
-    for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
-        add_route(ce_branch, prefix, "10.255.21.1")
-    add_route(hq_l3, "0.0.0.0/0", "10.255.22.2")
-    add_route(branch_l3, "0.0.0.0/0", "10.255.23.2")
+    configure_declared_routes(net)
 
-    for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
-        add_route(fw_hq, prefix, "10.255.22.1")
-    for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
-        add_route(fw_branch, prefix, "10.255.23.1")
-
-    service_transit = {
-        name: service["transit_ip"]
-        for name, service in policy["services"].items()
-        if "transit_ip" in service
-    }
-    for name, transit_ip in service_transit.items():
+    for name, service in policy["services"].items():
+        if "interface_cidr" not in service:
+            continue
         service = policy["services"][name]
         host = net.get(name)
         interface = str(host.defaultIntf())
         host.cmd(f"ip addr flush dev {interface}")
         host.cmd(f"ip addr add {service['ip']}/32 dev {interface}")
-        host.cmd(f"ip addr add {transit_ip}/24 dev {interface}")
-        for prefix in ("172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.70.0/24", "172.16.90.0/24"):
-            add_route(host, prefix, "10.255.30.1")
-        for prefix in ("172.16.50.0/24", "172.16.60.0/24"):
-            add_route(host, prefix, "10.255.30.2")
-        add_route(fw_hq, f"{service['ip']}/32", transit_ip)
-        add_route(fw_branch, f"{service['ip']}/32", transit_ip)
+        host.cmd(f"ip addr add {service['interface_cidr']} dev {interface}")
+        add_route(host, "0.0.0.0/0", service["gateway"])
 
 
 def start_service_simulators(net):
@@ -1074,7 +1177,51 @@ def start_service_simulators(net):
         )
 
 
+def emit_resource_snapshot(label):
+    emit(f"*** RESOURCE SNAPSHOT: {label}")
+    commands = (
+        ("free -m", ["free", "-m"]),
+        ("swapon --show", ["swapon", "--show"]),
+        ("ps top RSS", ["ps", "-eo", "pid,ppid,%cpu,%mem,rss,cmd", "--sort=-rss"]),
+        ("ps top CPU", ["ps", "-eo", "pid,ppid,%cpu,%mem,rss,cmd", "--sort=-%cpu"]),
+    )
+    for title, command in commands:
+        emit(f"--- {title} ---")
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        output = result.stdout
+        if title.startswith("ps top"):
+            output = "\n".join(output.splitlines()[:31]) + "\n"
+        emit(output.rstrip())
+        if result.stderr.strip():
+            emit(result.stderr.rstrip())
+        emit(f"EXIT_CODE={result.returncode}")
+
+
+def write_runtime_inventory(net, user_hosts, build_duration):
+    payload = {
+        "build_duration_seconds": round(build_duration, 3),
+        "user_count": len(user_hosts),
+        "service_count": len(NETWORK_MODEL["services"]),
+        "controlled_ovs_count": len(DPIDS),
+        "controlled_ovs": list(DPIDS),
+        "runtime_ovs_bridges": {
+            logical: runtime_node_name(logical) for logical in DPIDS
+        },
+        "ce_nodes": ["ce_hq", "ce_telesale"],
+        "firewall_namespaces": ["fw_hq", "fw_telesale"],
+        "control_agent_socket": str(CONTROL_SOCKET),
+        "mininet_nodes": sorted(getattr(net, "nameToNode", {})),
+    }
+    RUNTIME_INVENTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    RUNTIME_INVENTORY_FILE.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    emit(f"Phase 42 runtime inventory: {RUNTIME_INVENTORY_FILE}")
+
+
 def build_topology():
+    build_started = time.monotonic()
     policy = load_policy()
     net = Mininet(
         controller=None,
@@ -1093,7 +1240,7 @@ def build_topology():
 
     switches = {
         name: net.addSwitch(
-            name,
+            runtime_node_name(name),
             dpid=dpid,
             protocols="OpenFlow13",
             failMode="secure",
@@ -1102,17 +1249,12 @@ def build_topology():
     }
     # Mininet chá»‰ tá»± sinh DPID cho tĂªn canonical nhÆ° s1/s23. Hai bridge
     # standalone váº«n cáº§n DPID tÆ°á»ng minh dĂ¹ khĂ´ng káº¿t ná»‘i SDN Controller.
-    mpls_cloud = net.addSwitch(
-        "mpls_cloud",
-        cls=OVSBridge,
-        dpid="00000000000000f1",
-        failMode="standalone",
-    )
-    internet = net.addSwitch(
-        "internet",
-        cls=OVSBridge,
-        dpid="00000000000000f2",
-        failMode="standalone",
+    mpls_cloud = net.addHost("mpls_cloud", cls=LinuxRouter, ip=None)
+    internet_zone = net.addHost("internet_zone", cls=LinuxRouter, ip=None)
+    service_net = net.addSwitch(
+        "service_net",
+        cls=LinuxBridgeSwitch,
+        dpid=SERVICE_NET_MININET_DPID,
     )
 
     user_hosts = add_group_hosts(net, policy, switches)
@@ -1133,16 +1275,29 @@ def build_topology():
     )
 
     services = {}
-    for service_name in ("hzalo", "hcall", "hsocial", "hinternet"):
+    service_ports = {
+        "hzalo": "svc-zalo",
+        "hcall": "svc-call",
+        "hsocial": "svc-social",
+        "hinternet": "svc-inet",
+    }
+    for service_name in service_ports:
         services[service_name] = net.addHost(service_name, ip=None)
-        net.addLink(services[service_name], internet, cls=TCLink, bw=100, delay="4ms")
+        net.addLink(
+            services[service_name],
+            service_net,
+            intfName2=service_ports[service_name],
+            cls=TCLink,
+            bw=100,
+            delay="4ms",
+        )
 
     hq_l3 = net.addHost("hq_l3_gateway", cls=LinuxRouter, ip=None)
-    branch_l3 = net.addHost("branch_l3_gateway", cls=LinuxRouter, ip=None)
+    telesale_l3 = net.addHost("telesale_l3_gateway", cls=LinuxRouter, ip=None)
     ce_hq = net.addHost("ce_hq", cls=LinuxRouter, ip=None)
-    ce_branch = net.addHost("ce_branch", cls=LinuxRouter, ip=None)
+    ce_telesale = net.addHost("ce_telesale", cls=LinuxRouter, ip=None)
     fw_hq = net.addHost("fw_hq", cls=LinuxRouter, ip=None)
-    fw_branch = net.addHost("fw_branch", cls=LinuxRouter, ip=None)
+    fw_telesale = net.addHost("fw_telesale", cls=LinuxRouter, ip=None)
 
     net.addLink(
         switches["access_hq_a"],
@@ -1190,10 +1345,19 @@ def build_topology():
         delay="1ms",
     )
     net.addLink(
-        switches["access_branch"],
-        switches["dist_branch"],
-        intfName1="br-eth99",
-        intfName2="dist-eth01",
+        switches["access_backoffice"],
+        switches["core_hq"],
+        intfName1="bo-eth99",
+        intfName2="core-eth06",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["access_telesale"],
+        switches["dist_telesale"],
+        intfName1="tel-eth99",
+        intfName2="tdist-eth01",
         cls=TCLink,
         bw=1000,
         delay="1ms",
@@ -1211,22 +1375,22 @@ def build_topology():
     )
     net.addLink(
         ce_hq, mpls_cloud,
-        intfName1="ce_hq-eth1", intfName2="mpls-eth01",
+        intfName1="ce_hq-eth1", intfName2="mpls-eth0",
         cls=TCLink, bw=100, delay="10ms",
     )
     net.addLink(
-        ce_branch, mpls_cloud,
-        intfName1="ce_branch-eth1", intfName2="mpls-eth02",
+        ce_telesale, mpls_cloud,
+        intfName1="ce_tel-eth1", intfName2="mpls-eth1",
         cls=TCLink, bw=100, delay="10ms",
     )
     net.addLink(
-        switches["dist_branch"], branch_l3,
-        intfName1="dist-eth02", intfName2="branch_l3-eth0",
+        switches["dist_telesale"], telesale_l3,
+        intfName1="tdist-eth02", intfName2="tele_l3-eth0",
         cls=TCLink, bw=1000, delay="1ms",
     )
     net.addLink(
-        branch_l3, ce_branch,
-        intfName1="branch_l3-eth1", intfName2="ce_branch-eth0",
+        telesale_l3, ce_telesale,
+        intfName1="tele_l3-eth1", intfName2="ce_tel-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
 
@@ -1236,19 +1400,24 @@ def build_topology():
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
-        fw_hq, internet,
-        intfName1="fw_hq-eth1", intfName2="inet-eth01",
+        fw_hq, internet_zone,
+        intfName1="fw_hq-eth1", intfName2="inet-eth0",
         cls=TCLink, bw=100, delay="5ms",
     )
     net.addLink(
-        branch_l3, fw_branch,
-        intfName1="branch_l3-eth2", intfName2="fw_branch-eth0",
+        telesale_l3, fw_telesale,
+        intfName1="tele_l3-eth2", intfName2="fw_tel-eth0",
         cls=TCLink, bw=200, delay="2ms",
     )
     net.addLink(
-        fw_branch, internet,
-        intfName1="fw_branch-eth1", intfName2="inet-eth02",
+        fw_telesale, internet_zone,
+        intfName1="fw_tel-eth1", intfName2="inet-eth1",
         cls=TCLink, bw=100, delay="5ms",
+    )
+    net.addLink(
+        internet_zone, service_net,
+        intfName1="inet-eth2", intfName2="svc-zone",
+        cls=TCLink, bw=1000, delay="1ms",
     )
 
     info("*** Khá»Ÿi Ä‘á»™ng topology Hybrid MPLS L3VPN + SDN Edge Policy\n")
@@ -1256,18 +1425,22 @@ def build_topology():
     controller.start()
     for switch in switches.values():
         switch.start([controller])
-    mpls_cloud.start([])
-    internet.start([])
+    net.waitConnected(timeout=15)
+    service_net.start([])
 
     configure_routing(net, policy)
     start_service_simulators(net)
     control_agent = MininetControlAgent(net, policy)
     control_agent.start()
+    build_duration = time.monotonic() - build_started
+    write_runtime_inventory(net, user_hosts, build_duration)
+    emit_resource_snapshot("AFTER_TOPOLOGY_BUILD")
 
     emit()
     emit("=" * 88)
     emit(f"Topology da tao: {len(user_hosts)} user + 5 service")
-    emit("Controller quan ly 8 OVS; CE, Internet Edge Boundary va MPLS Cloud khong dung OpenFlow.")
+    emit("Controller quan ly 9 OVS; 2 CE, 2 firewall namespace, Internet Zone va MPLS Cloud khong dung OpenFlow.")
+    emit(f"Thoi gian build topology: {build_duration:.3f} giay")
     emit("Lenh nhanh trong mininet:")
     emit("  testpolicy      # chay bang ping policy chi tiet")
     emit("  isolationflows  # xem DROP flow priority 400")

@@ -60,6 +60,7 @@ def load_topology_module(monkeypatch):
     modules["mininet.node"].OVSBridge = object
     modules["mininet.node"].OVSKernelSwitch = object
     modules["mininet.node"].RemoteController = object
+    modules["mininet.node"].Switch = _Node
     for name, module in modules.items():
         monkeypatch.setitem(sys.modules, name, module)
 

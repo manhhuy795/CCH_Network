@@ -236,7 +236,7 @@ def test_live_link_control_uses_mininet_agent_not_backend_state():
     assert "shell=True" not in client_source
     assert "ALLOWED_CONTROL_COMMANDS" in topology_source
     assert "GET_INTERFACE_MAP" in topology_source
-    assert "self.net.configLinkStatus(left, right, state)" in topology_source
+    assert "self.net.configLinkStatus(left_node.name, right_node.name, state)" in topology_source
     assert "MininetControlAgent(net, policy)" in topology_source
     assert '"LINK_DOWN"' in client_source
     assert '"LINK_UP"' in client_source

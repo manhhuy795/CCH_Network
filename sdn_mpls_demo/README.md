@@ -5,9 +5,14 @@
 - `fw_hq` va `fw_branch` la **Internet Edge Boundary** bang Linux router namespace.
 - Chung khong phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
 - SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
+- Phase 42 co dung 9 OVS duoc OS-Ken dieu khien. `service_net` la Linux
+  bridge cho Service LAN, khong phai OVS va khong co OpenFlow control link.
+- `SERVICE_NET_MININET_DPID=00000000000000fe` chi la bookkeeping DPID de
+  Mininet khoi tao lop `Switch`. Gia tri nay khong thuoc controller inventory,
+  khong ket noi OS-Ken va khong duoc tinh thanh OVS thu 10.
 
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 8 Open vSwitch
+24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 9 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
 
 ## Phạm vi đúng
@@ -26,7 +31,7 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 | User Telesale/BackOffice | 40 |
 | User Phòng IT Support | 10 |
 | Voice/Zalo/Call App/Social/Internet | 5 |
-| OVS được OS-Ken điều khiển | 8 |
+| OVS được OS-Ken điều khiển | 9 |
 
 Đường liên site:
 
