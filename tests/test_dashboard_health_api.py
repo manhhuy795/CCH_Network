@@ -301,6 +301,9 @@ def test_start_and_health_scripts_use_component_checks():
     assert "PID file stale" in start_script
     assert 'port_open 6653' in start_script
     assert 'port_open 5173' in start_script
+    assert "prepare_backend_privileges" in start_script
+    assert "sudo -v" in start_script
+    assert "sudo -n -E" in start_script
     assert "sudo -n" in health_script
     assert "mininet_control_agent" in health_script or "components" in health_script
     assert 'exit "$FAILED"' in health_script

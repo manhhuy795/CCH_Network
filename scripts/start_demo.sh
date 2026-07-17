@@ -10,6 +10,7 @@ FRONTEND_DIR="$ROOT_DIR/dashboard/frontend"
 BACKEND_VENV="$BACKEND_DIR/.venv"
 INSTALL_DEPS=0
 STARTUP_COMPLETE=0
+BACKEND_PRIVILEGE_PREFIX=()
 
 if [[ "${1:-}" == "--install" ]]; then
   INSTALL_DEPS=1
@@ -81,6 +82,21 @@ wait_port() {
 pid_alive() {
   local pid="$1"
   [[ -z "$pid" ]] || kill -0 "$pid" >/dev/null 2>&1
+}
+
+prepare_backend_privileges() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    BACKEND_PRIVILEGE_PREFIX=()
+    return
+  fi
+
+  echo "Backend can quyen root de truy cap namespace Mininet."
+  echo "Xac thuc sudo truoc khi khoi dong backend nen..."
+  if ! sudo -v; then
+    echo "FAIL Khong xac thuc duoc sudo; backend chua duoc khoi dong."
+    return 1
+  fi
+  BACKEND_PRIVILEGE_PREFIX=(sudo -n -E)
 }
 
 wait_backend_health() {
@@ -209,10 +225,11 @@ if port_open 8000; then
   echo "Backend port 8000 da co san, khong khoi dong them backend."
   BACKEND_PID=""
 else
+  prepare_backend_privileges
   echo "Khoi dong FastAPI backend..."
   (
     cd "$BACKEND_DIR"
-    sudo -E "$BACKEND_VENV/bin/python" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    "${BACKEND_PRIVILEGE_PREFIX[@]}" "$BACKEND_VENV/bin/python" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
   ) > "$LOG_DIR/backend.log" 2>&1 &
   BACKEND_PID=$!
   echo "backend:$BACKEND_PID" >> "$PID_FILE"
