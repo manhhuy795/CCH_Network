@@ -85,7 +85,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
       </div>
       <div className="explanation">
         <h3>Ranh giới thực thi</h3>
-        <p>Policy HQ thực thi tại core_hq; policy Branch thực thi tại dist_branch. CE, Firewall, MPLS và Internet Edge Boundary không được coi là OpenFlow device.</p>
+        <p>Policy HQ thực thi tại core_hq; policy Telesale thực thi tại dist_telesale. CE, Firewall, MPLS và Internet Edge Boundary không được coi là OpenFlow device.</p>
         <p>Ghi policy.yml chỉ là thay đổi cấu hình. Trạng thái Applied chỉ xuất hiện sau khi OS-Ken reload và acknowledgement thành công.</p>
       </div>
       <ConfirmDialog

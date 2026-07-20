@@ -198,6 +198,7 @@ switches:
     site: hq
     controlled: true
     dpid: "0000000000000009"
+    runtime_name: "access_bo"
 
 infrastructure:
   c0:

@@ -2,7 +2,7 @@
 
 ## Simulation Honesty
 
-- `fw_hq` va `fw_branch` la **Internet Edge Boundary** bang Linux router namespace.
+- `fw_hq` va `fw_telesale` la **Internet Edge Boundary** bang Linux router namespace.
 - Chung khong phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
 - SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
 - Phase 42 co dung 9 OVS duoc OS-Ken dieu khien. `service_net` la Linux
@@ -36,15 +36,15 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 Đường liên site:
 
 ```text
-Branch Distribution → CE Router Branch → MPLS L3VPN Logic Cloud
+Telesale Distribution → CE Router Telesale → MPLS L3VPN Logic Cloud
 → CE Router HQ → HQ Core SDN
 ```
 
 Internet breakout:
 
 ```text
-HQ user     → HQ Core → Firewall HQ → Internet Zone
-Branch user → Branch Distribution → Firewall Branch → Internet Zone
+HQ user       → HQ Core → Firewall HQ → Internet Zone
+Telesale user → Telesale Distribution → Firewall Telesale → Internet Zone
 ```
 
 ## Lưu ý cho Cfono/Gphone/softphone

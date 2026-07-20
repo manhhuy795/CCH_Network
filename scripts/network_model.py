@@ -251,6 +251,19 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         dpid = str(switch.get("dpid", ""))
         if switch.get("controlled") and (len(dpid) != 16 or any(char not in "0123456789abcdefABCDEF" for char in dpid)):
             errors.append(f"Controlled switch {switch_name} has invalid 16-hex DPID {dpid!r}")
+    runtime_names = [
+        str(switch.get("runtime_name", switch_name))
+        for switch_name, switch in switches_data.items()
+        if switch.get("controlled")
+    ]
+    duplicate_runtime_names = sorted({
+        name for name in runtime_names if runtime_names.count(name) > 1
+    })
+    if duplicate_runtime_names:
+        errors.append(f"Duplicate controlled OVS runtime names found: {duplicate_runtime_names}")
+    for runtime_name in runtime_names:
+        if len(runtime_name.encode("ascii", errors="ignore")) > 15:
+            errors.append(f"Linux OVS runtime name exceeds 15 bytes: {runtime_name}")
 
     infrastructure = model.get("infrastructure", {})
     ce_nodes = {name for name, data in infrastructure.items() if data.get("type") == "router"}
@@ -360,6 +373,51 @@ def dpid_name_map(model: dict[str, Any]) -> dict[int, str]:
         for name, switch in model["switches"].items()
         if switch.get("dpid")
     }
+
+
+def controller_dpid_name_map(model: dict[str, Any]) -> dict[int, str]:
+    """Map only controller-managed DPIDs back to logical switch IDs."""
+    return {
+        int(switch["dpid"], 16): name
+        for name, switch in model["switches"].items()
+        if switch.get("controlled") and switch.get("dpid")
+    }
+
+
+def runtime_switch_name(model: dict[str, Any], logical_name: str) -> str:
+    """Translate a logical switch ID to its Linux bridge name."""
+    switch = model.get("switches", {}).get(logical_name)
+    if not switch:
+        return logical_name
+    return str(switch.get("runtime_name", logical_name))
+
+
+def runtime_switch_map(model: dict[str, Any]) -> dict[str, str]:
+    return {
+        name: runtime_switch_name(model, name)
+        for name in controlled_switches(model)
+    }
+
+
+def enforcement_switch_for_group(model: dict[str, Any], group_name: str) -> str:
+    """Return the declared SDN edge for a user group from group_paths."""
+    path = list(model.get("group_paths", {}).get(group_name, []))
+    if not path:
+        raise ValueError(f"Host group {group_name} has no declared group_path")
+    enforcement = str(path[-1])
+    switch = model.get("switches", {}).get(enforcement)
+    if not switch or not switch.get("controlled"):
+        raise ValueError(
+            f"Host group {group_name} enforcement node {enforcement} is not a controlled OVS"
+        )
+    return enforcement
+
+
+def enforcement_switches(model: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(sorted({
+        enforcement_switch_for_group(model, group_name)
+        for group_name in model.get("host_groups", {})
+    }))
 
 
 def architecture_links(model: dict[str, Any]) -> list[tuple[str, str, str]]:

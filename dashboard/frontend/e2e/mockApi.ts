@@ -26,8 +26,9 @@ const nodes = [
   { id: "access_hq_it", label: "Access HQ IT", type: "switch", dpid: "4" },
   { id: "voice_access", label: "Voice Access", type: "switch", dpid: "5" },
   { id: "core_hq", label: "Core HQ", type: "switch", dpid: "6" },
-  { id: "access_branch", label: "Access Branch", type: "switch", dpid: "7" },
-  { id: "dist_branch", label: "Dist Branch", type: "switch", dpid: "8" },
+  { id: "access_telesale", label: "Access Telesale", type: "switch", dpid: "7" },
+  { id: "dist_telesale", label: "Distribution Telesale", type: "switch", dpid: "8" },
+  { id: "access_backoffice", label: "Access BackOffice HQ", type: "switch", dpid: "9" },
 ];
 
 const links = [

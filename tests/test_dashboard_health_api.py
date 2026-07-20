@@ -28,7 +28,7 @@ def healthy_runtime():
         "ok": True,
         "agent_alive": True,
         "ovs_bridge": True,
-        "bridges": {"core_hq": True, "dist_branch": True},
+        "bridges": {"core_hq": True, "dist_telesale": True},
         "user_hosts_online": 110,
         "mnexec": True,
     }
@@ -73,7 +73,7 @@ def test_ovs_unavailable_is_reported_without_backend_crash():
         live_status=lambda: {
             "ok": True,
             "ovs_bridge": False,
-            "bridges": {"core_hq": False, "dist_branch": False},
+            "bridges": {"core_hq": False, "dist_telesale": False},
             "user_hosts_online": 110,
             "mnexec": True,
         },

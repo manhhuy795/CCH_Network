@@ -3,8 +3,14 @@ from pathlib import Path
 
 import yaml
 
-from scripts.network_model import build_host_inventory, controlled_switches, load_network_model, validate_network_model
-from sdn_mpls_demo.policy_engine import PolicyEngine
+from scripts.network_model import (
+    build_host_inventory,
+    controlled_switches,
+    load_network_model,
+    runtime_switch_name,
+    validate_network_model,
+)
+from sdn_mpls_demo.policy_engine import POLICY_FLOW_PROFILES, PolicyEngine
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -152,7 +158,9 @@ def test_only_expected_ovs_are_controller_managed():
     assert policy["runtime"]["controller"] == "127.0.0.1:6653"
     assert len(controlled_switches(model)) == 9
     assert 'for name, dpid in DPIDS.items()' in topology
-    assert '"access_backoffice": "access_bo"' in topology
+    assert model["switches"]["access_backoffice"]["runtime_name"] == "access_bo"
+    assert runtime_switch_name(model, "access_backoffice") == "access_bo"
+    assert "RUNTIME_NODE_NAMES = runtime_switch_map(NETWORK_MODEL)" in topology
     assert 'net.addHost("mpls_cloud", cls=LinuxRouter, ip=None)' in topology
     assert 'net.addHost("internet_zone", cls=LinuxRouter, ip=None)' in topology
     assert 'cls=LinuxBridgeSwitch' in topology
@@ -259,17 +267,20 @@ def test_controller_is_real_osken_openflow_13_app():
 def test_controller_enforces_drop_policies_only_at_core_and_distribution():
     model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+    engine = PolicyEngine(POLICY_PATH)
+    isolation_specs = engine.isolation_flow_specs()
 
     assert model["switches"]["core_hq"]["role"] == "hq_core"
     assert model["switches"]["dist_telesale"]["role"] == "branch_distribution"
     assert model["switches"]["access_hq_a"]["role"] == "access"
     assert model["switches"]["access_telesale"]["role"] == "access"
-    assert 'switch_name == "core_hq" and self.policy.policies["isolate_hq_projects"]' in controller
-    assert 'switch_name == "dist_branch" and self.policy.policies["isolate_branch_vlan_50_60"]' in controller
+    assert {spec["switch"] for spec in isolation_specs} == {"core_hq", "dist_telesale"}
+    assert all(spec["action"] == "DROP" for spec in isolation_specs)
+    assert "self.policy.isolation_flow_specs()" in controller
     assert 'Khong cai isolation DROP tren %s; access OVS chi transit/local switching.' in controller
-    assert 'switch_name == ENFORCEMENT_SWITCH_BY_GROUP[group_name]' in controller
+    assert 'ENFORCEMENT_SWITCH_BY_GROUP[name] == switch_name' in controller
     assert "hq_social_block" in controller
-    assert "branch_social_block" in controller
+    assert "telesale_social_block" in controller
     assert '"policy": "reactive_policy_drop"' in controller
     assert '"policy": "transit_to_enforcement"' in controller
     assert "POLICY INSTALLED switch=%s role=%s policy=%s priority=%s" in controller
@@ -277,22 +288,18 @@ def test_controller_enforces_drop_policies_only_at_core_and_distribution():
 
 def test_phase27_controller_flow_placement_contract():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
+    engine = PolicyEngine(POLICY_PATH)
+    specs = engine.isolation_flow_specs()
 
-    core_section = controller.split('switch_name == "core_hq"', 1)[1].split('if switch_name == "dist_branch"', 1)[0]
-    branch_section = controller.split('switch_name == "dist_branch"', 1)[1].split('self.logger.info("Khong cai isolation DROP', 1)[0]
-
-    assert "hq_project_isolation" in controller
-    assert "branch_isolation" in controller
-    assert "hq_social_block" in controller
-    assert "branch_social_block" in controller
-    assert "400," in controller
-    assert "390," in controller
+    assert any(spec["policy"] == "hq_project_isolation" for spec in specs)
+    assert any(spec["policy"] == "telesale_backoffice_isolation" for spec in specs)
+    assert all(spec["priority"] == 400 for spec in specs)
+    assert all(spec["cookie"] in {0x1001, 0x1002} for spec in specs)
+    assert {spec["switch"] for spec in specs} == {"core_hq", "dist_telesale"}
     assert "POLICY_COOKIES = {" in controller
     assert "POLICY_COOKIES.get(policy_id" in controller
-    assert "access_hq_a" not in core_section
-    assert "access_hq_b" not in core_section
-    assert "access_hq_c" not in core_section
-    assert "access_branch" not in branch_section
+    assert 'switch_specs = [spec for spec in all_specs if spec["switch"] == switch_name]' in controller
+    assert "command=ofproto.OFPFC_DELETE" in controller
 
 
 def test_runtime_policy_tests_keep_phase28_expected_matrix():
@@ -314,15 +321,17 @@ def test_runtime_policy_tests_keep_phase28_expected_matrix():
 def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 
-    for cookie in ("0x1001", "0x1002", "0x1003", "0x1004", "0x1100", "0x1200", "0x1301", "0x1302", "0x1303", "0x1304"):
-        assert cookie in controller
+    assert {profile["cookie"] for profile in POLICY_FLOW_PROFILES.values()} >= {
+        0x1001, 0x1002, 0x1003, 0x1004, 0x1100, 0x1200, 0x1301, 0x1302, 0x1303, 0x1304,
+    }
+    assert 'policy_id: int(profile["cookie"])' in controller
     assert "cookie=cookie" in controller
     assert 'cookie=f"0x{cookie:x}"' in controller
     assert '"policy": "allowed_services"' in controller
     assert '"policy": "voice"' in controller
     assert '"policy": "it_support"' in controller
     assert "hq_social_block" in controller
-    assert "branch_social_block" in controller
+    assert "telesale_social_block" in controller
     assert "it_support_return" in controller
     assert "it_inbound_block" in controller
     assert "it_social_block" in controller

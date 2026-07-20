@@ -6,7 +6,7 @@
 
 ## Simulation Honesty
 
-- `fw_hq` va `fw_branch` trong SDN/Mininet demo la **Internet Edge Boundary** chay bang Linux router namespace.
+- `fw_hq` va `fw_telesale` trong SDN/Mininet demo la **Internet Edge Boundary** chay bang Linux router namespace.
 - Chung mo phong diem breakout/policy boundary, chua phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
 - MPLS trong demo la **MPLS L3VPN Logic Cloud**, khong phai PE/P provider core hoan chinh.
 
@@ -82,8 +82,8 @@ VLAN được biểu diễn bằng subnet và phân tách Access Switch trong ph
 HQ Core SDN
 → CE Router HQ
 → MPLS L3VPN Logic Cloud
-→ CE Router Branch
-→ Branch Distribution SDN
+→ CE Router Telesale
+→ Telesale Distribution SDN
 ```
 
 Internet HQ:
@@ -95,10 +95,10 @@ HQ Core SDN → Firewall HQ → Internet Zone → Service
 Internet Branch:
 
 ```text
-Branch Distribution SDN → Firewall Branch → Internet Zone → Service
+Telesale Distribution SDN → Firewall Telesale → Internet Zone → Service
 ```
 
-Controller chỉ điều khiển 8 Open vSwitch:
+Controller chỉ điều khiển 9 Open vSwitch:
 
 - `access_hq_a`
 - `access_hq_b`
@@ -106,16 +106,18 @@ Controller chỉ điều khiển 8 Open vSwitch:
 - `access_hq_it`
 - `voice_access`
 - `core_hq`
-- `access_branch`
-- `dist_branch`
+- `access_telesale`
+- `dist_telesale`
+- `access_backoffice` (logical ID; Linux runtime bridge: `access_bo`)
 
 Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cloud.
 
 ## Policy
 
 - Project A/B/C bị cách ly tại `core_hq`.
-- VLAN 50 và VLAN 60 bị cách ly tại `dist_branch`.
-- Social Media bị drop tại SDN Edge: HQ drop ở `core_hq`, Branch drop ở `dist_branch`.
+- Telesale VLAN 50 → BackOffice VLAN 60 bị chặn tại `dist_telesale`.
+- BackOffice VLAN 60 → Telesale VLAN 50 bị chặn tại `core_hq`.
+- Social Media bị drop tại SDN Edge: HQ drop ở `core_hq`, Telesale drop ở `dist_telesale`.
 - User thường được truy cập Voice, Zalo, Call App và General Internet nếu policy cho phép.
 - IT Support có quyền remote/support có kiểm soát theo policy.
 - Internet/service bên ngoài không được chủ động ping vào user nội bộ.
@@ -254,8 +256,8 @@ Kỳ vọng:
 - `h20_01 → h30_01`: fail tại `core_hq`.
 - `h20_01 → hcall`: pass qua `fw_hq`.
 - `h20_01 → hsocial`: fail tại `core_hq`.
-- `h50_01 → hcall`: pass qua `fw_branch`.
-- `h50_01 → hsocial`: fail tại `dist_branch`.
+- `h50_01 → hcall`: pass qua `fw_telesale`.
+- `h50_01 → hsocial`: fail tại `dist_telesale`.
 - `h70_01 → h20_01`: pass theo policy IT Support.
 - `hinternet → h20_01`: fail inbound từ Internet.
 

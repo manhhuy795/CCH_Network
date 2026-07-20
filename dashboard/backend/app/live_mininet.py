@@ -15,7 +15,7 @@ from typing import Any
 from . import repo  # Đảm bảo repository root có trong sys.path.
 from . import mininet_control
 from scripts.network_model import architecture_links, controlled_switches, load_network_model
-from sdn_mpls_demo.policy_engine import GROUP_PATHS, PolicyEngine
+from sdn_mpls_demo.policy_engine import GROUP_PATHS, POLICY_FLOW_PROFILES, PolicyEngine
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -38,37 +38,17 @@ _IPERF_ACTIVE_SESSIONS: dict[str, dict[str, Any]] = {}
 _IPERF_PORT_CURSOR = 0
 
 POLICY_COOKIE_HINTS = {
-    "hq_project_isolation": "0x1001",
-    "branch_isolation": "0x1002",
-    "hq_social_block": "0x1003",
-    "branch_social_block": "0x1004",
-    "allowed_services": "0x1100",
-    "voice": "0x1200",
-    "it_support": "0x1301",
-    "it_support_return": "0x1302",
-    "it_inbound_block": "0x1303",
-    "it_social_block": "0x1304",
-    "reactive_policy_drop": "0x1000",
-    "transit_to_enforcement": "0x1100",
-    "internet_inbound_block": "0x1100",
+    policy_id: f"0x{int(profile['cookie']):x}"
+    for policy_id, profile in POLICY_FLOW_PROFILES.items()
+} | {
     "policy_engine_default": None,
     "link_down": None,
 }
 
 POLICY_PRIORITY_HINTS = {
-    "hq_project_isolation": 400,
-    "branch_isolation": 400,
-    "hq_social_block": 390,
-    "branch_social_block": 390,
-    "allowed_services": 330,
-    "voice": 425,
-    "it_support": 450,
-    "it_support_return": 450,
-    "it_inbound_block": 460,
-    "it_social_block": 470,
-    "reactive_policy_drop": 300,
-    "transit_to_enforcement": 180,
-    "internet_inbound_block": 385,
+    policy_id: int(profile["priority"])
+    for policy_id, profile in POLICY_FLOW_PROFILES.items()
+} | {
     "policy_engine_default": None,
     "link_down": None,
 }
@@ -322,9 +302,9 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
         return "internet_inbound_block"
     if destination == "hsocial" or source == "hsocial":
         blocked_switch = ENGINE.switches.get(str(decision.get("blocked_at")), {})
-        return "branch_social_block" if blocked_switch.get("role") == "branch_distribution" else "hq_social_block"
+        return "telesale_social_block" if blocked_switch.get("role") == "branch_distribution" else "hq_social_block"
     if "vlan 50" in reason or "vlan 60" in reason:
-        return "branch_isolation"
+        return "telesale_backoffice_isolation"
     if "vlan" in reason or "cach ly" in reason:
         return "hq_project_isolation"
     if decision.get("action") == "deny":

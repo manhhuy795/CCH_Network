@@ -6,30 +6,30 @@ import Drawer from "./ui/Drawer";
 import StatusBadge from "./ui/StatusBadge";
 
 const positions: Record<string, [number, number]> = {
-  project_a: [90, 145], project_b: [90, 225], project_c: [90, 305], it_support: [90, 385], h90: [90, 465],
-  access_hq_a: [270, 145], access_hq_b: [270, 225], access_hq_c: [270, 305], access_hq_it: [270, 385], voice_access: [270, 465],
-  core_hq: [470, 305], fw_hq: [665, 305], ce_hq: [790, 305],
-  c0: [775, 70], mpls_cloud: [900, 455],
-  telesale: [90, 635], backoffice: [90, 735], access_branch: [270, 685], dist_branch: [470, 685],
-  fw_branch: [665, 745], ce_branch: [790, 650],
-  internet: [1085, 620],
+  project_a: [90, 135], project_b: [90, 215], project_c: [90, 295], it_support: [90, 375], backoffice: [90, 455], h90: [90, 535],
+  access_hq_a: [270, 135], access_hq_b: [270, 215], access_hq_c: [270, 295], access_hq_it: [270, 375], access_backoffice: [270, 455], voice_access: [270, 535],
+  core_hq: [470, 335], fw_hq: [665, 455], ce_hq: [790, 300],
+  c0: [775, 55], mpls_cloud: [900, 475],
+  telesale: [90, 690], access_telesale: [270, 690], dist_telesale: [470, 690],
+  fw_telesale: [665, 745], ce_telesale: [790, 650],
+  internet_zone: [1085, 620],
   hzalo: [1260, 165], hcall: [1260, 315], hsocial: [1260, 555], hinternet: [1260, 725],
 };
 
 const routedLinks: Record<string, [number, number][]> = {
-  "core_hq-fw_hq": [[470, 305], [665, 305]],
-  "fw_hq-internet": [[665, 305], [1040, 305], [1040, 620], [1085, 620]],
-  "dist_branch-fw_branch": [[470, 685], [565, 685], [565, 745], [665, 745]],
-  "fw_branch-internet": [[665, 745], [900, 745], [900, 620], [1085, 620]],
+  "core_hq-fw_hq": [[470, 335], [565, 335], [565, 455], [665, 455]],
+  "fw_hq-internet_zone": [[665, 455], [1010, 455], [1010, 620], [1085, 620]],
+  "dist_telesale-fw_telesale": [[470, 690], [565, 690], [565, 745], [665, 745]],
+  "fw_telesale-internet_zone": [[665, 745], [930, 745], [930, 620], [1085, 620]],
 };
 
 const regions: Record<string, string> = {
   project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", h90: "hq",
   access_hq_a: "hq", access_hq_b: "hq", access_hq_c: "hq", access_hq_it: "hq", voice_access: "hq",
-  core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
+  backoffice: "hq", access_backoffice: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
   mpls_cloud: "wan",
-  telesale: "branch", backoffice: "branch", access_branch: "branch", dist_branch: "branch", fw_branch: "branch", ce_branch: "branch",
-  internet: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
+  telesale: "branch", access_telesale: "branch", dist_telesale: "branch", fw_telesale: "branch", ce_telesale: "branch",
+  internet_zone: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
 };
 
 type Inspector = { kind: "node"; id: string } | { kind: "link"; id: string } | null;
@@ -149,7 +149,7 @@ export default function TopologyCanvas(props: Props) {
           <label className="topology-search"><Search size={15} /><input aria-label="Tìm node" placeholder="Tìm node, IP, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} /></label>
           <select aria-label="Lọc vùng" value={region} onChange={(event) => setRegion(event.target.value)}>
             <option value="all">Tất cả vùng</option><option value="hq">HQ</option><option value="wan">MPLS</option>
-            <option value="branch">Branch</option><option value="services">Internet/Services</option>
+            <option value="branch">Telesale</option><option value="services">Internet/Services</option>
           </select>
           <div className="segmented" aria-label="Chế độ hiển thị">
             <button className={mode === "simple" ? "active" : ""} onClick={() => setMode("simple")}>Đơn giản</button>
@@ -165,8 +165,8 @@ export default function TopologyCanvas(props: Props) {
       </div>
       <div className="topology-scroll">
         <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
-          <rect className="zone" x="20" y="95" width="780" height="430" /><text className="zone-label" x="35" y="117">HQ</text>
-          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">BRANCH</text>
+          <rect className="zone" x="20" y="85" width="780" height="470" /><text className="zone-label" x="35" y="107">HQ</text>
+          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">BRANCH TELESALE</text>
           <rect className="zone" x="815" y="185" width="220" height="610" /><text className="zone-label" x="830" y="207">MPLS L3VPN LOGIC</text>
           <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">INTERNET / SERVICES</text>
 

@@ -25,13 +25,13 @@ from mininet.net import Mininet
 from mininet.node import Node, OVSKernelSwitch, RemoteController, Switch
 
 try:
-    from scripts.network_model import dpid_map, load_network_model
+    from scripts.network_model import dpid_map, load_network_model, runtime_switch_map, runtime_switch_name
     from sdn_mpls_demo.policy_engine import PolicyEngine
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from scripts.network_model import dpid_map, load_network_model
+    from scripts.network_model import dpid_map, load_network_model, runtime_switch_map, runtime_switch_name
     from policy_engine import PolicyEngine
 
 
@@ -73,13 +73,11 @@ SERVICE_NET_MININET_DPID = "00000000000000fe"
 
 # Linux interface names are limited to 15 bytes. Keep the source-of-truth ID
 # and DPID authoritative while using a short bridge name in the Linux runtime.
-RUNTIME_NODE_NAMES = {
-    "access_backoffice": "access_bo",
-}
+RUNTIME_NODE_NAMES = runtime_switch_map(NETWORK_MODEL)
 
 
 def runtime_node_name(logical_name: str) -> str:
-    return RUNTIME_NODE_NAMES.get(logical_name, logical_name)
+    return runtime_switch_name(NETWORK_MODEL, logical_name)
 
 
 LOGICAL_LINK_SEGMENTS = {
@@ -944,9 +942,12 @@ def short_text(value, width):
 
 def run_policy_tests(net, policy, title="Kiá»ƒm tra policy báº±ng ping tháº­t"):
     width = 112
+    normalized_title = ascii_text(title)
+    if not normalized_title.startswith("Kiem tra"):
+        normalized_title = "Kiem tra policy bang ping that"
     emit()
     emit("=" * width)
-    emit(short_text(title, width))
+    emit(short_text(normalized_title, width))
     emit("PASS = real ping matches policy. FAIL = check controller.log / dump-flows.")
     emit("=" * width)
     emit(

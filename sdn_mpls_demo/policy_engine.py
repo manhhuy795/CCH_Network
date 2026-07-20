@@ -9,18 +9,43 @@ from typing import Any
 import yaml
 
 try:
-    from scripts.network_model import build_host_inventory, load_network_model
+    from scripts.network_model import (
+        build_host_inventory,
+        enforcement_switch_for_group,
+        load_network_model,
+    )
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from scripts.network_model import build_host_inventory, load_network_model
+    from scripts.network_model import (
+        build_host_inventory,
+        enforcement_switch_for_group,
+        load_network_model,
+    )
 
 
 HQ_PROJECTS = {"project_a", "project_b", "project_c"}
 IT_SUPPORT_GROUP = "it_support"
 ICMP_ECHO_REPLY = 0
 ICMP_ECHO_REQUEST = 8
+
+POLICY_FLOW_PROFILES: dict[str, dict[str, Any]] = {
+    "hq_project_isolation": {"cookie": 0x1001, "priority": 400, "action": "DROP"},
+    "telesale_backoffice_isolation": {"cookie": 0x1002, "priority": 400, "action": "DROP"},
+    "hq_social_block": {"cookie": 0x1003, "priority": 390, "action": "DROP"},
+    "telesale_social_block": {"cookie": 0x1004, "priority": 390, "action": "DROP"},
+    "allowed_services": {"cookie": 0x1100, "priority": 330, "action": "ALLOW"},
+    "voice": {"cookie": 0x1200, "priority": 425, "action": "ALLOW"},
+    "it_support": {"cookie": 0x1301, "priority": 450, "action": "ALLOW"},
+    "it_support_return": {"cookie": 0x1302, "priority": 450, "action": "ALLOW"},
+    "it_inbound_block": {"cookie": 0x1303, "priority": 460, "action": "DROP"},
+    "it_social_block": {"cookie": 0x1304, "priority": 470, "action": "DROP"},
+    "reactive_policy_drop": {"cookie": 0x1000, "priority": 300, "action": "DROP"},
+    "transit_to_enforcement": {"cookie": 0x1100, "priority": 180, "action": "ALLOW"},
+    "internet_inbound_block": {"cookie": 0x1100, "priority": 385, "action": "DROP"},
+    "runtime": {"cookie": 0x0000, "priority": 0, "action": "PACKET_IN"},
+}
 
 NETWORK_MODEL = load_network_model()
 GROUP_PATHS = {
@@ -90,7 +115,63 @@ class PolicyEngine:
         return str(self.model["service_addressing"]["gateway_node"])
 
     def _enforcement_for_group(self, group_name: str) -> str:
-        return self.group_paths[group_name][-1]
+        return enforcement_switch_for_group(self.model, group_name)
+
+    def isolation_flow_specs(self) -> list[dict[str, Any]]:
+        """Build deterministic directional DROP specs for SDN edge enforcement."""
+        pairs: list[tuple[str, str, str]] = []
+        if self.policies.get("isolate_hq_projects", False):
+            for left, right in (
+                ("project_a", "project_b"),
+                ("project_a", "project_c"),
+                ("project_b", "project_c"),
+            ):
+                pairs.extend((
+                    (left, right, "hq_project_isolation"),
+                    (right, left, "hq_project_isolation"),
+                ))
+        if self.policies.get("isolate_telesale_backoffice", False):
+            pairs.extend((
+                ("telesale", "backoffice", "telesale_backoffice_isolation"),
+                ("backoffice", "telesale", "telesale_backoffice_isolation"),
+            ))
+
+        specs: list[dict[str, Any]] = []
+        for source_group, destination_group, policy_id in pairs:
+            source_network = self.networks[source_group]
+            destination_network = self.networks[destination_group]
+            profile = POLICY_FLOW_PROFILES[policy_id]
+            specs.append({
+                "switch": self._enforcement_for_group(source_group),
+                "source_group": source_group,
+                "destination_group": destination_group,
+                "source_network": str(source_network),
+                "destination_network": str(destination_network),
+                "match": {
+                    "eth_type": "ipv4",
+                    "ipv4_src": str(source_network),
+                    "ipv4_dst": str(destination_network),
+                },
+                "action": profile["action"],
+                "policy": policy_id,
+                "cookie": int(profile["cookie"]),
+                "priority": int(profile["priority"]),
+            })
+        return specs
+
+    def isolation_flow_identities(self) -> tuple[tuple[Any, ...], ...]:
+        """Stable identities used to prove reload planning cannot duplicate a flow."""
+        return tuple(
+            (
+                spec["switch"],
+                spec["cookie"],
+                spec["priority"],
+                spec["source_network"],
+                spec["destination_network"],
+                spec["action"],
+            )
+            for spec in self.isolation_flow_specs()
+        )
 
     def _path_between_groups(self, source_group: str, destination_group: str) -> list[str]:
         source_path = self.group_paths[source_group]
@@ -186,8 +267,8 @@ class PolicyEngine:
             return self._result("deny", reason, self.group_paths[source_group], "core_hq")
 
         if (
-            self.policies["isolate_branch_vlan_50_60"]
-            and {int(source["vlan"]), int(destination["vlan"])} == {50, 60}
+            self.policies["isolate_telesale_backoffice"]
+            and {source_group, destination_group} == {"telesale", "backoffice"}
         ):
             return self._result(
                 "deny",
