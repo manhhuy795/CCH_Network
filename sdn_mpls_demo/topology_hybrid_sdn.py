@@ -77,6 +77,7 @@ ALLOWED_CONTROL_COMMANDS = {
     "ADD_MANUAL_DROP",
     "DEL_COOKIE_FLOWS",
     "RELOAD_FIREWALL",
+    "FIREWALL_STATUS",
 }
 
 NETWORK_MODEL = load_network_model()
@@ -373,6 +374,8 @@ class MininetControlAgent:
                     for name, status in firewall_status.items()
                 },
             }
+        if command == "FIREWALL_STATUS":
+            return self._firewall_status()
         link_id = str(request.get("link_id", ""))
         if command == "LINK_DOWN":
             return self._set_link(link_id, "down")
@@ -756,6 +759,58 @@ class MininetControlAgent:
             return {"ok": False, "message": "DEL_COOKIE_FLOWS request khong hop le.", "raw": ""}
         output = node.cmd(f"ovs-ofctl -O OpenFlow13 del-flows {node.name} cookie={cookie_match}")
         return {"ok": True, "raw": output}
+
+    def _firewall_status(self) -> dict:
+        """Read live nftables counters only from the two firewall namespaces."""
+        status: dict[str, dict] = {}
+        for firewall_name in FIREWALL_NAMES:
+            node = self._node(firewall_name)
+            if not node:
+                status[firewall_name] = {
+                    "ok": False,
+                    "error_code": "FIREWALL_UNAVAILABLE",
+                    "message": f"Khong tim thay namespace {firewall_name}.",
+                }
+                continue
+            ruleset = node.cmd("nft -a list table inet cch_filter 2>&1")
+            forwarding = node.cmd("sysctl -n net.ipv4.ip_forward 2>&1").strip()
+            if "No such file" in ruleset or "Error" in ruleset or "error" in ruleset.lower():
+                status[firewall_name] = {
+                    "ok": False,
+                    "error_code": "FIREWALL_RULESET_UNAVAILABLE",
+                    "message": f"Chua doc duoc inet cch_filter tren {firewall_name}.",
+                    "ipv4_forwarding": forwarding,
+                }
+                continue
+            counters = {
+                "social_deny": self._nft_counter(ruleset, "deny-social-media"),
+                "call_allow": self._nft_counter(ruleset, "allow-call-app"),
+                "zalo_allow": self._nft_counter(ruleset, "allow-zalo"),
+                "inbound_deny": self._nft_counter(ruleset, "deny-inbound-new"),
+                "established_related": self._nft_counter(ruleset, "forward-established"),
+                "invalid_drop": self._nft_counter(ruleset, "forward-invalid"),
+            }
+            status[firewall_name] = {
+                "ok": True,
+                "table": "inet cch_filter",
+                "chain": "forward",
+                "rule_count": ruleset.count(" comment "),
+                "counters": counters,
+                "ipv4_forwarding": forwarding == "1",
+                "raw": ruleset,
+            }
+        return {"ok": all(item.get("ok") for item in status.values()), "firewalls": status}
+
+    @staticmethod
+    def _nft_counter(ruleset: str, comment: str) -> dict[str, int] | None:
+        match = re.search(
+            rf'comment "[^"]*{re.escape(comment)}[^\"]*".*?counter packets (\d+) bytes (\d+)',
+            ruleset,
+            flags=re.DOTALL,
+        )
+        if not match:
+            return None
+        return {"packets": int(match.group(1)), "bytes": int(match.group(2))}
 
     def _logical_links(self) -> list[str]:
         return [f"{source}-{target}" for source, target, _kind in self.policy.get("links", [])]

@@ -28,7 +28,7 @@ const regions: Record<string, string> = {
   access_hq_a: "hq", access_hq_b: "hq", access_hq_c: "hq", access_hq_it: "hq", voice_access: "hq",
   backoffice: "hq", access_backoffice: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
   mpls_cloud: "wan",
-  telesale: "branch", access_telesale: "branch", dist_telesale: "branch", fw_telesale: "branch", ce_telesale: "branch",
+  telesale: "telesale", access_telesale: "telesale", dist_telesale: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
   internet_zone: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
 };
 
@@ -149,7 +149,7 @@ export default function TopologyCanvas(props: Props) {
           <label className="topology-search"><Search size={15} /><input aria-label="Tìm node" placeholder="Tìm node, IP, VLAN..." value={query} onChange={(event) => setQuery(event.target.value)} /></label>
           <select aria-label="Lọc vùng" value={region} onChange={(event) => setRegion(event.target.value)}>
             <option value="all">Tất cả vùng</option><option value="hq">HQ</option><option value="wan">MPLS</option>
-            <option value="branch">Telesale</option><option value="services">Internet/Services</option>
+            <option value="telesale">Telesale</option><option value="services">Internet/Services</option>
           </select>
           <div className="segmented" aria-label="Chế độ hiển thị">
             <button className={mode === "simple" ? "active" : ""} onClick={() => setMode("simple")}>Đơn giản</button>
@@ -166,7 +166,7 @@ export default function TopologyCanvas(props: Props) {
       <div className="topology-scroll">
         <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
           <rect className="zone" x="20" y="85" width="780" height="470" /><text className="zone-label" x="35" y="107">HQ</text>
-          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">BRANCH TELESALE</text>
+          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">TELESALE</text>
           <rect className="zone" x="815" y="185" width="220" height="610" /><text className="zone-label" x="830" y="207">MPLS L3VPN LOGIC</text>
           <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">INTERNET / SERVICES</text>
 
@@ -262,11 +262,15 @@ export default function TopologyCanvas(props: Props) {
             <StatusBadge status={currentNode === selectedNode.id ? "online" : "unknown"} label={currentNode === selectedNode.id ? "Đang có packet" : "Theo inventory"} />
             <dl>
               <dt>Tên</dt><dd>{String(selectedNode.id)}</dd>
+              <dt>Logical ID</dt><dd>{String(selectedNode.logical_name || selectedNode.id)}</dd>
               <dt>Vai trò</dt><dd>{String(selectedNode.type || "unknown")}</dd>
+              <dt>Site</dt><dd>{String(selectedNode.site || "N/A")}</dd>
               <dt>IP/Subnet</dt><dd>{String(selectedNode.ip || selectedNode.subnet || "N/A")}</dd>
               <dt>VLAN/Group</dt><dd>{String(selectedNode.vlan || selectedNode.group || "N/A")}</dd>
               <dt>Managed by controller</dt><dd>{selectedNode.type === "switch" ? "Có" : "Không"}</dd>
               <dt>DPID</dt><dd>{String(selectedNode.dpid || "N/A")}</dd>
+              <dt>Runtime bridge</dt><dd>{String(selectedNode.runtime_bridge || "N/A")}</dd>
+              <dt>Trạng thái</dt><dd>{String(selectedNode.status || "unknown")}</dd>
               <dt>Flow count</dt><dd>{flowForNode.length}</dd>
               <dt>Traffic</dt><dd>{nodeTraffic.toLocaleString("vi-VN")} bytes</dd>
               <dt>Link liên quan</dt><dd>{relatedLinks.length}</dd>

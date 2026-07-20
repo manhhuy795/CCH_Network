@@ -3,6 +3,7 @@ import { ApiClientError, api, getOperatorToken, setOperatorToken, type ActivityE
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog from "./components/EventLog";
+import FirewallPanel from "./components/FirewallPanel";
 import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
 import OverviewPage from "./components/OverviewPage";
@@ -293,7 +294,7 @@ export default function App() {
     );
     if (page === "policy") return (
       <div className="policy-workspace">
-        <div className="main-column"><PolicyPanel policies={policies} onToggle={togglePolicy} busy={policyBusy} /><FlowTable flows={flows} /></div>
+        <div className="main-column"><PolicyPanel policies={policies} onToggle={togglePolicy} busy={policyBusy} /><FirewallPanel firewalls={policies.firewalls || topology?.firewalls || []} phase44Runtime={policies.phase44_runtime || topology?.phase44_runtime} /><FlowTable flows={flows} /></div>
         <aside><ClusterDetailPanel /><MetricsPanel metrics={metrics} /></aside>
       </div>
     );

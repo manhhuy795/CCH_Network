@@ -135,6 +135,28 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
 def get_policy_payload() -> dict:
     payload = live_mininet.policy_payload()
     payload["inventory"] = policy_inventory(payload.get("policies", {}))
+    payload["enforcement_layers"] = {
+        "openflow": {
+            "engine": "OpenFlow 1.3",
+            "devices": list(live_mininet.CONTROLLED_SWITCHES),
+            "responsibilities": [
+                "Cô lập Project A/B/C",
+                "Chặn Telesale → BackOffice tại dist_telesale",
+                "Chặn BackOffice → Telesale tại core_hq",
+            ],
+        },
+        "nftables": {
+            "engine": "stateful nftables",
+            "devices": ["fw_hq", "fw_telesale"],
+            "responsibilities": [
+                "Internet filtering tại hai firewall",
+                "Call App/Zalo ALLOW và Social DENY",
+                "Inbound Internet DENY và established,related ALLOW",
+            ],
+        },
+    }
+    payload["firewalls"] = live_mininet.firewall_inventory()
+    payload["phase44_runtime"] = live_mininet.phase44_runtime_status()
     return payload
 
 

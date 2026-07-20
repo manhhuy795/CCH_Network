@@ -22,18 +22,20 @@ const chartFields: Array<{ field: keyof RealtimeMetric; label: string; unit: str
 ];
 
 function Sparkline({ data, field, label, unit }: { data: RealtimeMetric[]; field: keyof RealtimeMetric; label: string; unit: string }) {
-  const values = data.map((item) => Number(item[field] ?? 0));
-  const max = Math.max(1, ...values);
-  const points = values.map((value, index) => {
-    const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * 240;
+  const values = data.map((item) => typeof item[field] === "number" ? item[field] as number : null);
+  const observed = values.filter((value): value is number => value !== null);
+  const max = Math.max(1, ...observed);
+  const points = observed.map((value, index) => {
+    const x = observed.length <= 1 ? 0 : (index / (observed.length - 1)) * 240;
     const y = 58 - (value / max) * 50;
     return `${x},${y}`;
   }).join(" ");
-  const latest = values.at(-1) ?? 0;
+  const latest = values.at(-1);
+  const latestLabel = latest === null || latest === undefined ? "Chưa có dữ liệu runtime" : `${latest} ${unit}`;
   return (
-    <div className="chart-card" title={`Mới nhất: ${latest} ${unit}`}>
-      <div><strong>{label}</strong><span>{latest} {unit}</span></div>
-      <svg viewBox="0 0 240 64" aria-label={`${label}: ${latest} ${unit}`}><polyline points={points} /></svg>
+    <div className="chart-card" title={`Mới nhất: ${latestLabel}`}>
+      <div><strong>{label}</strong><span>{latestLabel}</span></div>
+      <svg viewBox="0 0 240 64" aria-label={`${label}: ${latestLabel}`}>{observed.length > 0 && <polyline points={points} />}</svg>
     </div>
   );
 }
@@ -152,7 +154,7 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
         {history.length > 0 && <div className="chart-grid">{chartFields.map((item) => <Sparkline data={history} key={item.field} {...item} />)}</div>}
         {latest && (
           <p className="realtime-note">
-            Flow bytes {latest.flow_bytes.toLocaleString("vi-VN")} · trạng thái {latest.status} · {latest.message || "Đã nhận dữ liệu"}
+            {latest.metric_state === "unavailable" ? "Flow counter: chưa khả dụng" : `Flow bytes ${latest.flow_bytes.toLocaleString("vi-VN")}`} · trạng thái {latest.status} · {latest.message || "Đã nhận dữ liệu"}
           </p>
         )}
       </div>
