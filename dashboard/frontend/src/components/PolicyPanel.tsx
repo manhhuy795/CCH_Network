@@ -65,7 +65,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
                 <div><dt>Priority</dt><dd>{policy.priority}</dd></div>
                 <div><dt>Cookie</dt><dd><code>{policy.cookie}</code></dd></div>
                 <div><dt>Engine</dt><dd>{policy.enforcement_engine === "nftables" ? "nftables" : "OpenFlow"}</dd></div>
-                <div><dt>Runtime ACK</dt><dd>{policy.runtime_acknowledged ?? policy.controller_acknowledged ? "Đã xác nhận" : "Chưa xác nhận"}</dd></div>
+                <div><dt aria-label="controller acknowledgement">Runtime ACK</dt><dd>{policy.runtime_acknowledged ?? policy.controller_acknowledged ? "Đã xác nhận" : "Chưa xác nhận"}</dd></div>
                 <div><dt>Cập nhật</dt><dd>{formatTime(policy.updated_at)}</dd></div>
               </dl>
               {onToggle && policy.enabled !== null && (
@@ -86,7 +86,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
       </div>
       <div className="explanation">
         <h3>Ranh giới thực thi</h3>
-        <p>Segmentation SDN thực thi tại core_hq và dist_telesale. Internet service policy thực thi bằng nftables tại fw_hq hoặc fw_telesale; firewall không phải OpenFlow device.</p>
+        <p>Segmentation SDN thực thi tại core_hq và dist_telesale. Internet Edge Boundary thực thi policy Internet bằng stateful nftables tại fw_hq hoặc fw_telesale; firewall không phải OpenFlow device.</p>
         <p>Ghi policy.yml chỉ là thay đổi cấu hình. Trạng thái Applied chỉ xuất hiện sau khi OS-Ken và nftables liên quan reload, xác nhận thành công.</p>
       </div>
       <ConfirmDialog

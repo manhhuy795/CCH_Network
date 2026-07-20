@@ -333,6 +333,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
 
     def install_it_support_flows(self, datapath):
         """Cài ALLOW chủ động cho VLAN IT để remote/support đi ổn định qua mọi OVS."""
+        # Internet service policy belongs to the two nftables firewalls.
         if not self.policy.policies.get("allow_it_support_controlled_access", False):
             return
 
@@ -349,19 +350,21 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             return
 
         it_policy = self.policy.policies.get("it_support_controlled_access") or {}
+        allowed_services = set(it_policy.get("allowed_services", []))
+        denied_services = set(it_policy.get("denied_services", []))
         managed_group_names = set(
             it_policy.get(
                 "managed_user_groups",
                 ["project_a", "project_b", "project_c", "telesale", "backoffice"],
             )
         )
-        internal_destinations: list[tuple[str, str]] = [
+        service_destinations: list[tuple[str, str]] = [
             (name, str(network))
             for name, network in self.policy.networks.items()
             if name in managed_group_names
         ]
 
-        for destination_name, destination_prefix in internal_destinations:
+        for destination_name, destination_prefix in service_destinations:
             destination_network = ipaddress.ip_network(destination_prefix)
             for source_network, target_network, source_label, target_label in (
                 (it_network, destination_network, "it_support", destination_name),
@@ -432,6 +435,55 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     },
                     idle_timeout=0,
                 )
+
+        for name in allowed_services:
+            service = self.policy.services.get(name, {})
+            if "ip" in service and name in allowed_services:
+                service_network = ipaddress.ip_network(f"{service['ip']}/32")
+                service_match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=(str(it_network.network_address), str(it_network.netmask)),
+                    ipv4_dst=(str(service_network.network_address), str(service_network.netmask)),
+                )
+                self.add_flow(
+                    datapath,
+                    470,
+                    service_match,
+                    normal_actions,
+                    {
+                        "action": "ALLOW",
+                        "source": "it_support",
+                        "destination": name,
+                        "policy": "it_support_service",
+                        "enforcement_switch": switch_name,
+                        "reason": "IT Support chi duoc truy cap dich vu nam trong allowed_services.",
+                    },
+                    idle_timeout=0,
+                )
+
+        social = self.policy.services.get("hsocial")
+        if social and "ip" in social and "hsocial" in denied_services:
+            social_network = ipaddress.ip_network(f"{social['ip']}/32")
+            social_match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_IP,
+                ipv4_src=(str(it_network.network_address), str(it_network.netmask)),
+                ipv4_dst=(str(social_network.network_address), str(social_network.netmask)),
+            )
+            self.add_flow(
+                datapath,
+                470,
+                social_match,
+                [],
+                {
+                    "action": "DROP",
+                    "source": "it_support",
+                    "destination": "hsocial",
+                    "policy": "it_social_block",
+                    "enforcement_switch": switch_name,
+                    "reason": "IT Support khong duoc bypass chinh sach Social Media.",
+                },
+                idle_timeout=0,
+            )
 
     def install_voice_flows(self, datapath):
         """Cai ALLOW chu dong hai chieu cho PBX/SBC Voice reachability; day chua phai QoS hoan chinh."""
