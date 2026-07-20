@@ -33,17 +33,12 @@ ICMP_ECHO_REQUEST = 8
 POLICY_FLOW_PROFILES: dict[str, dict[str, Any]] = {
     "hq_project_isolation": {"cookie": 0x1001, "priority": 400, "action": "DROP"},
     "telesale_backoffice_isolation": {"cookie": 0x1002, "priority": 400, "action": "DROP"},
-    "hq_social_block": {"cookie": 0x1003, "priority": 390, "action": "DROP"},
-    "telesale_social_block": {"cookie": 0x1004, "priority": 390, "action": "DROP"},
-    "allowed_services": {"cookie": 0x1100, "priority": 330, "action": "ALLOW"},
     "voice": {"cookie": 0x1200, "priority": 425, "action": "ALLOW"},
     "it_support": {"cookie": 0x1301, "priority": 450, "action": "ALLOW"},
     "it_support_return": {"cookie": 0x1302, "priority": 450, "action": "ALLOW"},
     "it_inbound_block": {"cookie": 0x1303, "priority": 460, "action": "DROP"},
-    "it_social_block": {"cookie": 0x1304, "priority": 470, "action": "DROP"},
     "reactive_policy_drop": {"cookie": 0x1000, "priority": 300, "action": "DROP"},
     "transit_to_enforcement": {"cookie": 0x1100, "priority": 180, "action": "ALLOW"},
-    "internet_inbound_block": {"cookie": 0x1100, "priority": 385, "action": "DROP"},
     "runtime": {"cookie": 0x0000, "priority": 0, "action": "PACKET_IN"},
 }
 
@@ -210,11 +205,12 @@ class PolicyEngine:
                     "reason": f"Cho phep ICMP echo-reply cho phien do endpoint noi bo khoi tao. {reverse['reason']}",
                 }
         if source and destination and source["kind"] == "service" and destination["kind"] == "user":
+            firewall = self._site_node(str(destination["site"]), "firewall")
             return self._result(
                 "deny",
-                "Chan truy cap chu dong tu Internet/service vao user noi bo. Chi cho phep goi phan hoi hop le.",
-                [source_name, self._internet_node()],
-                self._internet_node(),
+                "Stateful nftables firewall chan ket noi moi tu Internet/service vao user noi bo.",
+                [source_name, self._internet_node(), firewall],
+                firewall,
             )
         return self.decide(source_name, destination_name)
 
@@ -225,11 +221,12 @@ class PolicyEngine:
             return self._result("deny", "Khong tim thay nguon hoac dich trong policy.", [], None)
 
         if source["kind"] == "service" and destination["kind"] == "user":
+            firewall = self._site_node(str(destination["site"]), "firewall")
             return self._result(
                 "deny",
-                "Chan truy cap chu dong tu Internet/service vao user noi bo.",
-                [source_name, self._internet_node()],
-                self._internet_node(),
+                "Stateful nftables firewall chan ket noi moi tu Internet/service vao user noi bo.",
+                [source_name, self._internet_node(), firewall],
+                firewall,
             )
         if source["kind"] != "user":
             return self._result("deny", "Mac dinh tu choi giua cac dich vu.", [], None)
@@ -326,19 +323,20 @@ class PolicyEngine:
             return result
 
         if service_name == "hsocial" and self.policies["block_social_media"]:
-            edge = self._enforcement_for_group(source_group)
+            firewall = self._site_node(str(source["site"]), "firewall")
+            path = [*source_path, firewall]
             if source_group == IT_SUPPORT_GROUP:
                 return self._result(
                     "deny",
-                    "IT Support khong duoc bypass chinh sach chan Social Media.",
-                    source_path,
-                    "core_hq",
+                    "IT Support khong duoc bypass chinh sach Social Media tai nftables firewall HQ.",
+                    path,
+                    firewall,
                 )
             return self._result(
                 "deny",
-                "Bi chan boi chinh sach SDN Edge: Social Media khong duoc phep doi voi user thuong.",
-                source_path,
-                edge,
+                "Bi chan boi chinh sach Internet service tai stateful nftables firewall.",
+                path,
+                firewall,
             )
 
         firewall = self._site_node(str(source["site"]), "firewall")
@@ -404,11 +402,12 @@ class PolicyEngine:
             denied_services = set(policy["denied_services"])
             allowed_services = set(policy["allowed_services"])
             if service_name in denied_services or (service_name == "hsocial" and self.policies["block_social_media"]):
+                firewall = self._site_node(str(source["site"]), "firewall")
                 return self._result(
                     "deny",
-                    "IT Support khong duoc bypass chinh sach chan Social Media.",
-                    self.group_paths[source_group],
-                    "core_hq",
+                    "IT Support khong duoc bypass chinh sach Social Media tai nftables firewall HQ.",
+                    [*self.group_paths[source_group], firewall],
+                    firewall,
                 )
             if service_name in allowed_services:
                 return self._result(

@@ -17,7 +17,7 @@ def assert_stops_at(decision: dict, node: str) -> None:
     assert decision["path"][-1] == node
 
 
-def test_policy_drop_paths_stop_before_firewall_or_mpls():
+def test_sdn_isolation_stops_before_firewall_while_internet_policy_stops_at_firewall():
     policy = engine()
 
     hq_drop = policy.decide("h20_01", "h30_01")
@@ -27,8 +27,8 @@ def test_policy_drop_paths_stop_before_firewall_or_mpls():
     assert "mpls_cloud" not in hq_drop["path"]
 
     social_drop = policy.decide("h40_01", "hsocial")
-    assert_stops_at(social_drop, "core_hq")
-    assert "fw_hq" not in social_drop["path"]
+    assert_stops_at(social_drop, "fw_hq")
+    assert social_drop["path"][-2:] == ["core_hq", "fw_hq"]
     assert "internet_zone" not in social_drop["path"]
 
     branch_drop = policy.decide("h50_01", "h60_01")
@@ -38,8 +38,8 @@ def test_policy_drop_paths_stop_before_firewall_or_mpls():
     assert "mpls_cloud" not in branch_drop["path"]
 
     branch_social = policy.decide("h50_01", "hsocial")
-    assert_stops_at(branch_social, "dist_telesale")
-    assert "fw_telesale" not in branch_social["path"]
+    assert_stops_at(branch_social, "fw_telesale")
+    assert branch_social["path"][-2:] == ["dist_telesale", "fw_telesale"]
     assert "internet_zone" not in branch_social["path"]
 
 
@@ -126,8 +126,8 @@ def test_internet_inbound_and_return_traffic_paths_are_explicit():
     policy = engine()
 
     inbound = policy.decide_packet("hinternet", "h20_01", icmp_type=ICMP_ECHO_REQUEST)
-    assert_stops_at(inbound, "internet_zone")
-    assert inbound["path"] == ["hinternet", "internet_zone"]
+    assert_stops_at(inbound, "fw_hq")
+    assert inbound["path"] == ["hinternet", "internet_zone", "fw_hq"]
 
     allowed_reply = policy.decide_packet("hcall", "h50_01", icmp_type=ICMP_ECHO_REPLY)
     assert allowed_reply["action"] == "allow"
@@ -135,8 +135,8 @@ def test_internet_inbound_and_return_traffic_paths_are_explicit():
 
     blocked_reply = policy.decide_packet("hsocial", "h20_01", icmp_type=ICMP_ECHO_REPLY)
     assert blocked_reply["action"] == "deny"
-    assert blocked_reply["blocked_at"] == "internet_zone"
-    assert blocked_reply["path"] == ["hsocial", "internet_zone"]
+    assert blocked_reply["blocked_at"] == "fw_hq"
+    assert blocked_reply["path"] == ["hsocial", "internet_zone", "fw_hq"]
 
 
 def test_it_support_return_path_is_reply_only():
@@ -157,8 +157,8 @@ def test_phase27_required_packet_path_matrix():
         ("h20_01", "h30_01"): "core_hq",
         ("h50_01", "h60_01"): "dist_telesale",
         ("h60_01", "h50_01"): "core_hq",
-        ("h20_01", "hsocial"): "core_hq",
-        ("h50_01", "hsocial"): "dist_telesale",
+        ("h20_01", "hsocial"): "fw_hq",
+        ("h50_01", "hsocial"): "fw_telesale",
     }
     for pair, blocked_at in cases.items():
         decision = policy.decide(*pair)

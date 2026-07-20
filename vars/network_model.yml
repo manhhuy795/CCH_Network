@@ -220,12 +220,12 @@ infrastructure:
     site: wan
   fw_hq:
     label: "HQ Internet Edge Boundary"
-    subtitle: "Mo phong policy/NAT boundary; khong phai stateful firewall production"
+    subtitle: "Stateful nftables firewall cho local Internet breakout HQ"
     type: "firewall"
     site: hq
   fw_telesale:
     label: "Telesale Internet Edge Boundary"
-    subtitle: "Mo phong policy/NAT boundary; khong phai stateful firewall production"
+    subtitle: "Stateful nftables firewall cho local Internet breakout Telesale"
     type: "firewall"
     site: branch_telesale
   internet_zone:

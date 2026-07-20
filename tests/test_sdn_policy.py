@@ -30,8 +30,8 @@ def test_real_sdn_policy_required_allow_deny_paths():
     assert engine.decide("h20_01", "h90")["action"] == "allow"
     assert engine.decide("h20_01", "hcall")["path"][-3:] == ["fw_hq", "internet_zone", "hcall"]
     assert engine.decide("h50_01", "hcall")["path"][-3:] == ["fw_telesale", "internet_zone", "hcall"]
-    assert engine.decide("h20_01", "hsocial")["blocked_at"] == "core_hq"
-    assert engine.decide("h50_01", "hsocial")["blocked_at"] == "dist_telesale"
+    assert engine.decide("h20_01", "hsocial")["blocked_at"] == "fw_hq"
+    assert engine.decide("h50_01", "hsocial")["blocked_at"] == "fw_telesale"
     intersite_user = engine.decide("h50_01", "h20_01")
     assert intersite_user["action"] == "deny"
     assert intersite_user["blocked_at"] == "dist_telesale"
@@ -75,7 +75,7 @@ def test_it_support_is_least_privilege_not_full_access():
 
     social = engine.decide("h70_01", "hsocial")
     assert social["action"] == "deny"
-    assert social["blocked_at"] == "core_hq"
+    assert social["blocked_at"] == "fw_hq"
     assert "Social Media" in social["reason"]
 
     user_to_it = engine.decide("h20_01", "h70_01")
@@ -105,7 +105,7 @@ def test_phase28_runtime_regressions_for_it_least_privilege():
 
     social = engine.decide_packet("h70_01", "hsocial", icmp_type=ICMP_ECHO_REQUEST)
     assert social["action"] == "deny"
-    assert social["blocked_at"] == "core_hq"
+    assert social["blocked_at"] == "fw_hq"
 
     user_to_it = engine.decide_packet("h50_01", "h70_01", icmp_type=ICMP_ECHO_REQUEST)
     assert user_to_it["blocked_at"] == "core_hq"

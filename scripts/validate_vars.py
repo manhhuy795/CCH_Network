@@ -291,6 +291,7 @@ def validate_all(config: dict[str, Any]) -> list[str]:
         record_address(ip_text, f"transit {link_name}")
 
     firewall_sites = config.get("firewall_policy", {}).get("sites", {})
+    firewall_defaults = config.get("firewall_policy", {}).get("runtime_defaults", {})
     expected_firewall_sites = {"hq", "branch_telesale"}
     expected_firewall_ownership = {
         "hq": ("fw_hq", "core_hq", {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24"}),
@@ -315,6 +316,67 @@ def validate_all(config: dict[str, Any]) -> list[str]:
             errors.append(f"Firewall policy {site_name} outside node must be internet_zone")
         if set(policy.get("owned_subnets", [])) != expected_subnets:
             errors.append(f"Firewall policy {site_name} owns incorrect subnets")
+
+    expected_runtime_interfaces = {
+        "hq": {"inside": "fw_hq-eth0", "outside": "fw_hq-eth1"},
+        "branch_telesale": {"inside": "fw_tel-eth0", "outside": "fw_tel-eth1"},
+    }
+    expected_policy_actions = {
+        "allow-zalo": ("allow", "zalo"),
+        "allow-call-app": ("allow", "call_app"),
+        "deny-social-media": ("deny", "social_media"),
+        "allow-general-internet": ("allow", "general_internet"),
+    }
+    for site_name, policy in firewall_sites.items():
+        if policy.get("runtime_interfaces") != expected_runtime_interfaces.get(site_name):
+            errors.append(f"Firewall policy {site_name} has incorrect runtime interfaces")
+        policies = {str(item.get("name")): item for item in policy.get("policies", [])}
+        if set(policies) != set(expected_policy_actions):
+            errors.append(f"Firewall policy {site_name} must define {sorted(expected_policy_actions)}")
+        for policy_name, (expected_action, expected_application) in expected_policy_actions.items():
+            item = policies.get(policy_name, {})
+            if item.get("action") != expected_action:
+                errors.append(f"Firewall policy {site_name}/{policy_name} action must be {expected_action}")
+            if item.get("applications") != [expected_application]:
+                errors.append(
+                    f"Firewall policy {site_name}/{policy_name} application must be {expected_application}"
+                )
+            if not item.get("enable_flag"):
+                errors.append(f"Firewall policy {site_name}/{policy_name} must define enable_flag")
+
+    expected_defaults = {
+        "engine": "nftables",
+        "family": "inet",
+        "table_name": "cch_filter",
+        "input_policy": "drop",
+        "forward_policy": "drop",
+        "output_policy": "accept",
+        "chain_priority": 0,
+        "allow_established_related": True,
+        "drop_invalid": True,
+        "counter_enabled": True,
+    }
+    for key, expected in expected_defaults.items():
+        if firewall_defaults.get(key) != expected:
+            errors.append(f"firewall runtime default {key} must be {expected!r}")
+    nat = firewall_defaults.get("nat", {})
+    if nat.get("enabled") is not False or nat.get("mode") != "routed_lab":
+        errors.append("Phase 44 lab NAT must remain disabled in routed_lab mode until runtime proof")
+    if nat.get("runtime_verification_required") is not True:
+        errors.append("Phase 44 NAT decision must require Ubuntu runtime verification")
+
+    applications = config.get("firewall_policy", {}).get("shared_objects", {}).get("applications", {})
+    expected_runtime_services = {
+        "zalo": "hzalo",
+        "call_app": "hcall",
+        "social_media": "hsocial",
+        "general_internet": "hinternet",
+    }
+    for application_name, service_name in expected_runtime_services.items():
+        if applications.get(application_name, {}).get("runtime_service") != service_name:
+            errors.append(f"Firewall application {application_name} must map to {service_name}")
+        if service_name not in model.get("services", {}):
+            errors.append(f"Firewall application {application_name} references missing service {service_name}")
 
     routes = config.get("routes", {})
     legacy_route_nodes = sorted(set(routes) & FORBIDDEN_TOPOLOGY_NODES)

@@ -91,6 +91,7 @@ cleanup_stale_network() {
 }
 
 cleanup_on_exit() {
+  sudo rm -f /var/run/netns/fw_hq /var/run/netns/fw_telesale >/dev/null 2>&1 || true
   if [[ "$MININET_ATTEMPTED" -eq 1 ]]; then
     sudo mn -c >/dev/null 2>&1 || true
     cleanup_stale_network
@@ -103,6 +104,11 @@ trap cleanup_on_exit EXIT INT TERM
 if [[ ! -x "$VENV_DIR/bin/python" ]]; then
   echo "Lỗi: chưa có virtualenv OS-Ken tại $VENV_DIR"
   echo "Hãy chạy: ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
+  exit 1
+fi
+
+if ! command -v nft >/dev/null 2>&1; then
+  echo "Lỗi: chưa có nftables. Hãy chạy lại ./sdn_mpls_demo/setup_ubuntu_24_04.sh"
   exit 1
 fi
 

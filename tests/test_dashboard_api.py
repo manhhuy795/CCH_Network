@@ -71,9 +71,9 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     assert denied["blocked_at"] == "core_hq"
 
     social = policy_decision("h50_01", "hsocial")
-    assert social["path"] == ["telesale", "access_telesale", "dist_telesale"]
-    assert social["blocked_at"] == "dist_telesale"
-    assert social["enforcement_point"] == "dist_telesale"
+    assert social["path"] == ["telesale", "access_telesale", "dist_telesale", "fw_telesale"]
+    assert social["blocked_at"] == "fw_telesale"
+    assert social["enforcement_point"] == "fw_telesale"
 
     intersite = policy_decision("h50_01", "h20_01")
     assert intersite["action"] == "deny"
@@ -94,7 +94,7 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
 
     support_social = policy_decision("h70_01", "hsocial")
     assert support_social["action"] == "deny"
-    assert support_social["blocked_at"] == "core_hq"
+    assert support_social["blocked_at"] == "fw_hq"
 
 
 def test_call_quality_score_uses_call_center_thresholds():

@@ -83,7 +83,8 @@ def test_phase41_transit_links_are_eight_unique_private_slash30_networks():
 
 
 def test_phase41_firewall_ownership_uses_hq_for_backoffice():
-    firewall_sites = load_vars()["firewall_policy"]["sites"]
+    config = load_vars()
+    firewall_sites = config["firewall_policy"]["sites"]
 
     assert set(firewall_sites) == {"hq", "branch_telesale"}
     assert firewall_sites["hq"]["firewall_name"] == "fw_hq"
@@ -92,7 +93,11 @@ def test_phase41_firewall_ownership_uses_hq_for_backoffice():
         "172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24",
         "172.16.60.0/24", "172.16.70.0/24",
     }
-    assert 60 in firewall_sites["hq"]["nat_source_vlans"]
+    assert firewall_sites["hq"]["runtime_interfaces"] == {
+        "inside": "fw_hq-eth0",
+        "outside": "fw_hq-eth1",
+    }
+    assert config["firewall_policy"]["runtime_defaults"]["nat"]["enabled"] is False
     assert firewall_sites["branch_telesale"]["firewall_name"] == "fw_telesale"
     assert firewall_sites["branch_telesale"]["owned_subnets"] == ["172.16.50.0/24"]
 

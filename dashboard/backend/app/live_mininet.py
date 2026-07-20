@@ -297,12 +297,11 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
     if destination == "h90" or source == "h90":
         return "voice"
     if destination in {"hzalo", "hcall", "hinternet"}:
-        return "allowed_services"
+        return "firewall_allowed_service"
     if source_data and source_data.get("kind") == "service" and destination_data and destination_data.get("kind") == "user":
-        return "internet_inbound_block"
+        return "firewall_inbound_block"
     if destination == "hsocial" or source == "hsocial":
-        blocked_switch = ENGINE.switches.get(str(decision.get("blocked_at")), {})
-        return "telesale_social_block" if blocked_switch.get("role") == "branch_distribution" else "hq_social_block"
+        return "firewall_social_block"
     if "vlan 50" in reason or "vlan 60" in reason:
         return "telesale_backoffice_isolation"
     if "vlan" in reason or "cach ly" in reason:
@@ -314,6 +313,8 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
 
 def _fallback_enforcement_switch(decision: dict[str, Any]) -> str | None:
     blocked_at = decision.get("blocked_at")
+    if blocked_at in {"fw_hq", "fw_telesale"}:
+        return str(blocked_at)
     if blocked_at in CONTROLLED_SWITCHES:
         return str(blocked_at)
     for node in reversed(decision.get("path", [])):

@@ -227,7 +227,7 @@ def test_mpls_is_labeled_as_logic_simulation_not_provider_core():
         assert forbidden not in control_section
 
 
-def test_internet_edge_boundary_is_not_claimed_as_stateful_firewall():
+def test_internet_edge_boundary_is_a_stateful_nftables_firewall_in_phase44():
     model = load_network_model(REPO_ROOT / "vars" / "network_model.yml")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     sdn_readme = (REPO_ROOT / "sdn_mpls_demo" / "README.md").read_text(encoding="utf-8")
@@ -236,10 +236,10 @@ def test_internet_edge_boundary_is_not_claimed_as_stateful_firewall():
 
     assert model["infrastructure"]["fw_hq"]["label"] == "HQ Internet Edge Boundary"
     assert model["infrastructure"]["fw_telesale"]["label"] == "Telesale Internet Edge Boundary"
-    assert "khong phai stateful firewall" in model["infrastructure"]["fw_hq"]["subtitle"]
+    assert "Stateful nftables firewall" in model["infrastructure"]["fw_hq"]["subtitle"]
     assert "Simulation Honesty" in readme
     assert "Internet Edge Boundary" in sdn_readme
-    assert "khong phai stateful firewall" in dashboard_readme
+    assert "stateful nftables" in dashboard_readme.lower()
     assert "Internet Edge Boundary" in frontend_policy
 
 
@@ -252,11 +252,11 @@ def test_controller_is_real_osken_openflow_13_app():
     assert "OFPFlowMod" in controller
     assert "installed_flows.json" in controller
     assert "install_isolation_flows" in controller
-    assert "install_service_policy_flows" in controller
+    install_body = controller.split("def install_policy_flows", 1)[1].split("def install_arp_transit_flow", 1)[0]
+    assert "install_service_policy_flows" not in install_body
     assert "install_it_support_flows" in controller
     assert "IT Support chi duoc khoi tao ICMP echo-request" in controller
-    assert "Block Social Media cho user thuong" in controller
-    assert "Chan ping chu dong tu Internet/service vao user noi bo" in controller
+    assert "Internet service policy belongs to the two nftables firewalls" in controller
     assert "eth_type=ether_types.ETH_TYPE_ARP" in controller
     assert "không bypass IP policy" in controller
     assert "priority=400" in (
@@ -278,9 +278,7 @@ def test_controller_enforces_drop_policies_only_at_core_and_distribution():
     assert all(spec["action"] == "DROP" for spec in isolation_specs)
     assert "self.policy.isolation_flow_specs()" in controller
     assert 'Khong cai isolation DROP tren %s; access OVS chi transit/local switching.' in controller
-    assert 'ENFORCEMENT_SWITCH_BY_GROUP[name] == switch_name' in controller
-    assert "hq_social_block" in controller
-    assert "telesale_social_block" in controller
+    assert "self.install_isolation_flows(datapath)" in controller
     assert '"policy": "reactive_policy_drop"' in controller
     assert '"policy": "transit_to_enforcement"' in controller
     assert "POLICY INSTALLED switch=%s role=%s policy=%s priority=%s" in controller
@@ -322,19 +320,15 @@ def test_controller_uses_openflow_cookies_for_policy_lifecycle():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
 
     assert {profile["cookie"] for profile in POLICY_FLOW_PROFILES.values()} >= {
-        0x1001, 0x1002, 0x1003, 0x1004, 0x1100, 0x1200, 0x1301, 0x1302, 0x1303, 0x1304,
+        0x1001, 0x1002, 0x1100, 0x1200, 0x1301, 0x1302, 0x1303,
     }
     assert 'policy_id: int(profile["cookie"])' in controller
     assert "cookie=cookie" in controller
     assert 'cookie=f"0x{cookie:x}"' in controller
-    assert '"policy": "allowed_services"' in controller
     assert '"policy": "voice"' in controller
     assert '"policy": "it_support"' in controller
-    assert "hq_social_block" in controller
-    assert "telesale_social_block" in controller
     assert "it_support_return" in controller
     assert "it_inbound_block" in controller
-    assert "it_social_block" in controller
 
 
 def test_controller_it_support_flows_are_least_privilege():

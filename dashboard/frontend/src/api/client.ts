@@ -166,7 +166,10 @@ export type PolicyInventoryItem = {
   enabled: boolean | null;
   configuration_status: "Enabled" | "Disabled" | "Draft";
   lifecycle_status: PolicyLifecycleStatus;
+  enforcement_engine?: "openflow" | "nftables";
   controller_acknowledged: boolean;
+  firewall_acknowledged?: boolean;
+  runtime_acknowledged?: boolean;
   updated_at: string;
   technical_detail?: unknown;
 };

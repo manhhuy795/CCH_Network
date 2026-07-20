@@ -2,8 +2,8 @@
 
 ## Simulation Honesty
 
-- `fw_hq` va `fw_telesale` la **Internet Edge Boundary** bang Linux router namespace.
-- Chung khong phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
+- `fw_hq` va `fw_telesale` la **stateful nftables firewall** trong Linux router namespace.
+- Chung ap dung `inet cch_filter`, conntrack, default-deny va counter that; day van la firewall lab, khong phai appliance production.
 - SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
 - Phase 42 co dung 9 OVS duoc OS-Ken dieu khien. `service_net` la Linux
   bridge cho Service LAN, khong phai OVS va khong co OpenFlow control link.
@@ -72,7 +72,7 @@ cd ~/Downloads
 
 sudo apt update
 sudo apt install -y \
-  git mininet openvswitch-switch iperf3 \
+  git mininet openvswitch-switch iperf3 nftables tcpdump \
   python3 python3-venv python3-pip python3-dev \
   build-essential curl jq iproute2 procps util-linux \
   nodejs npm
@@ -103,7 +103,7 @@ git pull
 # Các thư viện/package cần cho SDN lab, Mininet, Open vSwitch và dashboard.
 sudo apt update
 sudo apt install -y \
-  git mininet openvswitch-switch iperf3 \
+  git mininet openvswitch-switch iperf3 nftables tcpdump \
   python3 python3-venv python3-pip python3-dev \
   build-essential curl jq iproute2 procps util-linux \
   nodejs npm
@@ -122,6 +122,8 @@ Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
 ```text
 testpolicy       # chạy ma trận ALLOW/DENY chi tiết bằng ping thật
 isolationflows   # xem DROP flow priority 400 trên 8 OVS
+firewallrules    # xem nftables rule/counter tren fw_hq va fw_telesale
+reloadfirewall   # reload hai ruleset idempotent
 ```
 
 ## Chạy lab lại sau khi đã cài xong

@@ -26,12 +26,24 @@ from mininet.node import Node, OVSKernelSwitch, RemoteController, Switch
 
 try:
     from scripts.network_model import dpid_map, load_network_model, runtime_switch_map, runtime_switch_name
+    from sdn_mpls_demo.firewall_nftables import (
+        FIREWALL_NAMES,
+        apply_to_mininet,
+        expose_named_firewall_namespaces,
+        remove_named_firewall_namespaces,
+    )
     from sdn_mpls_demo.policy_engine import PolicyEngine
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.network_model import dpid_map, load_network_model, runtime_switch_map, runtime_switch_name
+    from firewall_nftables import (
+        FIREWALL_NAMES,
+        apply_to_mininet,
+        expose_named_firewall_namespaces,
+        remove_named_firewall_namespaces,
+    )
     from policy_engine import PolicyEngine
 
 
@@ -64,6 +76,7 @@ ALLOWED_CONTROL_COMMANDS = {
     "OVS_BR_EXISTS",
     "ADD_MANUAL_DROP",
     "DEL_COOKIE_FLOWS",
+    "RELOAD_FIREWALL",
 }
 
 NETWORK_MODEL = load_network_model()
@@ -346,6 +359,20 @@ class MininetControlAgent:
             return self._add_manual_drop(request)
         if command == "DEL_COOKIE_FLOWS":
             return self._delete_cookie_flows(request)
+        if command == "RELOAD_FIREWALL":
+            firewall_status = apply_to_mininet(self.net)
+            return {
+                "ok": True,
+                "engine": "nftables",
+                "table": "inet cch_filter",
+                "firewalls": {
+                    name: {
+                        "ok": status["ok"],
+                        "rule_count": status["rule_count"],
+                    }
+                    for name, status in firewall_status.items()
+                },
+            }
         link_id = str(request.get("link_id", ""))
         if command == "LINK_DOWN":
             return self._set_link(link_id, "down")
@@ -996,6 +1023,18 @@ class CallCenterCLI(CLI):
                 f"| grep 'priority=400' || true"
             ))
 
+    def do_firewallrules(self, _line):
+        "Show the live nftables table in both Internet firewall namespaces."
+        for firewall_name in FIREWALL_NAMES:
+            info(f"\n--- {firewall_name}: inet cch_filter ---\n")
+            info(self.mn.get(firewall_name).cmd("nft -a list table inet cch_filter"))
+
+    def do_reloadfirewall(self, _line):
+        "Idempotently reload both live nftables firewall policies."
+        result = apply_to_mininet(self.mn)
+        for firewall_name, status in result.items():
+            info(f"{firewall_name}: OK, rules={status['rule_count']}\n")
+
 
 def load_policy():
     engine = PolicyEngine(POLICY_FILE)
@@ -1210,6 +1249,12 @@ def write_runtime_inventory(net, user_hosts, build_duration):
         },
         "ce_nodes": ["ce_hq", "ce_telesale"],
         "firewall_namespaces": ["fw_hq", "fw_telesale"],
+        "firewall_engine": "nftables",
+        "firewall_table": "inet cch_filter",
+        "namespace_pids": {
+            name: int(net.get(name).pid)
+            for name in ("fw_hq", "fw_telesale", "hzalo", "hcall", "hsocial", "hinternet")
+        },
         "control_agent_socket": str(CONTROL_SOCKET),
         "mininet_nodes": sorted(getattr(net, "nameToNode", {})),
     }
@@ -1429,32 +1474,45 @@ def build_topology():
     net.waitConnected(timeout=15)
     service_net.start([])
 
-    configure_routing(net, policy)
-    start_service_simulators(net)
-    control_agent = MininetControlAgent(net, policy)
-    control_agent.start()
-    build_duration = time.monotonic() - build_started
-    write_runtime_inventory(net, user_hosts, build_duration)
-    emit_resource_snapshot("AFTER_TOPOLOGY_BUILD")
-
-    emit()
-    emit("=" * 88)
-    emit(f"Topology da tao: {len(user_hosts)} user + 5 service")
-    emit("Controller quan ly 9 OVS; 2 CE, 2 firewall namespace, Internet Zone va MPLS Cloud khong dung OpenFlow.")
-    emit(f"Thoi gian build topology: {build_duration:.3f} giay")
-    emit("Lenh nhanh trong mininet:")
-    emit("  testpolicy      # chay bang ping policy chi tiet")
-    emit("  isolationflows  # xem DROP flow priority 400")
-    emit("  h20_01 ping -c 2 h90")
-    emit("=" * 88)
-    if os.environ.get("CCH_AUTO_TEST_POLICY", "1") != "0":
-        run_policy_tests(net, policy, title="Kiá»ƒm tra tá»± Ä‘á»™ng sau khi khá»Ÿi Ä‘á»™ng topology")
-    else:
-        emit("Bo qua auto-test vi CCH_AUTO_TEST_POLICY=0. Co the chay tay: testpolicy")
+    control_agent = None
     try:
+        configure_routing(net, policy)
+        expose_named_firewall_namespaces(net)
+        firewall_status = apply_to_mininet(net)
+        start_service_simulators(net)
+        control_agent = MininetControlAgent(net, policy)
+        control_agent.start()
+        build_duration = time.monotonic() - build_started
+        write_runtime_inventory(net, user_hosts, build_duration)
+        emit_resource_snapshot("AFTER_TOPOLOGY_BUILD")
+
+        emit()
+        emit("=" * 88)
+        emit(f"Topology da tao: {len(user_hosts)} user + 5 service")
+        emit("Controller quan ly 9 OVS; CE/MPLS/Internet Zone khong dung OpenFlow.")
+        emit(
+            "nftables active: "
+            + ", ".join(
+                f"{name}={status['rule_count']} rules"
+                for name, status in firewall_status.items()
+            )
+        )
+        emit(f"Thoi gian build topology: {build_duration:.3f} giay")
+        emit("Lenh nhanh trong mininet:")
+        emit("  testpolicy       # chay bang ping policy chi tiet")
+        emit("  isolationflows   # xem DROP OpenFlow priority 400")
+        emit("  firewallrules    # xem counter/rule nftables tren hai firewall")
+        emit("  reloadfirewall   # reload nftables idempotent")
+        emit("=" * 88)
+        if os.environ.get("CCH_AUTO_TEST_POLICY", "1") != "0":
+            run_policy_tests(net, policy, title="Kiem tra tu dong sau khi khoi dong topology")
+        else:
+            emit("Bo qua auto-test vi CCH_AUTO_TEST_POLICY=0. Co the chay tay: testpolicy")
         CallCenterCLI(net, policy)
     finally:
-        control_agent.stop()
+        if control_agent is not None:
+            control_agent.stop()
+        remove_named_firewall_namespaces()
         net.stop()
 
 
