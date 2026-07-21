@@ -231,13 +231,45 @@ def write_rulesets(
 
 
 def _node_command(node: Any, command: str) -> tuple[int, str]:
+    """Run a command and reliably extract its exit status.
+
+    Mininet executes node commands through a pseudo-terminal. Its output may
+    therefore use LF or CRLF line endings. The exit marker must be parsed
+    independently from the terminal line-ending convention.
+    """
     marker = "__CCH_NFT_EXIT__="
-    output = node.cmd(f"{command}; printf '\\n{marker}%s\\n' $?")
-    match = re.search(rf"(?m)^{re.escape(marker)}(\d+)$", output)
-    if not match:
-        raise FirewallPolicyError(f"Khong doc duoc exit code nftables tren {node.name}: {output}")
-    cleaned = re.sub(rf"(?m)^\s*{re.escape(marker)}\d+\s*$", "", output).strip()
-    return int(match.group(1)), cleaned
+
+    output = node.cmd(
+        f"{command}; printf '\\n{marker}%s\\n' $?"
+    )
+
+    marker_pattern = re.compile(
+        rf"[ \t]*{re.escape(marker)}(\d+)[ \t]*"
+    )
+
+    exit_code: int | None = None
+    cleaned_lines: list[str] = []
+
+    for line in output.splitlines():
+        match = marker_pattern.fullmatch(line)
+
+        if match is not None:
+            # The marker belongs to this command invocation. When more than
+            # one marker is unexpectedly emitted, use the final marker.
+            exit_code = int(match.group(1))
+            continue
+
+        cleaned_lines.append(line)
+
+    if exit_code is None:
+        raise FirewallPolicyError(
+            "Khong doc duoc exit code nftables "
+            f"tren {node.name}: {output}"
+        )
+
+    cleaned = "\n".join(cleaned_lines).strip()
+
+    return exit_code, cleaned
 
 
 def apply_to_mininet(net: Any, output_dir: Path = RUNTIME_RULESET_DIR) -> dict[str, dict[str, Any]]:
