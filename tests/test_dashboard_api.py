@@ -301,6 +301,71 @@ def test_backend_decision_schema_is_authoritative_for_animation_metadata():
     assert voice["priority"] == 425
 
 
+def test_static_decision_ignores_stale_controller_flow_inventory(tmp_path, monkeypatch):
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app import live_mininet
+
+    stale_inventory = tmp_path / "installed_flows.json"
+    stale_inventory.write_text(
+        '[{"switch":"core_hq","cookie":"0x1001","priority":400,'
+        '"source":"project_a","destination":"project_b","action":"DROP"}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(live_mininet, "RUNTIME_FLOWS_FILE", stale_inventory)
+
+    decision = live_mininet.enrich_decision(
+        "h20_01",
+        "h30_01",
+        live_mininet.policy_decision("h20_01", "h30_01"),
+    )
+
+    assert decision["flow_runtime_available"] is False
+    assert decision["metadata_source"] == "policy_engine"
+
+
+def test_valid_live_flow_evidence_enriches_decision_metadata():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app import live_mininet
+
+    static_decision = live_mininet.policy_decision("h20_01", "h30_01")
+    live_flow = {
+        "switch": "core_hq",
+        "source": "project_a",
+        "destination": "project_b",
+        "action": "DROP",
+        "cookie": "0x1001",
+        "priority": 400,
+        "raw_match": "priority=400,ip,nw_src=172.16.20.0/24,nw_dst=172.16.30.0/24",
+        "raw_action": "drop",
+    }
+
+    decision = live_mininet.enrich_decision(
+        "h20_01",
+        "h30_01",
+        static_decision,
+        runtime_flow=live_flow,
+    )
+
+    assert decision["flow_runtime_available"] is True
+    assert decision["metadata_source"] == "controller_runtime"
+    assert decision["enforcement_switch"] == "core_hq"
+    assert decision["cookie"] == "0x1001"
+    assert decision["priority"] == 400
+    assert decision["runtime_flow"]["switch"] == "core_hq"
+    assert decision["runtime_flow"]["cookie"] == "0x1001"
+    assert decision["runtime_flow"]["priority"] == 400
+    assert "nw_src=172.16.20.0/24" in decision["runtime_flow"]["raw_match"]
+    assert "nw_dst=172.16.30.0/24" in decision["runtime_flow"]["raw_match"]
+    assert decision["runtime_flow"]["action"] == "DROP"
+    assert decision["runtime_flow"]["raw_action"] == "drop"
+
+
 def test_ping_result_preserves_backend_packet_path_contract():
     repo_root = Path(__file__).resolve().parents[1]
     live_source = (repo_root / "dashboard" / "backend" / "app" / "live_mininet.py").read_text(encoding="utf-8")

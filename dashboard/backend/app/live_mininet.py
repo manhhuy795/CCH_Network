@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import math
 import re
 import shutil
@@ -376,10 +377,17 @@ def _endpoint_labels(name: str) -> set[str]:
 
 
 def _load_installed_flow_records() -> list[dict[str, Any]]:
+    """Load controller history for the OpenFlow inventory view only.
+
+    This file is intentionally not used as proof that a flow is live.  The
+    controller can restart, an OVS bridge can be recreated, or the file can
+    outlive the topology that created it.
+    """
     try:
-        return json.loads(RUNTIME_FLOWS_FILE.read_text(encoding="utf-8"))
+        payload = json.loads(RUNTIME_FLOWS_FILE.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return []
+    return payload if isinstance(payload, list) else []
 
 
 def _flow_matches_endpoint(flow: dict[str, Any], source: str, destination: str, action: str) -> bool:
@@ -395,14 +403,102 @@ def _flow_matches_endpoint(flow: dict[str, Any], source: str, destination: str, 
     )
 
 
-def _matching_runtime_flow(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any] | None:
-    flows = _load_installed_flow_records()
+def _normalize_cookie(value: Any) -> int | None:
+    try:
+        if isinstance(value, str):
+            return int(value, 0)
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _flow_match_label(value: str | None) -> str:
+    """Map an OVS network match to its policy group/service label."""
+    if not value:
+        return "*"
+    candidate = str(value).strip()
+    try:
+        network = ipaddress.ip_network(candidate, strict=False)
+    except ValueError:
+        return "*"
+
+    for group_name, group in ENGINE.groups.items():
+        if network == ipaddress.ip_network(str(group["subnet"]), strict=False):
+            return str(group_name)
+    for service_name, service in ENGINE.services.items():
+        service_network = ipaddress.ip_network(f"{service['ip']}/32", strict=False)
+        if network == service_network:
+            return str(service_name)
+    return "*"
+
+
+def _runtime_flow_matches_contract(
+    source: str,
+    destination: str,
+    decision: dict[str, Any],
+    flow: dict[str, Any],
+) -> bool:
+    """Validate a flow returned by a live OVS lookup against static intent."""
+    policy = _policy_hint(source, destination, decision)
+    expected_cookie = POLICY_COOKIE_HINTS.get(policy)
+    expected_priority = POLICY_PRIORITY_HINTS.get(policy)
+    expected_action = "DROP" if decision.get("action") == "deny" else "ALLOW"
+
+    if expected_cookie is None or expected_priority is None:
+        return False
+    if str(flow.get("switch", "")) not in _runtime_switch_candidates(decision):
+        return False
+    if _normalize_cookie(flow.get("cookie")) != _normalize_cookie(expected_cookie):
+        return False
+    try:
+        if int(flow.get("priority")) != int(expected_priority):
+            return False
+    except (TypeError, ValueError):
+        return False
+    if str(flow.get("action", "")).upper() != expected_action:
+        return False
+    if not _flow_matches_endpoint(flow, source, destination, expected_action):
+        return False
+
+    # Parsed live records must retain the actual match/action text.  This
+    # prevents a hand-built metadata record from being treated as OVS proof.
+    raw_match = str(flow.get("raw_match", ""))
+    raw_action = str(flow.get("raw_action", ""))
+    if not raw_match or not raw_action:
+        return False
+    source_network = ENGINE.endpoint(source)
+    destination_network = ENGINE.endpoint(destination)
+    if not source_network or not destination_network:
+        return False
+    source_subnet = str(ENGINE.groups[source_network["group"]]["subnet"]) if source_network.get("kind") == "user" else f"{source_network['ip']}/32"
+    destination_subnet = str(ENGINE.groups[destination_network["group"]]["subnet"]) if destination_network.get("kind") == "user" else f"{destination_network['ip']}/32"
+    if source_subnet.split("/")[0] not in raw_match or destination_subnet.split("/")[0] not in raw_match:
+        return False
+    if expected_action == "DROP" and "drop" not in raw_action.lower():
+        return False
+    if expected_action == "ALLOW" and not any(token in raw_action.lower() for token in ("normal", "output", "set_field")):
+        return False
+    return True
+
+
+def _matching_runtime_flow(
+    source: str,
+    destination: str,
+    decision: dict[str, Any],
+    runtime_flows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """Return a validated flow from an explicit live lookup result only.
+
+    The optional argument is deliberate: omitting it means no runtime
+    evidence.  In particular, this function never falls back to the stale
+    controller inventory file or process-global runtime state.
+    """
+    flows = runtime_flows or []
     if not flows:
         return None
-    action = "DROP" if decision.get("action") == "deny" else "ALLOW"
     candidates = [
         flow for flow in flows
-        if _flow_matches_endpoint(flow, source, destination, action)
+        if _runtime_flow_matches_contract(source, destination, decision, flow)
     ]
     blocked_at = decision.get("blocked_at")
     if blocked_at:
@@ -412,6 +508,33 @@ def _matching_runtime_flow(source: str, destination: str, decision: dict[str, An
     if not candidates:
         return None
     return sorted(candidates, key=lambda item: int(item.get("priority") or 0), reverse=True)[0]
+
+
+def _runtime_switch_candidates(decision: dict[str, Any]) -> list[str]:
+    blocked_at = str(decision.get("blocked_at") or "")
+    if blocked_at in CONTROLLED_SWITCHES:
+        return [blocked_at]
+    return [
+        str(node)
+        for node in decision.get("path", [])
+        if str(node) in CONTROLLED_SWITCHES
+    ]
+
+
+def _lookup_live_runtime_flow(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any] | None:
+    """Query OVS through the control agent and validate one live policy flow."""
+    for switch in _runtime_switch_candidates(decision):
+        ok, output = mininet_control.dump_flows(switch)
+        if not ok:
+            continue
+        parsed = [
+            flow
+            for line in output.splitlines()
+            if (flow := parse_flow_line(line, switch)) is not None
+        ]
+        if (match := _matching_runtime_flow(source, destination, decision, parsed)) is not None:
+            return match
+    return None
 
 
 def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str:
@@ -458,21 +581,31 @@ def _fallback_enforcement_switch(decision: dict[str, Any]) -> str | None:
     return next((node for node in decision.get("path", []) if node in CONTROLLED_SWITCHES), None)
 
 
-def enrich_decision(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any]:
+def enrich_decision(
+    source: str,
+    destination: str,
+    decision: dict[str, Any],
+    runtime_flow: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     enriched = dict(decision)
-    flow = _matching_runtime_flow(source, destination, enriched)
+    flow = _matching_runtime_flow(source, destination, enriched, [runtime_flow] if runtime_flow else None)
     policy = flow.get("policy") if flow else _policy_hint(source, destination, enriched)
     enriched.update(
         {
             "src": source,
             "dst": destination,
             "failed_link": enriched.get("failed_link"),
-            "enforcement_switch": (flow.get("enforcement_switch") if flow else _fallback_enforcement_switch(enriched)),
+            "enforcement_switch": (
+                (flow.get("enforcement_switch") or flow.get("switch"))
+                if flow
+                else _fallback_enforcement_switch(enriched)
+            ),
             "policy": policy,
             "cookie": flow.get("cookie") if flow else POLICY_COOKIE_HINTS.get(str(policy)),
             "priority": flow.get("priority") if flow else POLICY_PRIORITY_HINTS.get(str(policy)),
             "flow_runtime_available": bool(flow),
             "metadata_source": "controller_runtime" if flow else "policy_engine",
+            "runtime_flow": flow,
         }
     )
     return enriched
@@ -543,6 +676,10 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
             "reason": "Policy cho phép nhưng lab không nhận phản hồi. Hãy kiểm tra controller, flow và link Mininet.",
         }
     decision = enrich_decision(source, destination, decision)
+    if ok:
+        runtime_flow = _lookup_live_runtime_flow(source, destination, decision)
+        if runtime_flow:
+            decision = enrich_decision(source, destination, decision, runtime_flow=runtime_flow)
     error_code = None
     if not reachable and policy_action == "deny":
         error_code = "POLICY_DENIED"
@@ -925,16 +1062,16 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
 def parse_flow_line(line: str, switch: str) -> dict[str, Any] | None:
     if "OFPST" in line or "NXST" in line:
         return None
-    src_ip = re.search(r"nw_src=([0-9.]+)", line)
-    dst_ip = re.search(r"nw_dst=([0-9.]+)", line)
+    src_ip = re.search(r"(?:nw_src|ipv4_src)=([0-9./]+)", line)
+    dst_ip = re.search(r"(?:nw_dst|ipv4_dst)=([0-9./]+)", line)
     priority = re.search(r"priority=(\d+)", line)
     cookie = re.search(r"cookie=0x([0-9a-fA-F]+)", line)
     packets = re.search(r"n_packets=(\d+)", line)
     byte_count = re.search(r"n_bytes=(\d+)", line)
-    actions = line.split("actions=", 1)[1] if "actions=" in line else ""
-    source = ENGINE.endpoint_by_ip(src_ip.group(1))["name"] if src_ip and ENGINE.endpoint_by_ip(src_ip.group(1)) else "*"
-    destination = ENGINE.endpoint_by_ip(dst_ip.group(1))["name"] if dst_ip and ENGINE.endpoint_by_ip(dst_ip.group(1)) else "*"
-    action = "DROP" if actions in {"", "drop"} else ("PACKET_IN" if "CONTROLLER" in actions else "ALLOW")
+    actions = line.split("actions=", 1)[1].strip() if "actions=" in line else ""
+    source = _flow_match_label(src_ip.group(1) if src_ip else None)
+    destination = _flow_match_label(dst_ip.group(1) if dst_ip else None)
+    action = "DROP" if actions.lower() in {"", "drop"} else ("PACKET_IN" if "CONTROLLER" in actions else "ALLOW")
     reason = "Table-miss gửi gói mới lên controller."
     if source != "*" and destination != "*":
         decision = policy_decision(source, destination)
