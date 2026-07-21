@@ -509,6 +509,9 @@ class MininetControlAgent:
         port = self._port(request.get("port"))
         log_path = str(request.get("log_path", ""))
         node = self._node(destination)
+        service = NETWORK_MODEL.get("services", {}).get(destination, {})
+        bind_ip = self._ip(service.get("ip"))
+        bind_argument = f" -B {bind_ip}" if bind_ip else ""
         expected_log = f"/tmp/cch_iperf/{session_id}.json" if session_id else ""
         if not node or port is None or not session_id or log_path != expected_log:
             return {
@@ -545,7 +548,7 @@ class MininetControlAgent:
             }
         command = (
             f"mkdir -p /tmp/cch_iperf; "
-            f"iperf3 -s -1 -p {port} --json > {log_path} 2>&1 & "
+            f"iperf3 -s -1 -p {port}{bind_argument} --json > {log_path} 2>&1 & "
             "pid=$!; ready=0; "
             "for attempt in $(seq 1 20); do "
             f"if kill -0 $pid 2>/dev/null && ss -H -ltn 'sport = :{port}' | grep -q .; "
@@ -803,14 +806,13 @@ class MininetControlAgent:
 
     @staticmethod
     def _nft_counter(ruleset: str, comment: str) -> dict[str, int] | None:
-        match = re.search(
-            rf'comment "[^"]*{re.escape(comment)}[^\"]*".*?counter packets (\d+) bytes (\d+)',
-            ruleset,
-            flags=re.DOTALL,
-        )
-        if not match:
-            return None
-        return {"packets": int(match.group(1)), "bytes": int(match.group(2))}
+        for line in ruleset.splitlines():
+            if comment not in line:
+                continue
+            match = re.search(r"counter packets (\d+) bytes (\d+)", line)
+            if match:
+                return {"packets": int(match.group(1)), "bytes": int(match.group(2))}
+        return None
 
     def _logical_links(self) -> list[str]:
         return [f"{source}-{target}" for source, target, _kind in self.policy.get("links", [])]

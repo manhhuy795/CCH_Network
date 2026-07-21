@@ -100,6 +100,16 @@ def test_server_requires_listen_and_tracks_pid_ownership(monkeypatch):
     assert "abcdef123456" not in agent.iperf_sessions
 
 
+def test_service_iperf_server_binds_declared_vip(monkeypatch):
+    module = load_topology_module(monkeypatch)
+    destination = FakeHost(["4242 1\n"])
+    agent = module.MininetControlAgent(FakeNet({"hcall": destination}), {})
+
+    started = agent._start_iperf_server(start_request("abcdef123456", "hcall", 5201))
+
+    assert started["ok"] is True
+    assert any("-B 172.16.201.10" in command for command in destination.commands)
+
 def test_server_not_listening_is_failed_and_cleaned(monkeypatch):
     module = load_topology_module(monkeypatch)
     destination = FakeHost(["4242 0\n", ""])

@@ -3,6 +3,7 @@ set -uo pipefail
 
 # Combined Acceptance chi chay tren Ubuntu khi topology, controller va dashboard da san sang.
 # Script khong sua source-of-truth, khong tat firewall va khong thay expected result.
+export LC_ALL=C
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPORT_ROOT="$ROOT_DIR/runtime_reports"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -164,6 +165,7 @@ social_counter_case() {
   local after="$REPORT_DIR/firewalls_after_social.json"
   api_get /api/firewalls "$before" || return 1
   ping_case h20_01 hsocial deny "$REPORT_DIR/ping_social_deny.json" || return 1
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/ubuntu_phase44_45_deep_debug.py" run-case firewall-counter || return 1
   api_get /api/firewalls "$after" || return 1
   "$PYTHON_BIN" - "$before" "$after" <<'PY'
 import json
@@ -233,7 +235,7 @@ for line in results_file.read_text(encoding="utf-8").splitlines():
     results.append({
         "name": name,
         "status": status,
-        "duration_seconds": float(duration),
+        "duration_seconds": float(duration.replace(",", ".")),
         "exit_code": int(exit_code),
         "raw_stdout": str(report_dir / f"{name}.stdout"),
         "raw_stderr": str(report_dir / f"{name}.stderr"),
