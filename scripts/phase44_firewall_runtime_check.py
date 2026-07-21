@@ -32,6 +32,10 @@ INVENTORY_FILE = ROOT_DIR / "sdn_mpls_demo" / "runtime" / "phase42_topology_runt
 CONTROLLER_LOG = ROOT_DIR / "sdn_mpls_demo" / "runtime" / "controller.log"
 CONTROL_SOCKET = Path(os.environ.get("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
+ALLOWED_RUNTIME_BRANCHES = {
+    "feature/dual-branch-topology",
+    "transfer/phase45-regression-fix",
+}
 ERROR_PATTERNS = (
     "Traceback",
     "BrokenPipeError",
@@ -245,10 +249,11 @@ def main() -> int:
         branch = run(["git", "branch", "--show-current"], reporter, check=True)
         head = run(["git", "rev-parse", "--short", "HEAD"], reporter, check=True)
         status = run(["git", "status", "--short"], reporter, check=True)
+        branch_name = branch.stdout.strip()
         reporter.record(
             "Git checkpoint",
-            branch.stdout.strip() == "feature/dual-branch-topology" and not status.stdout.strip(),
-            branch=branch.stdout.strip(),
+            branch_name in ALLOWED_RUNTIME_BRANCHES and not status.stdout.strip(),
+            branch=branch_name,
             head=head.stdout.strip(),
             clean=not status.stdout.strip(),
         )

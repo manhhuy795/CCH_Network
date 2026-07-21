@@ -228,3 +228,9 @@ def test_phase44_runtime_checker_covers_required_live_evidence_without_shell_tru
     assert "shell=True" not in source
     assert "NAT NOT REQUIRED AND RUNTIME PROVEN" in source
     assert "NAT REQUIREMENT NOT YET CONCLUDED" in source
+
+
+def test_phase44_runtime_checker_allows_finalize_transfer_branch():
+    source = (REPO_ROOT / "scripts" / "phase44_firewall_runtime_check.py").read_text(encoding="utf-8")
+    assert '"transfer/phase45-regression-fix"' in source
+    assert 'branch_name in ALLOWED_RUNTIME_BRANCHES' in source
