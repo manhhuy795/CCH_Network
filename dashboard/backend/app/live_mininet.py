@@ -589,6 +589,7 @@ def enrich_decision(
 ) -> dict[str, Any]:
     enriched = dict(decision)
     flow = _matching_runtime_flow(source, destination, enriched, [runtime_flow] if runtime_flow else None)
+    live_flow_verified = flow is not None
     policy = flow.get("policy") if flow else _policy_hint(source, destination, enriched)
     enriched.update(
         {
@@ -603,8 +604,8 @@ def enrich_decision(
             "policy": policy,
             "cookie": flow.get("cookie") if flow else POLICY_COOKIE_HINTS.get(str(policy)),
             "priority": flow.get("priority") if flow else POLICY_PRIORITY_HINTS.get(str(policy)),
-            "flow_runtime_available": bool(flow),
-            "metadata_source": "controller_runtime" if flow else "policy_engine",
+            "flow_runtime_available": live_flow_verified,
+            "metadata_source": "controller_runtime" if live_flow_verified else "policy_engine",
             "runtime_flow": flow,
         }
     )

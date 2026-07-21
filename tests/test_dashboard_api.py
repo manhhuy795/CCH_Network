@@ -315,6 +315,11 @@ def test_static_decision_ignores_stale_controller_flow_inventory(tmp_path, monke
         encoding="utf-8",
     )
     monkeypatch.setattr(live_mininet, "RUNTIME_FLOWS_FILE", stale_inventory)
+    monkeypatch.setattr(
+        live_mininet.mininet_control,
+        "dump_flows",
+        lambda _switch: pytest.fail("static enrich_decision must not query OVS"),
+    )
 
     decision = live_mininet.enrich_decision(
         "h20_01",
