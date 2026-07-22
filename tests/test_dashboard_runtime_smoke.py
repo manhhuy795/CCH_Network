@@ -59,10 +59,12 @@ def test_smoke_suite_does_not_print_or_store_operator_token():
 
 def test_smoke_suite_uses_real_commands_without_shell_true():
     source = SMOKE_PY.read_text(encoding="utf-8")
+    module = load_smoke_module()
     assert "subprocess.run(command" in source
     assert "shell=True" not in source
-    assert '["ovs-vsctl", "br-exists", "core_hq"]' in source
-    assert '["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "core_hq"]' in source
+    assert module.ENFORCEMENT_SWITCHES == ("core_hq", "dist_telesale")
+    assert '["ovs-vsctl", "br-exists", switch]' in source
+    assert '["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch]' in source
     assert "urllib.request.urlopen" in source
     assert "json.loads" in source
 

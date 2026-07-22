@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import math
 import re
 import shutil
@@ -14,8 +15,9 @@ from typing import Any
 
 from . import repo  # Đảm bảo repository root có trong sys.path.
 from . import mininet_control
-from scripts.network_model import architecture_links, controlled_switches, load_network_model
-from sdn_mpls_demo.policy_engine import GROUP_PATHS, PolicyEngine
+from scripts.network_model import architecture_links, controlled_switches, load_network_model, runtime_switch_map, runtime_switch_name
+from sdn_mpls_demo.firewall_nftables import FIREWALL_NAMES, build_firewall_plans
+from sdn_mpls_demo.policy_engine import GROUP_PATHS, POLICY_FLOW_PROFILES, PolicyEngine
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -38,37 +40,17 @@ _IPERF_ACTIVE_SESSIONS: dict[str, dict[str, Any]] = {}
 _IPERF_PORT_CURSOR = 0
 
 POLICY_COOKIE_HINTS = {
-    "hq_project_isolation": "0x1001",
-    "branch_isolation": "0x1002",
-    "hq_social_block": "0x1003",
-    "branch_social_block": "0x1004",
-    "allowed_services": "0x1100",
-    "voice": "0x1200",
-    "it_support": "0x1301",
-    "it_support_return": "0x1302",
-    "it_inbound_block": "0x1303",
-    "it_social_block": "0x1304",
-    "reactive_policy_drop": "0x1000",
-    "transit_to_enforcement": "0x1100",
-    "internet_inbound_block": "0x1100",
+    policy_id: f"0x{int(profile['cookie']):x}"
+    for policy_id, profile in POLICY_FLOW_PROFILES.items()
+} | {
     "policy_engine_default": None,
     "link_down": None,
 }
 
 POLICY_PRIORITY_HINTS = {
-    "hq_project_isolation": 400,
-    "branch_isolation": 400,
-    "hq_social_block": 390,
-    "branch_social_block": 390,
-    "allowed_services": 330,
-    "voice": 425,
-    "it_support": 450,
-    "it_support_return": 450,
-    "it_inbound_block": 460,
-    "it_social_block": 470,
-    "reactive_policy_drop": 300,
-    "transit_to_enforcement": 180,
-    "internet_inbound_block": 385,
+    policy_id: int(profile["priority"])
+    for policy_id, profile in POLICY_FLOW_PROFILES.items()
+} | {
     "policy_engine_default": None,
     "link_down": None,
 }
@@ -119,6 +101,84 @@ INFRA_NODES = [
 ]
 
 ARCHITECTURE_LINKS = architecture_links(NETWORK_MODEL)
+RUNTIME_BRIDGE_MAP = runtime_switch_map(NETWORK_MODEL)
+COMBINED_ACCEPTANCE_FILE = REPO_ROOT / "runtime_reports" / "phase44_45_combined_summary.json"
+DASHBOARD_SITE_LABELS = {
+    "hq": "Trụ sở chính HQ",
+    "telesale": "Telesale",
+}
+
+
+def dashboard_site_id(source_site: str | None) -> str:
+    """Map source-of-truth site IDs to the two public physical site IDs."""
+    return "telesale" if source_site == "branch_telesale" else str(source_site or "unknown")
+
+
+def phase44_runtime_status() -> dict[str, Any]:
+    """Expose evidence state without treating static config or stale files as live proof."""
+    pending = {
+        "status": "pending",
+        "message_vi": "Chưa chạy Combined Acceptance trên Ubuntu; firewall/NAT runtime chưa được xác minh.",
+        "evidence_available": False,
+        "nat_conclusion": "NAT REQUIREMENT NOT YET CONCLUDED",
+    }
+    try:
+        payload = json.loads(COMBINED_ACCEPTANCE_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return pending
+    if payload.get("overall_status") != "PASS" or payload.get("phase44_runtime_verified") is not True:
+        return {**pending, "evidence_available": True, "message_vi": "Có evidence nhưng chưa đủ điều kiện xác nhận runtime."}
+    return {
+        "status": "verified",
+        "message_vi": "Combined Acceptance đã xác nhận runtime Phase 44 trên Ubuntu.",
+        "evidence_available": True,
+        "nat_conclusion": str(payload.get("nat_conclusion") or "NAT REQUIREMENT NOT YET CONCLUDED"),
+        "checked_at": payload.get("checked_at"),
+    }
+
+
+def firewall_inventory() -> list[dict[str, Any]]:
+    """Return two-site firewall contract; counters are null until read from live nftables."""
+    acceptance = phase44_runtime_status()
+    try:
+        plans = build_firewall_plans()
+    except (KeyError, OSError, ValueError) as exc:
+        plans = {}
+        plan_error = str(exc)
+    else:
+        plan_error = None
+    runtime_response = mininet_control.firewall_status()
+    runtime_firewalls = runtime_response.get("firewalls", {}) if isinstance(runtime_response, dict) else {}
+    inventory: list[dict[str, Any]] = []
+    for firewall_name in FIREWALL_NAMES:
+        plan = plans.get(firewall_name, {})
+        runtime = runtime_firewalls.get(firewall_name, {}) if isinstance(runtime_firewalls, dict) else {}
+        runtime_ok = bool(runtime.get("ok"))
+        inventory.append({
+            "name": firewall_name,
+            "logical_name": firewall_name,
+            "site": dashboard_site_id(plan.get("site")),
+            "inside_interface": plan.get("inside_interface"),
+            "outside_interface": plan.get("outside_interface"),
+            "inside_logical_interface": plan.get("inside_logical_interface"),
+            "outside_logical_interface": plan.get("outside_logical_interface"),
+            "ipv4_forwarding": runtime.get("ipv4_forwarding") if runtime_ok else None,
+            "nftables_table": plan.get("family", "inet") + " " + plan.get("table_name", "cch_filter"),
+            "chain": "forward",
+            "rule_count": runtime.get("rule_count") if runtime_ok else None,
+            "expected_rule_count": len(plan.get("rules", ())) + 8 if plan else None,
+            "counters": runtime.get("counters") if runtime_ok else None,
+            "nftables_status": "available" if runtime_ok else "unavailable",
+            "runtime_status": acceptance["status"] if acceptance["status"] == "verified" else ("pending" if runtime_ok else "unavailable"),
+            "nat": {
+                "configured": bool(plan.get("nat", {}).get("enabled")) if plan else False,
+                "status": acceptance["status"] if acceptance["status"] == "verified" else "pending",
+                "conclusion": acceptance["nat_conclusion"],
+            },
+            "error_code": None if runtime_ok else str(runtime.get("error_code") or ("FIREWALL_PLAN_INVALID" if plan_error else "FIREWALL_UNAVAILABLE")),
+            "technical_detail": runtime if runtime else {"plan_error": plan_error},
+        })
+    return inventory
 
 
 def now_iso() -> str:
@@ -131,16 +191,19 @@ def command_exists(name: str) -> bool:
 
 
 def topology_payload() -> dict[str, Any]:
-    nodes = []
-    groups = []
-    hosts = sorted(ENGINE.hosts.values(), key=lambda item: (item["kind"] != "user", item["name"]))
+    nodes: list[dict[str, Any]] = []
+    groups: list[dict[str, Any]] = []
+    hosts = sorted(
+        [{**host, "site": dashboard_site_id(host.get("site"))} for host in ENGINE.hosts.values()],
+        key=lambda item: (item["kind"] != "user", item["name"]),
+    )
     for name, group in ENGINE.groups.items():
         group_hosts = [host for host in hosts if host.get("group") == name and host.get("kind") == "user"]
         item = {
             "id": name,
             "label": group["label"],
             "type": "user_group",
-            "site": group["site"],
+            "site": dashboard_site_id(group.get("site")),
             "vlan": int(group["vlan"]),
             "count": int(group["count"]),
             "subnet": group["subnet"],
@@ -150,27 +213,41 @@ def topology_payload() -> dict[str, Any]:
         nodes.append(item)
         groups.append(item)
 
-    nodes.extend(
-        {
+    devices: list[dict[str, Any]] = []
+    for node_id, label, node_type, subtitle in INFRA_NODES:
+        switch = NETWORK_MODEL.get("switches", {}).get(node_id)
+        infrastructure = NETWORK_MODEL.get("infrastructure", {}).get(node_id, {})
+        source = switch or infrastructure
+        is_controlled = bool(switch and switch.get("controlled"))
+        device = {
             "id": node_id,
+            "logical_name": node_id,
             "label": label,
             "type": node_type,
+            "role": source.get("role", node_type),
             "subtitle": subtitle,
-            "dpid": NETWORK_MODEL.get("switches", {}).get(node_id, {}).get("dpid"),
+            "site": dashboard_site_id(source.get("site")),
+            "dpid": source.get("dpid"),
+            "runtime_bridge": runtime_switch_name(NETWORK_MODEL, node_id) if switch else None,
+            "controller_managed": is_controlled,
+            "status": "unknown",
+            "status_source": "live_mininet",
         }
-        for node_id, label, node_type, subtitle in INFRA_NODES
-    )
+        nodes.append(device)
+        devices.append(device)
+
     for service_name, service in ENGINE.services.items():
-        if service_name != "h90":
-            nodes.append(
-                {
-                    "id": service_name,
-                    "label": service["label"],
-                    "type": "blocked_service" if service_name == "hsocial" else "service",
-                    "ip": service["ip"],
-                }
-            )
-    nodes.append({"id": "h90", "label": ENGINE.services["h90"]["label"], "type": "service", "ip": ENGINE.services["h90"]["ip"]})
+        nodes.append({
+            "id": service_name,
+            "logical_name": service_name,
+            "label": service["label"],
+            "type": "blocked_service" if service_name == "hsocial" else "service",
+            "site": "internet",
+            "ip": service["ip"],
+            "controller_managed": False,
+            "status": "unknown",
+            "status_source": "live_mininet",
+        })
 
     links = [
         {
@@ -182,17 +259,55 @@ def topology_payload() -> dict[str, Any]:
         }
         for source, target, link_type in ARCHITECTURE_LINKS
     ]
+    site_groups = {
+        site_id: [group["id"] for group in groups if group["site"] == site_id]
+        for site_id in ("hq", "telesale")
+    }
+    site_devices = {
+        site_id: [device["logical_name"] for device in devices if device["site"] == site_id]
+        for site_id in ("hq", "telesale")
+    }
+    sites = [
+        {
+            "id": site_id,
+            "label": DASHBOARD_SITE_LABELS[site_id],
+            "kind": "physical",
+            "source_id": "branch_telesale" if site_id == "telesale" else site_id,
+            "groups": site_groups[site_id],
+            "devices": site_devices[site_id],
+        }
+        for site_id in ("hq", "telesale")
+    ]
+    firewalls = firewall_inventory()
     return {
         "nodes": nodes,
         "groups": groups,
         "hosts": hosts,
         "links": links,
         "metadata": ENGINE.data["metadata"],
+        "sites": sites,
+        "site_ids": ["hq", "telesale"],
+        "devices": devices,
+        "logical_switches": [device for device in devices if device["controller_managed"]],
+        "runtime_bridge_map": dict(RUNTIME_BRIDGE_MAP),
+        "ce_nodes": [device for device in devices if device["type"] == "router"],
+        "firewalls": firewalls,
+        "mpls": {
+            "id": "mpls_cloud",
+            "status": "logical_only",
+            "controller_managed": False,
+            "path_between": ["ce_hq", "mpls_cloud", "ce_telesale"],
+        },
+        "internet_zone": {"id": "internet_zone", "status": "logical_only", "controller_managed": False},
+        "phase44_runtime": phase44_runtime_status(),
         "policy_map": policy_map_payload(),
         "summary": {
             "user_count": sum(int(group["count"]) for group in ENGINE.groups.values()),
             "service_count": len(ENGINE.services),
             "controlled_ovs_count": len(CONTROLLED_SWITCHES),
+            "site_count": 2,
+            "ce_count": 2,
+            "firewall_count": 2,
         },
     }
 
@@ -262,10 +377,17 @@ def _endpoint_labels(name: str) -> set[str]:
 
 
 def _load_installed_flow_records() -> list[dict[str, Any]]:
+    """Load controller history for the OpenFlow inventory view only.
+
+    This file is intentionally not used as proof that a flow is live.  The
+    controller can restart, an OVS bridge can be recreated, or the file can
+    outlive the topology that created it.
+    """
     try:
-        return json.loads(RUNTIME_FLOWS_FILE.read_text(encoding="utf-8"))
+        payload = json.loads(RUNTIME_FLOWS_FILE.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return []
+    return payload if isinstance(payload, list) else []
 
 
 def _flow_matches_endpoint(flow: dict[str, Any], source: str, destination: str, action: str) -> bool:
@@ -281,14 +403,102 @@ def _flow_matches_endpoint(flow: dict[str, Any], source: str, destination: str, 
     )
 
 
-def _matching_runtime_flow(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any] | None:
-    flows = _load_installed_flow_records()
+def _normalize_cookie(value: Any) -> int | None:
+    try:
+        if isinstance(value, str):
+            return int(value, 0)
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _flow_match_label(value: str | None) -> str:
+    """Map an OVS network match to its policy group/service label."""
+    if not value:
+        return "*"
+    candidate = str(value).strip()
+    try:
+        network = ipaddress.ip_network(candidate, strict=False)
+    except ValueError:
+        return "*"
+
+    for group_name, group in ENGINE.groups.items():
+        if network == ipaddress.ip_network(str(group["subnet"]), strict=False):
+            return str(group_name)
+    for service_name, service in ENGINE.services.items():
+        service_network = ipaddress.ip_network(f"{service['ip']}/32", strict=False)
+        if network == service_network:
+            return str(service_name)
+    return "*"
+
+
+def _runtime_flow_matches_contract(
+    source: str,
+    destination: str,
+    decision: dict[str, Any],
+    flow: dict[str, Any],
+) -> bool:
+    """Validate a flow returned by a live OVS lookup against static intent."""
+    policy = _policy_hint(source, destination, decision)
+    expected_cookie = POLICY_COOKIE_HINTS.get(policy)
+    expected_priority = POLICY_PRIORITY_HINTS.get(policy)
+    expected_action = "DROP" if decision.get("action") == "deny" else "ALLOW"
+
+    if expected_cookie is None or expected_priority is None:
+        return False
+    if str(flow.get("switch", "")) not in _runtime_switch_candidates(decision):
+        return False
+    if _normalize_cookie(flow.get("cookie")) != _normalize_cookie(expected_cookie):
+        return False
+    try:
+        if int(flow.get("priority")) != int(expected_priority):
+            return False
+    except (TypeError, ValueError):
+        return False
+    if str(flow.get("action", "")).upper() != expected_action:
+        return False
+    if not _flow_matches_endpoint(flow, source, destination, expected_action):
+        return False
+
+    # Parsed live records must retain the actual match/action text.  This
+    # prevents a hand-built metadata record from being treated as OVS proof.
+    raw_match = str(flow.get("raw_match", ""))
+    raw_action = str(flow.get("raw_action", ""))
+    if not raw_match or not raw_action:
+        return False
+    source_network = ENGINE.endpoint(source)
+    destination_network = ENGINE.endpoint(destination)
+    if not source_network or not destination_network:
+        return False
+    source_subnet = str(ENGINE.groups[source_network["group"]]["subnet"]) if source_network.get("kind") == "user" else f"{source_network['ip']}/32"
+    destination_subnet = str(ENGINE.groups[destination_network["group"]]["subnet"]) if destination_network.get("kind") == "user" else f"{destination_network['ip']}/32"
+    if source_subnet.split("/")[0] not in raw_match or destination_subnet.split("/")[0] not in raw_match:
+        return False
+    if expected_action == "DROP" and "drop" not in raw_action.lower():
+        return False
+    if expected_action == "ALLOW" and not any(token in raw_action.lower() for token in ("normal", "output", "set_field")):
+        return False
+    return True
+
+
+def _matching_runtime_flow(
+    source: str,
+    destination: str,
+    decision: dict[str, Any],
+    runtime_flows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """Return a validated flow from an explicit live lookup result only.
+
+    The optional argument is deliberate: omitting it means no runtime
+    evidence.  In particular, this function never falls back to the stale
+    controller inventory file or process-global runtime state.
+    """
+    flows = runtime_flows or []
     if not flows:
         return None
-    action = "DROP" if decision.get("action") == "deny" else "ALLOW"
     candidates = [
         flow for flow in flows
-        if _flow_matches_endpoint(flow, source, destination, action)
+        if _runtime_flow_matches_contract(source, destination, decision, flow)
     ]
     blocked_at = decision.get("blocked_at")
     if blocked_at:
@@ -298,6 +508,33 @@ def _matching_runtime_flow(source: str, destination: str, decision: dict[str, An
     if not candidates:
         return None
     return sorted(candidates, key=lambda item: int(item.get("priority") or 0), reverse=True)[0]
+
+
+def _runtime_switch_candidates(decision: dict[str, Any]) -> list[str]:
+    blocked_at = str(decision.get("blocked_at") or "")
+    if blocked_at in CONTROLLED_SWITCHES:
+        return [blocked_at]
+    return [
+        str(node)
+        for node in decision.get("path", [])
+        if str(node) in CONTROLLED_SWITCHES
+    ]
+
+
+def _lookup_live_runtime_flow(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any] | None:
+    """Query OVS through the control agent and validate one live policy flow."""
+    for switch in _runtime_switch_candidates(decision):
+        ok, output = mininet_control.dump_flows(switch)
+        if not ok:
+            continue
+        parsed = [
+            flow
+            for line in output.splitlines()
+            if (flow := parse_flow_line(line, switch)) is not None
+        ]
+        if (match := _matching_runtime_flow(source, destination, decision, parsed)) is not None:
+            return match
+    return None
 
 
 def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str:
@@ -317,13 +554,13 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
     if destination == "h90" or source == "h90":
         return "voice"
     if destination in {"hzalo", "hcall", "hinternet"}:
-        return "allowed_services"
+        return "firewall_allowed_service"
     if source_data and source_data.get("kind") == "service" and destination_data and destination_data.get("kind") == "user":
-        return "internet_inbound_block"
+        return "firewall_inbound_block"
     if destination == "hsocial" or source == "hsocial":
-        return "branch_social_block" if decision.get("blocked_at") == "dist_branch" else "hq_social_block"
+        return "firewall_social_block"
     if "vlan 50" in reason or "vlan 60" in reason:
-        return "branch_isolation"
+        return "telesale_backoffice_isolation"
     if "vlan" in reason or "cach ly" in reason:
         return "hq_project_isolation"
     if decision.get("action") == "deny":
@@ -333,29 +570,43 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
 
 def _fallback_enforcement_switch(decision: dict[str, Any]) -> str | None:
     blocked_at = decision.get("blocked_at")
+    if blocked_at in {"fw_hq", "fw_telesale"}:
+        return str(blocked_at)
     if blocked_at in CONTROLLED_SWITCHES:
         return str(blocked_at)
-    for preferred in ("core_hq", "dist_branch"):
-        if preferred in decision.get("path", []):
-            return preferred
+    for node in reversed(decision.get("path", [])):
+        switch = ENGINE.switches.get(str(node), {})
+        if node in CONTROLLED_SWITCHES and switch.get("role") in {"hq_core", "branch_distribution"}:
+            return str(node)
     return next((node for node in decision.get("path", []) if node in CONTROLLED_SWITCHES), None)
 
 
-def enrich_decision(source: str, destination: str, decision: dict[str, Any]) -> dict[str, Any]:
+def enrich_decision(
+    source: str,
+    destination: str,
+    decision: dict[str, Any],
+    runtime_flow: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     enriched = dict(decision)
-    flow = _matching_runtime_flow(source, destination, enriched)
+    flow = _matching_runtime_flow(source, destination, enriched, [runtime_flow] if runtime_flow else None)
+    live_flow_verified = flow is not None
     policy = flow.get("policy") if flow else _policy_hint(source, destination, enriched)
     enriched.update(
         {
             "src": source,
             "dst": destination,
             "failed_link": enriched.get("failed_link"),
-            "enforcement_switch": (flow.get("enforcement_switch") if flow else _fallback_enforcement_switch(enriched)),
+            "enforcement_switch": (
+                (flow.get("enforcement_switch") or flow.get("switch"))
+                if flow
+                else _fallback_enforcement_switch(enriched)
+            ),
             "policy": policy,
             "cookie": flow.get("cookie") if flow else POLICY_COOKIE_HINTS.get(str(policy)),
             "priority": flow.get("priority") if flow else POLICY_PRIORITY_HINTS.get(str(policy)),
-            "flow_runtime_available": bool(flow),
-            "metadata_source": "controller_runtime" if flow else "policy_engine",
+            "flow_runtime_available": live_flow_verified,
+            "metadata_source": "controller_runtime" if live_flow_verified else "policy_engine",
+            "runtime_flow": flow,
         }
     )
     return enriched
@@ -426,6 +677,10 @@ def ping(source: str, destination: str, count: int = 3) -> dict[str, Any]:
             "reason": "Policy cho phép nhưng lab không nhận phản hồi. Hãy kiểm tra controller, flow và link Mininet.",
         }
     decision = enrich_decision(source, destination, decision)
+    if ok:
+        runtime_flow = _lookup_live_runtime_flow(source, destination, decision)
+        if runtime_flow:
+            decision = enrich_decision(source, destination, decision, runtime_flow=runtime_flow)
     error_code = None
     if not reachable and policy_action == "deny":
         error_code = "POLICY_DENIED"
@@ -808,16 +1063,16 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
 def parse_flow_line(line: str, switch: str) -> dict[str, Any] | None:
     if "OFPST" in line or "NXST" in line:
         return None
-    src_ip = re.search(r"nw_src=([0-9.]+)", line)
-    dst_ip = re.search(r"nw_dst=([0-9.]+)", line)
+    src_ip = re.search(r"(?:nw_src|ipv4_src)=([0-9./]+)", line)
+    dst_ip = re.search(r"(?:nw_dst|ipv4_dst)=([0-9./]+)", line)
     priority = re.search(r"priority=(\d+)", line)
     cookie = re.search(r"cookie=0x([0-9a-fA-F]+)", line)
     packets = re.search(r"n_packets=(\d+)", line)
     byte_count = re.search(r"n_bytes=(\d+)", line)
-    actions = line.split("actions=", 1)[1] if "actions=" in line else ""
-    source = ENGINE.endpoint_by_ip(src_ip.group(1))["name"] if src_ip and ENGINE.endpoint_by_ip(src_ip.group(1)) else "*"
-    destination = ENGINE.endpoint_by_ip(dst_ip.group(1))["name"] if dst_ip and ENGINE.endpoint_by_ip(dst_ip.group(1)) else "*"
-    action = "DROP" if actions in {"", "drop"} else ("PACKET_IN" if "CONTROLLER" in actions else "ALLOW")
+    actions = line.split("actions=", 1)[1].strip() if "actions=" in line else ""
+    source = _flow_match_label(src_ip.group(1) if src_ip else None)
+    destination = _flow_match_label(dst_ip.group(1) if dst_ip else None)
+    action = "DROP" if actions.lower() in {"", "drop"} else ("PACKET_IN" if "CONTROLLER" in actions else "ALLOW")
     reason = "Table-miss gửi gói mới lên controller."
     if source != "*" and destination != "*":
         decision = policy_decision(source, destination)
@@ -869,15 +1124,22 @@ def ovs_flows() -> dict[str, Any]:
         "flows": flows,
         "controller_flows": controller_flows[-200:],
         "switches": live_switches,
+        "logical_switches": list(CONTROLLED_SWITCHES),
+        "runtime_switches": [runtime_switch_name(NETWORK_MODEL, switch) for switch in live_switches],
+        "runtime_bridge_map": dict(RUNTIME_BRIDGE_MAP),
+        "controller_status": "online" if len(live_switches) == len(CONTROLLED_SWITCHES) else "degraded" if live_switches else "unavailable",
         "raw": "\n\n".join(raw_outputs),
     }
 
 
 def current_metrics() -> dict[str, Any]:
     payload = ovs_flows()
+    metric_status = "live" if payload["ok"] else "unavailable"
     return {
         "timestamp": now_iso(),
         "live": payload["ok"],
+        "status": metric_status,
+        "data_source": "ovs_flow_counter" if payload["ok"] else None,
         "switches": payload["switches"],
         "flow_count": len(payload["flows"]),
         "packets": sum(flow["packets"] for flow in payload["flows"]),
@@ -886,8 +1148,8 @@ def current_metrics() -> dict[str, Any]:
     }
 
 
-def pair_flow_counters(source: str, destination: str) -> dict[str, int]:
-    payload = ovs_flows()
+def pair_flow_counters(source: str, destination: str, payload: dict[str, Any] | None = None) -> dict[str, int]:
+    payload = payload if payload is not None else ovs_flows()
     total_bytes = 0
     total_packets = 0
     for flow in payload["flows"]:
@@ -909,12 +1171,14 @@ def pair_realtime_metrics(
     timestamp = time.time()
     ping_payload = ping(source, destination, count=2)
     result = ping_payload.get("result", {})
-    counters = pair_flow_counters(source, destination)
+    flow_snapshot = ovs_flows()
+    counters = pair_flow_counters(source, destination, flow_snapshot)
     byte_count = counters["bytes"]
-    throughput_mbps = 0.0
-    if previous_bytes is not None and previous_time is not None and timestamp > previous_time:
+    throughput_mbps = None
+    if flow_snapshot.get("ok") and previous_bytes is not None and previous_time is not None and timestamp > previous_time:
         delta_bytes = max(0, byte_count - previous_bytes)
         throughput_mbps = round((delta_bytes * 8) / (timestamp - previous_time) / 1_000_000, 4)
+    metric_status = "live" if counters["packets"] or ping_payload.get("ok") else "unavailable"
     return {
         "timestamp": now_iso(),
         "source": source,
@@ -929,6 +1193,8 @@ def pair_realtime_metrics(
         "byte_count": byte_count,
         "previous_byte_count": previous_bytes,
         "status": "monitoring",
+        "metric_state": metric_status,
+        "data_source": "mininet_ping_and_ovs_flow_counter" if metric_status == "live" else None,
         "message": ping_payload.get("message"),
         "decision": ping_payload.get("decision"),
     }
@@ -945,13 +1211,22 @@ def manual_enforcement_switch(source: str, destination: str) -> str:
     blocked_at = decision.get("blocked_at")
     if blocked_at in CONTROLLED_SWITCHES:
         return str(blocked_at)
-    for node in decision.get("path", []):
-        if node in {"core_hq", "dist_branch"}:
-            return str(node)
     source_data = ENGINE.endpoint(source)
+    if source_data and source_data.get("kind") == "user":
+        source_path = ENGINE.group_paths.get(str(source_data.get("group")), [])
+        if source_path and source_path[-1] in CONTROLLED_SWITCHES:
+            return str(source_path[-1])
+    for node in reversed(decision.get("path", [])):
+        switch = ENGINE.switches.get(str(node), {})
+        if node in CONTROLLED_SWITCHES and switch.get("role") in {"hq_core", "branch_distribution"}:
+            return str(node)
     destination_data = ENGINE.endpoint(destination)
     endpoint = source_data if source_data and source_data["kind"] == "user" else destination_data
-    return "dist_branch" if endpoint and endpoint.get("site") == "Branch" else "core_hq"
+    if endpoint and endpoint.get("kind") == "user":
+        group_path = ENGINE.group_paths.get(str(endpoint.get("group")), [])
+        if group_path and group_path[-1] in CONTROLLED_SWITCHES:
+            return str(group_path[-1])
+    raise ValueError(f"Khong tim thay enforcement switch cho {source} -> {destination}")
 
 
 def temporary_block(source: str, destination: str, block: bool) -> dict[str, Any]:

@@ -41,7 +41,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
   return (
     <section>
       <div className="section-title">
-        <div><h2>Chính sách SDN Edge</h2><span>Trạng thái áp dụng phải có controller acknowledgement</span></div>
+        <div><h2>Chính sách SDN Edge</h2><span>Trạng thái áp dụng phải được đúng runtime enforcement xác nhận</span></div>
         <StatusBadge status={inventory.some((item) => item.lifecycle_status === "Failed") ? "offline" : inventory.some((item) => item.lifecycle_status !== "Applied") ? "degraded" : "online"} />
       </div>
       <div className="policy-inventory" aria-live="polite">
@@ -64,7 +64,8 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
                 <div><dt>Enforcement</dt><dd>{policy.enforcement_point}</dd></div>
                 <div><dt>Priority</dt><dd>{policy.priority}</dd></div>
                 <div><dt>Cookie</dt><dd><code>{policy.cookie}</code></dd></div>
-                <div><dt>Controller ACK</dt><dd>{policy.controller_acknowledged ? "Đã xác nhận" : "Chưa xác nhận"}</dd></div>
+                <div><dt>Engine</dt><dd>{policy.enforcement_engine === "nftables" ? "nftables" : "OpenFlow"}</dd></div>
+                <div><dt aria-label="controller acknowledgement">Runtime ACK</dt><dd>{policy.runtime_acknowledged ?? policy.controller_acknowledged ? "Đã xác nhận" : "Chưa xác nhận"}</dd></div>
                 <div><dt>Cập nhật</dt><dd>{formatTime(policy.updated_at)}</dd></div>
               </dl>
               {onToggle && policy.enabled !== null && (
@@ -85,14 +86,14 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
       </div>
       <div className="explanation">
         <h3>Ranh giới thực thi</h3>
-        <p>Policy HQ thực thi tại core_hq; policy Branch thực thi tại dist_branch. CE, Firewall, MPLS và Internet Edge Boundary không được coi là OpenFlow device.</p>
-        <p>Ghi policy.yml chỉ là thay đổi cấu hình. Trạng thái Applied chỉ xuất hiện sau khi OS-Ken reload và acknowledgement thành công.</p>
+        <p>Segmentation SDN thực thi tại core_hq và dist_telesale. Internet Edge Boundary thực thi policy Internet bằng stateful nftables tại fw_hq hoặc fw_telesale; firewall không phải OpenFlow device.</p>
+        <p>Ghi policy.yml chỉ là thay đổi cấu hình. Trạng thái Applied chỉ xuất hiện sau khi OS-Ken và nftables liên quan reload, xác nhận thành công.</p>
       </div>
       <ConfirmDialog
         open={Boolean(pending)}
         title={pending?.enabled ? "Tắt chính sách đang áp dụng?" : "Bật chính sách này?"}
         message={pending
-          ? `Tác động: ${pending.action} ${pending.source} → ${pending.destination} tại ${pending.enforcement_point}. Controller sẽ reconcile flow cookie ${pending.cookie}; lưu lượng đang chạy có thể thay đổi ngay.`
+          ? `Tác động: ${pending.action} ${pending.source} → ${pending.destination} tại ${pending.enforcement_point}. ${pending.enforcement_engine === "nftables" ? "Hai firewall sẽ reload table inet cch_filter" : `Controller sẽ reconcile flow cookie ${pending.cookie}`}; lưu lượng đang chạy có thể thay đổi ngay.`
           : ""}
         confirmLabel={pending?.enabled ? "Tắt policy" : "Bật policy"}
         danger={Boolean(pending?.enabled)}

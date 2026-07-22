@@ -50,7 +50,7 @@ def timeout_for_command(command: str, payload: dict[str, Any] | None = None) -> 
         return min(float(count * ping_timeout) + PING_SAFETY_MARGIN_SECONDS, MAX_REQUEST_TIMEOUT_SECONDS)
     if command == "START_IPERF_SERVER":
         return START_IPERF_TIMEOUT_SECONDS
-    if command in {"DUMP_FLOWS", "ADD_MANUAL_DROP", "DEL_COOKIE_FLOWS"}:
+    if command in {"DUMP_FLOWS", "ADD_MANUAL_DROP", "DEL_COOKIE_FLOWS", "RELOAD_FIREWALL", "FIREWALL_STATUS"}:
         return FLOW_TIMEOUT_SECONDS
     return SHORT_TIMEOUT_SECONDS
 
@@ -131,6 +131,14 @@ def request_agent(
 
 def health() -> dict[str, Any]:
     return request_agent("HEALTH")
+
+
+def reload_firewall() -> dict[str, Any]:
+    return request_agent("RELOAD_FIREWALL")
+
+
+def firewall_status() -> dict[str, Any]:
+    return request_agent("FIREWALL_STATUS")
 
 
 def set_link_state(link_id: str, state: str) -> dict[str, Any]:

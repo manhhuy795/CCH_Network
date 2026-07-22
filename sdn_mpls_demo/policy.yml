@@ -5,7 +5,7 @@ metadata:
 
 policies:
   isolate_hq_projects: true
-  isolate_branch_vlan_50_60: true
+  isolate_telesale_backoffice: true
   allow_voice: true
   allow_zalo: true
   allow_call_app: true
@@ -38,7 +38,7 @@ policies:
       - 5986
   voice_flow_priority: true
   steer_hq_internet_to: "fw_hq"
-  steer_branch_internet_to: "fw_branch"
+  steer_telesale_internet_to: "fw_telesale"
   intersite_via_mpls_l3vpn: true
   intersite_allow: []
   softphone_model:

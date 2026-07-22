@@ -1,26 +1,18 @@
 # Generated vendor-neutral firewall policy for hq-firewall
 # Convert to the target firewall vendor syntax and validate before production.
 
-firewall: hq-firewall
+firewall: fw_hq
 site: hq
 interfaces:
   inside: inside
   outside: outside
+  runtime_inside: fw_hq-eth0
+  runtime_outside: fw_hq-eth1
 
 nat:
-  outbound:
-    - source_vlan: 20
-      source_subnet: 172.16.20.0/24
-      translated_to: outside_interface
-    - source_vlan: 30
-      source_subnet: 172.16.30.0/24
-      translated_to: outside_interface
-    - source_vlan: 40
-      source_subnet: 172.16.40.0/24
-      translated_to: outside_interface
-    - source_vlan: 90
-      source_subnet: 172.16.90.0/24
-      translated_to: outside_interface
+  enabled: False
+  mode: routed_lab
+  reason: "Internet Zone va service hosts co route tra ve tung subnet noi bo qua dung firewall site."
 
 objects:
   zalo:
@@ -37,23 +29,40 @@ objects:
     type: category
     categories: ['social-networking', 'streaming-media', 'gaming']
     notes: ""
+  general_internet:
+    type: simulation
+    notes: "Dich vu Internet tong quat chi dung trong Mininet lab."
 
 policies:
   - name: allow-zalo
     action: allow
-    source_vlans: [20, 30, 40]
+    source_vlans: [20, 30, 40, 60, 70]
     destination: ['internet']
     applications: ['zalo']
+    enable_flag: allow_zalo
+    counter: True
     log: True
   - name: allow-call-app
     action: allow
-    source_vlans: [20, 30, 40]
+    source_vlans: [20, 30, 40, 60, 70]
     destination: ['internet']
     applications: ['call_app']
+    enable_flag: allow_call_app
+    counter: True
     log: True
   - name: deny-social-media
     action: deny
-    source_vlans: [20, 30, 40]
+    source_vlans: [20, 30, 40, 60, 70]
     destination: ['internet']
     applications: ['social_media']
+    enable_flag: block_social_media
+    counter: True
+    log: True
+  - name: allow-general-internet
+    action: allow
+    source_vlans: [20, 30, 40, 60, 70]
+    destination: ['internet']
+    applications: ['general_internet']
+    enable_flag: allow_general_internet
+    counter: True
     log: True

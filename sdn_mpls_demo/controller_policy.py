@@ -19,14 +19,34 @@ from os_ken.lib.packet import ethernet, ether_types, icmp, ipv4, packet
 from os_ken.ofproto import ofproto_v1_3
 
 try:
-    from .policy_engine import ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, PolicyEngine
-    from scripts.network_model import dpid_name_map, load_network_model
+    from .policy_engine import (
+        ICMP_ECHO_REPLY,
+        ICMP_ECHO_REQUEST,
+        POLICY_FLOW_PROFILES,
+        PolicyEngine,
+    )
+    from scripts.network_model import (
+        controlled_switches,
+        controller_dpid_name_map,
+        enforcement_switch_for_group,
+        load_network_model,
+    )
 except ImportError:
-    from policy_engine import ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, PolicyEngine
+    from policy_engine import (
+        ICMP_ECHO_REPLY,
+        ICMP_ECHO_REQUEST,
+        POLICY_FLOW_PROFILES,
+        PolicyEngine,
+    )
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from scripts.network_model import dpid_name_map, load_network_model
+    from scripts.network_model import (
+        controlled_switches,
+        controller_dpid_name_map,
+        enforcement_switch_for_group,
+        load_network_model,
+    )
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -38,30 +58,19 @@ ADMIN_SOCKET = Path(os.environ.get("CCH_OSKEN_ADMIN_SOCKET", "/tmp/cch_osken_adm
 ADMIN_TOKEN = os.environ.get("CCH_OSKEN_ADMIN_TOKEN", "cch-local-admin-token")
 
 NETWORK_MODEL = load_network_model()
-DPID_NAMES = dpid_name_map(NETWORK_MODEL)
+CONTROLLER_TARGETS = frozenset(controlled_switches(NETWORK_MODEL))
+DPID_NAMES = controller_dpid_name_map(NETWORK_MODEL)
 SWITCH_ROLES = {
     name: switch.get("role", "unknown")
     for name, switch in NETWORK_MODEL["switches"].items()
 }
 ENFORCEMENT_SWITCH_BY_GROUP = {
-    group_name: ("dist_branch" if group["site"] == "Branch" else "core_hq")
-    for group_name, group in NETWORK_MODEL["host_groups"].items()
+    group_name: enforcement_switch_for_group(NETWORK_MODEL, group_name)
+    for group_name in NETWORK_MODEL["host_groups"]
 }
 POLICY_COOKIES = {
-    "hq_project_isolation": 0x1001,
-    "branch_isolation": 0x1002,
-    "hq_social_block": 0x1003,
-    "branch_social_block": 0x1004,
-    "allowed_services": 0x1100,
-    "voice": 0x1200,
-    "it_support": 0x1301,
-    "it_support_return": 0x1302,
-    "it_inbound_block": 0x1303,
-    "it_social_block": 0x1304,
-    "reactive_policy_drop": 0x1000,
-    "transit_to_enforcement": 0x1100,
-    "internet_inbound_block": 0x1100,
-    "runtime": 0x0000,
+    policy_id: int(profile["cookie"])
+    for policy_id, profile in POLICY_FLOW_PROFILES.items()
 }
 
 
@@ -93,12 +102,31 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             )
             temp_file.replace(FLOWS_FILE)
 
-    def _record(self, **entry: Any) -> None:
-        payload = {"timestamp": utc_now(), **entry}
-        self.installed_flows.append(payload)
-        self._write_flows()
+    @staticmethod
+    def _flow_record_identity(entry: dict[str, Any]) -> tuple[Any, ...]:
+        return (
+            entry.get("switch"),
+            entry.get("cookie"),
+            entry.get("priority"),
+            entry.get("match"),
+        )
+
+    @staticmethod
+    def _write_event(payload: dict[str, Any]) -> None:
         with EVENTS_FILE.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    def _record(self, **entry: Any) -> None:
+        payload = {"timestamp": utc_now(), **entry}
+        identity = self._flow_record_identity(payload)
+        self.installed_flows = [
+            existing
+            for existing in self.installed_flows
+            if self._flow_record_identity(existing) != identity
+        ]
+        self.installed_flows.append(payload)
+        self._write_flows()
+        self._write_event(payload)
 
     def _start_admin_socket(self) -> None:
         if not hasattr(socket, "AF_UNIX"):
@@ -152,19 +180,30 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             )
         )
         switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
-        self._record(
-            switch=switch_name,
-            switch_role=SWITCH_ROLES.get(switch_name, "unknown"),
-            priority=0,
-            match="cookie-delete",
-            action="DELETE",
-            source="*",
-            destination="*",
-            reason="Reload policy: xoa flow cu theo cookie.",
-            policy="policy_reload",
-            cookie=f"0x{cookie:x}",
-            enforcement_switch=switch_name,
-        )
+        cookie_label = f"0x{cookie:x}"
+        self.installed_flows = [
+            flow
+            for flow in self.installed_flows
+            if not (
+                flow.get("switch") == switch_name
+                and flow.get("cookie") == cookie_label
+            )
+        ]
+        self._write_flows()
+        self._write_event({
+            "timestamp": utc_now(),
+            "switch": switch_name,
+            "switch_role": SWITCH_ROLES.get(switch_name, "unknown"),
+            "priority": 0,
+            "match": "cookie-delete",
+            "action": "DELETE",
+            "source": "*",
+            "destination": "*",
+            "reason": "Reload policy: xoa flow cu theo cookie.",
+            "policy": "policy_reload",
+            "cookie": cookie_label,
+            "enforcement_switch": switch_name,
+        })
 
     def reload_policy(self) -> dict[str, Any]:
         old_policies = dict(self.policy.policies)
@@ -248,55 +287,53 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         """Cài DROP chủ động để segmentation không phụ thuộc gói Packet-In đầu tiên."""
         parser = datapath.ofproto_parser
         switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
-        if switch_name == "core_hq" and self.policy.policies["isolate_hq_projects"]:
-            isolation_pairs = (
-                ("project_a", "project_b", "hq_project_isolation"),
-                ("project_a", "project_c", "hq_project_isolation"),
-                ("project_b", "project_c", "hq_project_isolation"),
+        all_specs = self.policy.isolation_flow_specs()
+        identities = self.policy.isolation_flow_identities()
+        if len(identities) != len(set(identities)):
+            raise RuntimeError("Policy isolation tao flow identity trung lap.")
+        switch_specs = [spec for spec in all_specs if spec["switch"] == switch_name]
+        if not switch_specs:
+            self.logger.info(
+                "Khong cai isolation DROP tren %s; access OVS chi transit/local switching.",
+                switch_name,
             )
-        elif switch_name == "dist_branch" and self.policy.policies["isolate_branch_vlan_50_60"]:
-            isolation_pairs = (("telesale", "backoffice", "branch_isolation"),)
-        else:
-            self.logger.info("Khong cai isolation DROP tren %s; access OVS chi transit/local switching.", switch_name)
             return
 
-        for left_group, right_group, policy_id in isolation_pairs:
-            left_network = self.policy.networks[left_group]
-            right_network = self.policy.networks[right_group]
-            for source_network, destination_network in (
-                (left_network, right_network),
-                (right_network, left_network),
-            ):
-                match = parser.OFPMatch(
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ipv4_src=(
-                        str(source_network.network_address),
-                        str(source_network.netmask),
-                    ),
-                    ipv4_dst=(
-                        str(destination_network.network_address),
-                        str(destination_network.netmask),
-                    ),
-                )
-                self.add_flow(
-                    datapath,
-                    400,
-                    match,
-                    [],
-                    {
-                        "action": "DROP",
-                        "source": str(source_network),
-                        "destination": str(destination_network),
-                        "policy": policy_id,
-                        "enforcement_switch": switch_name,
-                        "reason": "Cách ly VLAN chủ động tại SDN Edge.",
-                    },
-                    idle_timeout=0,
-                )
+        for spec in switch_specs:
+            source_network = ipaddress.ip_network(spec["source_network"])
+            destination_network = ipaddress.ip_network(spec["destination_network"])
+            match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_IP,
+                ipv4_src=(
+                    str(source_network.network_address),
+                    str(source_network.netmask),
+                ),
+                ipv4_dst=(
+                    str(destination_network.network_address),
+                    str(destination_network.netmask),
+                ),
+            )
+            self.add_flow(
+                datapath,
+                spec["priority"],
+                match,
+                [],
+                {
+                    "action": spec["action"],
+                    "source": spec["source_network"],
+                    "destination": spec["destination_network"],
+                    "policy": spec["policy"],
+                    "cookie": spec["cookie"],
+                    "enforcement_switch": spec["switch"],
+                    "reason": "Cách ly VLAN chủ động tại SDN Edge.",
+                },
+                idle_timeout=0,
+            )
         self.logger.info("Đã cài isolation flow chủ động priority 400 trên %s.", switch_name)
 
     def install_it_support_flows(self, datapath):
         """Cài ALLOW chủ động cho VLAN IT để remote/support đi ổn định qua mọi OVS."""
+        # Internet service policy belongs to the two nftables firewalls.
         if not self.policy.policies.get("allow_it_support_controlled_access", False):
             return
 
@@ -313,32 +350,21 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             return
 
         it_policy = self.policy.policies.get("it_support_controlled_access") or {}
+        allowed_services = set(it_policy.get("allowed_services", []))
+        denied_services = set(it_policy.get("denied_services", []))
         managed_group_names = set(
             it_policy.get(
                 "managed_user_groups",
                 ["project_a", "project_b", "project_c", "telesale", "backoffice"],
             )
         )
-        allowed_services = set(
-            it_policy.get(
-                "allowed_services",
-                self.policy.policies.get("it_support_allowed_services", ["h90", "hzalo", "hcall"]),
-            )
-        )
-        denied_services = set(it_policy.get("denied_services", ["hsocial"]))
-
-        internal_destinations: list[tuple[str, str]] = [
+        service_destinations: list[tuple[str, str]] = [
             (name, str(network))
             for name, network in self.policy.networks.items()
             if name in managed_group_names
         ]
-        service_destinations: list[tuple[str, str]] = [
-            (name, f"{service['ip']}/32")
-            for name, service in self.policy.services.items()
-            if "ip" in service and name in allowed_services and name not in denied_services
-        ]
 
-        for destination_name, destination_prefix in internal_destinations:
+        for destination_name, destination_prefix in service_destinations:
             destination_network = ipaddress.ip_network(destination_prefix)
             for source_network, target_network, source_label, target_label in (
                 (it_network, destination_network, "it_support", destination_name),
@@ -410,83 +436,54 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     idle_timeout=0,
                 )
 
-        for destination_name, destination_prefix in service_destinations:
-            destination_network = ipaddress.ip_network(destination_prefix)
-            for source_network, target_network, source_label, target_label in (
-                (it_network, destination_network, "it_support", destination_name),
-            ):
-                match = parser.OFPMatch(
+        for name in allowed_services:
+            service = self.policy.services.get(name, {})
+            if "ip" in service and name in allowed_services:
+                service_network = ipaddress.ip_network(f"{service['ip']}/32")
+                service_match = parser.OFPMatch(
                     eth_type=ether_types.ETH_TYPE_IP,
-                    ip_proto=1,
-                    icmpv4_type=ICMP_ECHO_REQUEST,
-                    ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
-                    ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
-                )
-                self.add_flow(
-                    datapath,
-                    450,
-                    match,
-                    normal_actions,
-                    {
-                        "action": "ALLOW",
-                        "source": source_label,
-                        "destination": target_label,
-                        "policy": "it_support",
-                        "enforcement_switch": switch_name,
-                        "reason": "IT Support chi duoc ping kiem tra dich vu quan tri duoc khai bao.",
-                    },
-                    idle_timeout=0,
-                )
-                return_match = parser.OFPMatch(
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ip_proto=1,
-                    icmpv4_type=ICMP_ECHO_REPLY,
-                    ipv4_src=(str(target_network.network_address), str(target_network.netmask)),
-                    ipv4_dst=(str(source_network.network_address), str(source_network.netmask)),
-                )
-                self.add_flow(
-                    datapath,
-                    450,
-                    return_match,
-                    normal_actions,
-                    {
-                        "action": "ALLOW",
-                        "source": target_label,
-                        "destination": source_label,
-                        "policy": "it_support_return",
-                        "enforcement_switch": switch_name,
-                        "reason": "Chi cho phep ICMP echo-reply ve IT cho phien IT khoi tao.",
-                    },
-                    idle_timeout=0,
-                )
-
-        social = self.policy.services.get("hsocial", {})
-        if self.policy.policies.get("block_social_media", False) and "ip" in social:
-            social_network = ipaddress.ip_network(f"{social['ip']}/32")
-            for source_network, target_network, source_label, target_label in (
-                (it_network, social_network, "it_support", "hsocial"),
-                (social_network, it_network, "hsocial", "it_support"),
-            ):
-                match = parser.OFPMatch(
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
-                    ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
+                    ipv4_src=(str(it_network.network_address), str(it_network.netmask)),
+                    ipv4_dst=(str(service_network.network_address), str(service_network.netmask)),
                 )
                 self.add_flow(
                     datapath,
                     470,
-                    match,
-                    [],
+                    service_match,
+                    normal_actions,
                     {
-                        "action": "DROP",
-                        "source": source_label,
-                        "destination": target_label,
-                        "policy": "it_social_block",
+                        "action": "ALLOW",
+                        "source": "it_support",
+                        "destination": name,
+                        "policy": "it_support_service",
                         "enforcement_switch": switch_name,
-                        "reason": "IT Support khong duoc bypass chinh sach Social Media.",
+                        "reason": "IT Support chi duoc truy cap dich vu nam trong allowed_services.",
                     },
                     idle_timeout=0,
                 )
+
+        social = self.policy.services.get("hsocial")
+        if social and "ip" in social and "hsocial" in denied_services:
+            social_network = ipaddress.ip_network(f"{social['ip']}/32")
+            social_match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_IP,
+                ipv4_src=(str(it_network.network_address), str(it_network.netmask)),
+                ipv4_dst=(str(social_network.network_address), str(social_network.netmask)),
+            )
+            self.add_flow(
+                datapath,
+                470,
+                social_match,
+                [],
+                {
+                    "action": "DROP",
+                    "source": "it_support",
+                    "destination": "hsocial",
+                    "policy": "it_social_block",
+                    "enforcement_switch": switch_name,
+                    "reason": "IT Support khong duoc bypass chinh sach Social Media.",
+                },
+                idle_timeout=0,
+            )
 
     def install_voice_flows(self, datapath):
         """Cai ALLOW chu dong hai chieu cho PBX/SBC Voice reachability; day chua phai QoS hoan chinh."""
@@ -500,10 +497,20 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         parser = datapath.ofproto_parser
         normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
         normal_actions = [parser.OFPActionOutput(normal_port)]
+        switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
         voice_network = ipaddress.ip_network(f"{voice_service['ip']}/32")
-        priority = 425 if self.policy.policies.get("voice_flow_priority", False) else 350
+        priority = (
+            POLICY_FLOW_PROFILES["voice"]["priority"]
+            if self.policy.policies.get("voice_flow_priority", False)
+            else 350
+        )
 
-        for group_name, user_network in self.policy.networks.items():
+        managed_networks = [
+            (group_name, user_network)
+            for group_name, user_network in self.policy.networks.items()
+            if ENFORCEMENT_SWITCH_BY_GROUP[group_name] == switch_name
+        ]
+        for group_name, user_network in managed_networks:
             for source_network, target_network, source_label, target_label in (
                 (user_network, voice_network, group_name, "h90"),
                 (voice_network, user_network, "h90", group_name),
@@ -523,124 +530,42 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "source": source_label,
                         "destination": target_label,
                         "policy": "voice",
-                        "enforcement_switch": DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}"),
+                        "enforcement_switch": switch_name,
                         "reason": "Voice duoc nhan dien va ap dung flow policy uu tien.",
                     },
                     idle_timeout=0,
                 )
 
-    def install_service_policy_flows(self, datapath):
-        """Cài flow chủ động cho Internet services để kết quả ping khớp policy ổn định."""
-        parser = datapath.ofproto_parser
-        normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
-        normal_actions = [parser.OFPActionOutput(normal_port)]
-        switch_name = DPID_NAMES.get(datapath.id, f"dpid-{datapath.id}")
-        user_networks = [
-            (name, network)
-            for name, network in self.policy.networks.items()
-            if name != "it_support"
-        ]
-        allowed_service_names = []
-        if self.policy.policies.get("allow_zalo", False):
-            allowed_service_names.append("hzalo")
-        if self.policy.policies.get("allow_call_app", False):
-            allowed_service_names.append("hcall")
-        if self.policy.policies.get("allow_general_internet", False):
-            allowed_service_names.append("hinternet")
-
-        for service_name in allowed_service_names:
-            service = self.policy.services.get(service_name, {})
-            if "ip" not in service:
-                continue
-            service_network = ipaddress.ip_network(f"{service['ip']}/32")
-            for group_name, user_network in user_networks:
-                for source_network, target_network, source_label, target_label in (
-                    (user_network, service_network, group_name, service_name),
-                    (service_network, user_network, service_name, group_name),
-                ):
-                    match = parser.OFPMatch(
-                        eth_type=ether_types.ETH_TYPE_IP,
-                        ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
-                        ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
-                    )
-                    self.add_flow(
-                        datapath,
-                        330,
-                        match,
-                        normal_actions,
-                        {
-                            "action": "ALLOW",
-                            "source": source_label,
-                            "destination": target_label,
-                            "policy": "allowed_services",
-                            "enforcement_switch": switch_name,
-                            "reason": "Service duoc policy cho phep; return traffic duoc chap nhan.",
-                        },
-                        idle_timeout=0,
-                    )
-                echo_request_match = parser.OFPMatch(
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ip_proto=1,
-                    icmpv4_type=ICMP_ECHO_REQUEST,
-                    ipv4_src=(str(service_network.network_address), str(service_network.netmask)),
-                    ipv4_dst=(str(user_network.network_address), str(user_network.netmask)),
-                )
-                if switch_name == ENFORCEMENT_SWITCH_BY_GROUP[group_name]:
-                    self.add_flow(
-                        datapath,
-                        385,
-                        echo_request_match,
-                        [],
-                        {
-                            "action": "DROP",
-                            "source": service_name,
-                            "destination": group_name,
-                            "policy": "internet_inbound_block",
-                            "enforcement_switch": switch_name,
-                            "reason": "Chan ping chu dong tu Internet/service vao user noi bo.",
-                        },
-                        idle_timeout=0,
-                    )
-
-        social = self.policy.services.get("hsocial", {})
-        if self.policy.policies.get("block_social_media", False) and "ip" in social:
-            social_network = ipaddress.ip_network(f"{social['ip']}/32")
-            for group_name, user_network in user_networks:
-                for source_network, target_network, source_label, target_label in (
-                    (user_network, social_network, group_name, "hsocial"),
-                    (social_network, user_network, "hsocial", group_name),
-                ):
-                    match = parser.OFPMatch(
-                        eth_type=ether_types.ETH_TYPE_IP,
-                        ipv4_src=(str(source_network.network_address), str(source_network.netmask)),
-                        ipv4_dst=(str(target_network.network_address), str(target_network.netmask)),
-                    )
-                    if switch_name == ENFORCEMENT_SWITCH_BY_GROUP[group_name]:
-                        self.add_flow(
-                            datapath,
-                            390,
-                            match,
-                            [],
-                            {
-                                "action": "DROP",
-                                "source": source_label,
-                                "destination": target_label,
-                                "policy": "branch_social_block" if switch_name == "dist_branch" else "hq_social_block",
-                                "enforcement_switch": switch_name,
-                                "reason": "Block Social Media cho user thuong.",
-                            },
-                            idle_timeout=0,
-                        )
-
     def install_policy_flows(self, datapath) -> None:
         self.install_isolation_flows(datapath)
-        self.install_service_policy_flows(datapath)
         self.install_voice_flows(datapath)
         self.install_it_support_flows(datapath)
+
+    def install_arp_transit_flow(self, datapath) -> None:
+        """Forward ARP locally so the first permitted IP test does not wait on Packet-In learning."""
+        parser = datapath.ofproto_parser
+        normal_port = getattr(datapath.ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
+        self.add_flow(
+            datapath,
+            100,
+            parser.OFPMatch(eth_type=ether_types.ETH_TYPE_ARP),
+            [parser.OFPActionOutput(normal_port)],
+            {
+                "action": "ALLOW",
+                "reason": "Baseline ARP transit; khong bypass policy IPv4.",
+            },
+            idle_timeout=0,
+        )
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
         datapath = event.msg.datapath
+        if datapath.id not in DPID_NAMES:
+            self.logger.error(
+                "Tu choi datapath ngoai controller target set: dpid=%016x",
+                datapath.id,
+            )
+            return
         self.datapaths[datapath.id] = datapath
         parser = datapath.ofproto_parser
         actions = [
@@ -657,6 +582,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             {"action": "PACKET_IN", "reason": "Table-miss gửi gói đầu tiên lên controller."},
             idle_timeout=0,
         )
+        self.install_arp_transit_flow(datapath)
         self.install_policy_flows(datapath)
         self.logger.info("OVS %s đã kết nối, cài table-miss.", DPID_NAMES.get(datapath.id, datapath.id))
 
@@ -664,6 +590,8 @@ class CallCenterPolicyController(app_manager.OSKenApp):
     def packet_in_handler(self, event):
         msg = event.msg
         datapath = msg.datapath
+        if datapath.id not in DPID_NAMES:
+            return
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         in_port = msg.match["in_port"]
@@ -702,7 +630,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                 if switch_name == decision.get("blocked_at"):
                     self.add_flow(
                         datapath,
-                        300,
+                        POLICY_FLOW_PROFILES["reactive_policy_drop"]["priority"],
                         match,
                         [],
                         {
@@ -720,7 +648,13 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                         "reason": f"Transit toi enforcement switch {decision.get('blocked_at')}; khong DROP tai {switch_name}.",
                     }
                     if out_port != ofproto.OFPP_FLOOD:
-                        self.add_flow(datapath, 180, match, actions, metadata)
+                        self.add_flow(
+                            datapath,
+                            POLICY_FLOW_PROFILES["transit_to_enforcement"]["priority"],
+                            match,
+                            actions,
+                            metadata,
+                        )
                     return
                 self.logger.info(
                     "CHẶN %s -> %s tại %s: %s",

@@ -34,6 +34,7 @@ def test_successful_reload_records_applied_only_with_controller_ack(monkeypatch,
     monkeypatch.setattr(policy, "ADMIN_SOCKET", controller_socket)
     monkeypatch.setattr(policy.live_mininet, "reload_policy_engine", lambda: None)
     monkeypatch.setattr(policy, "_controller_reload", lambda: {"ok": True, "switches_updated": ["core_hq"], "flows_installed": 4})
+    monkeypatch.setattr(policy, "_firewall_reload", lambda: {"ok": True, "rules_applied": 1})
 
     current = policy._load_policy_file()["policies"]["block_social_media"]
     result = policy.toggle_policy("block_social_media", not current)

@@ -6,14 +6,13 @@ site: {{ device.site }}
 interfaces:
   inside: {{ firewall_site.inside_interface }}
   outside: {{ firewall_site.outside_interface }}
+  runtime_inside: {{ firewall_site.runtime_interfaces.inside }}
+  runtime_outside: {{ firewall_site.runtime_interfaces.outside }}
 
 nat:
-  outbound:
-{% for vlan_id in firewall_site.nat_source_vlans %}
-    - source_vlan: {{ vlan_id }}
-      source_subnet: {{ vlans_by_id[vlan_id].subnet }}
-      translated_to: outside_interface
-{% endfor %}
+  enabled: {{ config.firewall_policy.runtime_defaults.nat.enabled }}
+  mode: {{ config.firewall_policy.runtime_defaults.nat.mode }}
+  reason: "{{ config.firewall_policy.runtime_defaults.nat.reason }}"
 
 objects:
 {% for name, object in config.firewall_policy.shared_objects.applications.items() %}
@@ -41,5 +40,7 @@ policies:
     source_vlans: {{ policy.sources }}
     destination: {{ policy.destinations }}
     applications: {{ policy.applications }}
+    enable_flag: {{ policy.enable_flag }}
+    counter: {{ config.firewall_policy.runtime_defaults.counter_enabled }}
     log: {{ policy.log }}
 {% endfor %}

@@ -161,6 +161,9 @@ def render_device_config(config: dict[str, Any], device: dict[str, Any]) -> str:
         vlans_by_id=vlans_by_id(config),
         site_vlans=vlans_for_site(config, device["site"]),
         interfaces=config.get("interfaces", {}).get(device["name"], {}),
-        routes=config.get("routes", {}).get(device["name"], {}),
+        routes=(
+            config.get("routes", {}).get(device["name"])
+            or config.get("routes", {}).get(device.get("model_node", ""), {})
+        ),
         firewall_site=config.get("firewall_policy", {}).get("sites", {}).get(device["site"], {}),
     )

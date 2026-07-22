@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import TopologyCanvas from "./TopologyCanvas";
 import type { Topology } from "../api/client";
 
-const switches = ["access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq", "access_branch", "dist_branch"];
+const switches = ["access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq", "access_telesale", "dist_telesale", "access_backoffice"];
 const topology: Topology = {
   nodes: [
     { id: "c0", label: "OS-Ken", type: "controller" },
@@ -13,7 +13,7 @@ const topology: Topology = {
   hosts: [],
   links: [{ id: "project_a-access_hq_a", source: "project_a", target: "access_hq_a", type: "access", status: "up" }],
   policy_map: {},
-  summary: { user_count: 1, service_count: 0, controlled_ovs_count: 8 },
+  summary: { user_count: 1, service_count: 0, controlled_ovs_count: 9 },
 };
 
 const props = {
@@ -31,10 +31,10 @@ const props = {
 };
 
 describe("TopologyCanvas", () => {
-  it("draws controller control paths only to eight OVS in technical mode", () => {
+  it("draws controller control paths only to nine OVS in technical mode", () => {
     render(<TopologyCanvas {...props} />);
     fireEvent.click(screen.getByText("Kỹ thuật"));
-    expect(screen.getAllByTestId("control-path")).toHaveLength(8);
+    expect(screen.getAllByTestId("control-path")).toHaveLength(9);
   });
 
   it("opens node inspector with controller ownership and flow data", () => {

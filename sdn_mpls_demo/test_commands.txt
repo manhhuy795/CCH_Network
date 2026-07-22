@@ -6,7 +6,7 @@ isolationflows
 
 # testpolicy se in chi tiet cac nhom:
 # - Project isolation
-# - Branch isolation
+# - Telesale/BackOffice isolation
 # - Voice
 # - Internet services
 # - Social block
@@ -39,7 +39,8 @@ hinternet ping -c 2 h70_01  # expected fail
 # Real OpenFlow inspection.
 sh ovs-ofctl -O OpenFlow13 dump-flows access_hq_a
 sh ovs-ofctl -O OpenFlow13 dump-flows core_hq
-sh ovs-ofctl -O OpenFlow13 dump-flows dist_branch
+sh ovs-ofctl -O OpenFlow13 dump-flows dist_telesale
+sh ovs-ofctl -O OpenFlow13 dump-flows access_bo
 
 # From Ubuntu terminal outside Mininet.
 # sudo python3 sdn_mpls_demo/metrics_collector.py ping --source h20_01 --destination h90

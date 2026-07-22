@@ -6,8 +6,8 @@
 
 ## Simulation Honesty
 
-- `fw_hq` va `fw_branch` trong SDN/Mininet demo la **Internet Edge Boundary** chay bang Linux router namespace.
-- Chung mo phong diem breakout/policy boundary, chua phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
+- `fw_hq` va `fw_telesale` trong SDN/Mininet demo la **stateful nftables firewall** chay trong hai Linux network namespace rieng.
+- Hai firewall thuc thi Internet service policy, inbound default-deny, conntrack return traffic va counter that; chung van la lab, khong thay the firewall production.
 - MPLS trong demo la **MPLS L3VPN Logic Cloud**, khong phai PE/P provider core hoan chinh.
 
 Dự án gồm hai phần:
@@ -15,7 +15,7 @@ Dự án gồm hai phần:
 - **Network Automation**: dùng YAML, Jinja2, Python và Ansible để sinh, kiểm tra, backup/deploy/rollback cấu hình mạng.
 - **SDN runtime demo**: dùng Mininet, Open vSwitch, OS-Ken Controller và OpenFlow 1.3 để demo SDN Edge Policy cho Call Center BPO.
 
-MPLS L3VPN trong module SDN là **MPLS L3VPN Logic Cloud**: mô phỏng logic WAN transport giữa HQ và Branch, không phải MPLS provider-grade hoàn chỉnh. Firewall hiện là Linux router mô phỏng Internet Edge nếu chưa cấu hình nftables/iptables thật.
+MPLS L3VPN trong module SDN là **MPLS L3VPN Logic Cloud**: mô phỏng logic WAN transport giữa HQ và Branch, không phải MPLS provider-grade hoàn chỉnh. Internet breakout được kiểm soát thật bằng nftables tại `fw_hq` và `fw_telesale`.
 
 Phân biệt rõ hai track:
 
@@ -82,8 +82,8 @@ VLAN được biểu diễn bằng subnet và phân tách Access Switch trong ph
 HQ Core SDN
 → CE Router HQ
 → MPLS L3VPN Logic Cloud
-→ CE Router Branch
-→ Branch Distribution SDN
+→ CE Router Telesale
+→ Telesale Distribution SDN
 ```
 
 Internet HQ:
@@ -95,10 +95,10 @@ HQ Core SDN → Firewall HQ → Internet Zone → Service
 Internet Branch:
 
 ```text
-Branch Distribution SDN → Firewall Branch → Internet Zone → Service
+Telesale Distribution SDN → Firewall Telesale → Internet Zone → Service
 ```
 
-Controller chỉ điều khiển 8 Open vSwitch:
+Controller chỉ điều khiển 9 Open vSwitch:
 
 - `access_hq_a`
 - `access_hq_b`
@@ -106,16 +106,18 @@ Controller chỉ điều khiển 8 Open vSwitch:
 - `access_hq_it`
 - `voice_access`
 - `core_hq`
-- `access_branch`
-- `dist_branch`
+- `access_telesale`
+- `dist_telesale`
+- `access_backoffice` (logical ID; Linux runtime bridge: `access_bo`)
 
 Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cloud.
 
 ## Policy
 
 - Project A/B/C bị cách ly tại `core_hq`.
-- VLAN 50 và VLAN 60 bị cách ly tại `dist_branch`.
-- Social Media bị drop tại SDN Edge: HQ drop ở `core_hq`, Branch drop ở `dist_branch`.
+- Telesale VLAN 50 → BackOffice VLAN 60 bị chặn tại `dist_telesale`.
+- BackOffice VLAN 60 → Telesale VLAN 50 bị chặn tại `core_hq`.
+- Social Media bị drop tại SDN Edge: HQ drop ở `core_hq`, Telesale drop ở `dist_telesale`.
 - User thường được truy cập Voice, Zalo, Call App và General Internet nếu policy cho phép.
 - IT Support có quyền remote/support có kiểm soát theo policy.
 - Internet/service bên ngoài không được chủ động ping vào user nội bộ.
@@ -128,7 +130,7 @@ Ubuntu 24.04 được khuyến nghị cho module `sdn_mpls_demo`.
 
 ```bash
 sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip mininet openvswitch-switch iperf3 curl
+sudo apt install -y git python3 python3-venv python3-pip mininet openvswitch-switch iperf3 nftables tcpdump curl
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 node -v
@@ -235,6 +237,8 @@ Luu y quan trong: generated Cisco config khong duoc load vao OVS va khong dung d
 
 ## Test Trong Mininet
 
+Checkpoint nftables Phase 44: `docs/phase_44_ubuntu_firewall_validation_vi.md`.
+
 Trong prompt `mininet>`:
 
 ```text
@@ -253,9 +257,9 @@ Kỳ vọng:
 
 - `h20_01 → h30_01`: fail tại `core_hq`.
 - `h20_01 → hcall`: pass qua `fw_hq`.
-- `h20_01 → hsocial`: fail tại `core_hq`.
-- `h50_01 → hcall`: pass qua `fw_branch`.
-- `h50_01 → hsocial`: fail tại `dist_branch`.
+- `h20_01 → hsocial`: fail tại `fw_hq` bằng nftables.
+- `h50_01 → hcall`: pass qua `fw_telesale`.
+- `h50_01 → hsocial`: fail tại `fw_telesale` bằng nftables.
 - `h70_01 → h20_01`: pass theo policy IT Support.
 - `hinternet → h20_01`: fail inbound từ Internet.
 
@@ -290,7 +294,8 @@ pytest
 ## Giới Hạn Mô Phỏng
 
 - MPLS Cloud chỉ là WAN transport logic.
-- Firewall chỉ mô phỏng Internet Edge nếu chưa có iptables/nftables thật.
+- Social/Internet inbound bị chặn tại `fw_hq` hoặc `fw_telesale`; Project và cross-site isolation vẫn bị chặn bằng OpenFlow.
+- Firewall dùng nftables/conntrack thật trong namespace Mininet, nhưng vẫn là firewall lab chứ không phải appliance production.
 - Voice Flow Priority chưa phải QoS hoàn chỉnh.
 - Softphone như Cfono/Gphone cần kiểm thử thật thêm SIP registration, call setup, RTP media, one-way audio, NAT/SBC và QoS.
 - Lab không mở ping ngang giữa Project/Telesale/BackOffice chỉ vì máy agent có cài softphone.

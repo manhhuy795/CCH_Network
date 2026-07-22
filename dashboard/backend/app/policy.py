@@ -21,6 +21,12 @@ ADMIN_TOKEN = os.environ.get("CCH_OSKEN_ADMIN_TOKEN", "cch-local-admin-token")
 POLICY_FILE = live_mininet.POLICY_FILE
 POLICY_BACKUP_DIR = POLICY_FILE.parent / "runtime" / "policy_backups"
 POLICY_STATUS_FILE = POLICY_FILE.parent / "runtime" / "policy_apply_status.json"
+FIREWALL_POLICY_KEYS = {
+    "allow_zalo",
+    "allow_call_app",
+    "allow_general_internet",
+    "block_social_media",
+}
 
 POLICY_CATALOG: dict[str, dict[str, Any]] = {
     "isolate_hq_projects": {
@@ -33,13 +39,13 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "priority": 400,
         "cookie": "0x1001",
     },
-    "isolate_branch_vlan_50_60": {
+    "isolate_telesale_backoffice": {
         "name": "Cô lập VLAN 50 và VLAN 60",
-        "description": "Cô lập Telesale VLAN 50 và BackOffice VLAN 60 tại Branch.",
+        "description": "Cô lập hai chiều giữa Telesale VLAN 50 và BackOffice VLAN 60 tại HQ.",
         "source": "VLAN 50 / 60",
         "destination": "VLAN 60 / 50",
         "action": "DROP",
-        "enforcement_point": "dist_branch",
+        "enforcement_point": "dist_telesale / core_hq theo chieu nguon",
         "priority": 400,
         "cookie": "0x1002",
     },
@@ -49,7 +55,7 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "source": "VLAN 20 / 30 / 40 / 50 / 60 / 70",
         "destination": "h90 · Voice Service",
         "action": "ALLOW",
-        "enforcement_point": "core_hq / dist_branch",
+        "enforcement_point": "core_hq / dist_telesale",
         "priority": 425,
         "cookie": "0x1200",
     },
@@ -59,9 +65,9 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "source": "User VLAN được cấp quyền",
         "destination": "hzalo",
         "action": "ALLOW",
-        "enforcement_point": "core_hq / dist_branch",
-        "priority": 330,
-        "cookie": "0x1100",
+        "enforcement_point": "fw_hq / fw_telesale (nftables)",
+        "priority": 0,
+        "cookie": "n/a",
     },
     "allow_call_app": {
         "name": "Cho phép Call App / CRM",
@@ -69,9 +75,9 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "source": "User VLAN được cấp quyền",
         "destination": "hcall",
         "action": "ALLOW",
-        "enforcement_point": "core_hq / dist_branch",
-        "priority": 330,
-        "cookie": "0x1100",
+        "enforcement_point": "fw_hq / fw_telesale (nftables)",
+        "priority": 0,
+        "cookie": "n/a",
     },
     "allow_general_internet": {
         "name": "Cho phép Internet thông thường",
@@ -79,9 +85,9 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "source": "User VLAN được cấp quyền",
         "destination": "hinternet",
         "action": "ALLOW",
-        "enforcement_point": "core_hq / dist_branch",
-        "priority": 330,
-        "cookie": "0x1100",
+        "enforcement_point": "fw_hq / fw_telesale (nftables)",
+        "priority": 0,
+        "cookie": "n/a",
     },
     "block_social_media": {
         "name": "Chặn Social Media",
@@ -89,9 +95,9 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "source": "VLAN 20 / 30 / 40 / 50 / 60 / 70",
         "destination": "hsocial",
         "action": "DROP",
-        "enforcement_point": "core_hq / dist_branch",
-        "priority": 470,
-        "cookie": "0x1304",
+        "enforcement_point": "fw_hq / fw_telesale (nftables)",
+        "priority": 0,
+        "cookie": "n/a",
     },
     "allow_it_support_controlled_access": {
         "name": "IT Support truy cập có kiểm soát",
@@ -109,17 +115,17 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
         "source": "User VLAN được cấp quyền",
         "destination": "h90 · Voice Service",
         "action": "ALLOW",
-        "enforcement_point": "core_hq / dist_branch",
+        "enforcement_point": "core_hq / dist_telesale",
         "priority": 425,
         "cookie": "0x1200",
     },
     "intersite_via_mpls_l3vpn": {
         "name": "Liên site qua MPLS L3VPN Logic",
         "description": "Định tuyến logic liên site qua MPLS L3VPN Cloud; không program PE/P.",
-        "source": "HQ / Branch được policy cho phép",
+        "source": "HQ / Telesale được policy cho phép",
         "destination": "Site đối diện",
         "action": "ALLOW",
-        "enforcement_point": "core_hq / dist_branch",
+        "enforcement_point": "core_hq / dist_telesale",
         "priority": 180,
         "cookie": "0x1100",
     },
@@ -129,6 +135,28 @@ POLICY_CATALOG: dict[str, dict[str, Any]] = {
 def get_policy_payload() -> dict:
     payload = live_mininet.policy_payload()
     payload["inventory"] = policy_inventory(payload.get("policies", {}))
+    payload["enforcement_layers"] = {
+        "openflow": {
+            "engine": "OpenFlow 1.3",
+            "devices": list(live_mininet.CONTROLLED_SWITCHES),
+            "responsibilities": [
+                "Cô lập Project A/B/C",
+                "Chặn Telesale → BackOffice tại dist_telesale",
+                "Chặn BackOffice → Telesale tại core_hq",
+            ],
+        },
+        "nftables": {
+            "engine": "stateful nftables",
+            "devices": ["fw_hq", "fw_telesale"],
+            "responsibilities": [
+                "Internet filtering tại hai firewall",
+                "Call App/Zalo ALLOW và Social DENY",
+                "Inbound Internet DENY và established,related ALLOW",
+            ],
+        },
+    }
+    payload["firewalls"] = live_mininet.firewall_inventory()
+    payload["phase44_runtime"] = live_mininet.phase44_runtime_status()
     return payload
 
 
@@ -170,7 +198,16 @@ def policy_inventory(policies: dict[str, Any] | None = None) -> list[dict[str, A
     items: list[dict[str, Any]] = []
     for key, metadata in POLICY_CATALOG.items():
         value = configured.get(key)
-        lifecycle = "Applied" if controller_acknowledged else "Out of sync"
+        enforcement_engine = "nftables" if key in FIREWALL_POLICY_KEYS else "openflow"
+        firewall_acknowledged = bool(
+            status_matches
+            and status.get("firewall_acknowledged")
+            and status.get("status") == "Applied"
+        )
+        runtime_acknowledged = controller_acknowledged and (
+            enforcement_engine != "nftables" or firewall_acknowledged
+        )
+        lifecycle = "Applied" if runtime_acknowledged else "Out of sync"
         if status_matches and status.get("status") == "Failed" and status.get("policy_key") == key:
             lifecycle = "Failed"
         if value is None:
@@ -182,7 +219,10 @@ def policy_inventory(policies: dict[str, Any] | None = None) -> list[dict[str, A
             "enabled": value if isinstance(value, bool) else None,
             "configuration_status": "Enabled" if value is True else "Disabled" if value is False else "Draft",
             "lifecycle_status": lifecycle,
+            "enforcement_engine": enforcement_engine,
             "controller_acknowledged": controller_acknowledged,
+            "firewall_acknowledged": firewall_acknowledged,
+            "runtime_acknowledged": runtime_acknowledged,
             "updated_at": status.get("updated_at") if status_matches else updated_at,
             "technical_detail": status.get("technical_detail") if status_matches and status.get("policy_key") == key else None,
         })
@@ -235,6 +275,22 @@ def _controller_reload(timeout: float = 8.0) -> dict[str, Any]:
     return json.loads(response)
 
 
+def _firewall_reload() -> dict[str, Any]:
+    return live_mininet.mininet_control.reload_firewall()
+
+
+def _rollback_runtime(backup_path: Path, reload_firewall: bool) -> dict[str, Any]:
+    _restore_policy(backup_path)
+    live_mininet.reload_policy_engine()
+    controller_result = _controller_reload()
+    firewall_result = _firewall_reload() if reload_firewall else {"ok": True, "skipped": True}
+    return {
+        "controller": controller_result,
+        "firewall": firewall_result,
+        "ok": bool(controller_result.get("ok") and firewall_result.get("ok")),
+    }
+
+
 def toggle_policy(key: str, enabled: bool) -> dict[str, Any]:
     payload = _load_policy_file()
     policies = payload.get("policies", {})
@@ -251,24 +307,36 @@ def toggle_policy(key: str, enabled: bool) -> dict[str, Any]:
         "policy_hash": _policy_hash(),
         "updated_at": _now_iso(),
     })
-    reload_result = _controller_reload()
-    if not reload_result.get("ok"):
-        _restore_policy(backup_path)
-        live_mininet.reload_policy_engine()
+    requires_firewall = key in FIREWALL_POLICY_KEYS
+    controller_result = _controller_reload()
+    firewall_result = (
+        _firewall_reload()
+        if controller_result.get("ok") and requires_firewall
+        else {"ok": True, "skipped": True}
+    )
+    if not controller_result.get("ok") or not firewall_result.get("ok"):
+        rollback_result = _rollback_runtime(backup_path, requires_firewall)
+        failure = controller_result if not controller_result.get("ok") else firewall_result
         _write_apply_status({
             "status": "Failed",
             "policy_key": key,
             "controller_acknowledged": False,
+            "firewall_acknowledged": False,
             "policy_hash": _policy_hash(),
             "updated_at": _now_iso(),
-            "technical_detail": reload_result.get("message", "Khong ro loi controller."),
+            "technical_detail": {
+                "failure": failure,
+                "rollback": rollback_result,
+            },
         })
         return {
             "ok": False,
-            "message": "Policy reload that bai, da rollback policy.yml. Flow cu duoc giu nguyen tren controller.",
-            "error": reload_result.get("message", "Khong ro loi controller."),
+            "message": "Policy reload that bai, da rollback policy.yml va runtime enforcement.",
+            "error": failure.get("message", "Khong ro loi runtime enforcement."),
             "status": "Failed",
             "controller_acknowledged": False,
+            "firewall_acknowledged": False,
+            "rollback": rollback_result,
             "policies": _load_policy_file()["policies"],
         }
 
@@ -277,17 +345,26 @@ def toggle_policy(key: str, enabled: bool) -> dict[str, Any]:
         "status": "Applied",
         "policy_key": key,
         "controller_acknowledged": True,
+        "firewall_acknowledged": bool(firewall_result.get("ok") and requires_firewall),
         "policy_hash": _policy_hash(),
         "updated_at": _now_iso(),
-        "technical_detail": reload_result,
+        "technical_detail": {
+            "controller": controller_result,
+            "firewall": firewall_result,
+        },
     })
     return {
         "ok": True,
-        "message": "Policy da ap dung.",
+        "message": "Policy da ap dung tren dung runtime enforcement.",
         "status": "Applied",
         "controller_acknowledged": True,
+        "firewall_acknowledged": bool(firewall_result.get("ok") and requires_firewall),
+        "enforcement_engine": "nftables" if requires_firewall else "openflow",
         "changed": {"key": key, "old": old_value, "new": enabled},
         "backup": str(backup_path),
-        "reload": reload_result,
+        "reload": {
+            "controller": controller_result,
+            "firewall": firewall_result,
+        },
         "policies": _load_policy_file()["policies"],
     }

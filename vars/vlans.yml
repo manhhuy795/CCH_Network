@@ -41,15 +41,15 @@ vlans:
     description: "IP phone and softphone voice VLAN"
   - id: 50
     name: TELESALE
-    site: branch
+    site: branch_telesale
     subnet: 172.16.50.0/24
     gateway: 172.16.50.1
     approx_users: 20
     description: "Branch telesale users"
   - id: 60
     name: BR_ADMIN
-    site: branch
+    site: hq
     subnet: 172.16.60.0/24
     gateway: 172.16.60.1
     approx_users: 20
-    description: "Branch admin/backoffice"
+    description: "HQ BackOffice users"

@@ -18,7 +18,7 @@ fi
 echo "[1/4] Cài Mininet, Open vSwitch, Python 3.12, Node.js và công cụ đo kiểm"
 sudo apt update
 sudo apt install -y \
-  git mininet openvswitch-switch iperf3 \
+  git mininet openvswitch-switch iperf3 nftables tcpdump \
   python3 python3-venv python3-pip python3-dev \
   build-essential curl jq iproute2 procps util-linux \
   nodejs npm
@@ -36,6 +36,7 @@ echo "[4/4] Kiểm tra công cụ"
 python3 --version
 mn --version
 ovs-vsctl --version | head -n 1
+nft --version
 iperf3 --version | head -n 1
 node --version
 npm --version

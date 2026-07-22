@@ -65,6 +65,25 @@ describe("RealtimePanel", () => {
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeEnabled();
   });
 
+  it("does not render zero when the backend reports unavailable throughput", () => {
+    render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^B/ }));
+    const socket = FakeWebSocket.instances[0];
+    act(() => socket.onmessage?.({ data: JSON.stringify({
+      timestamp: new Date().toISOString(),
+      source: "h30_01",
+      destination: "h90",
+      ok: false,
+      throughput_mbps: null,
+      flow_packets: 0,
+      flow_bytes: 0,
+      status: "monitoring",
+      metric_state: "unavailable",
+    }) } as MessageEvent));
+    expect(screen.getAllByText(/runtime/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Flow counter:/)).toBeInTheDocument();
+  });
+
   it("reconnects after an unexpected WebSocket close", () => {
     vi.useFakeTimers();
     render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);

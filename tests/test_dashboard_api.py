@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 
+# NHOM A: cac test topology/policy ben duoi assert count, path va enforcement cu the.
 def test_dashboard_api_topology_and_policy_endpoints():
     pytest.importorskip("fastapi")
 
@@ -21,7 +22,7 @@ def test_dashboard_api_topology_and_policy_endpoints():
     assert topology["links"]
     assert len(topology["hosts"]) == 115
     assert topology["summary"]["user_count"] == 110
-    assert topology["summary"]["controlled_ovs_count"] == 8
+    assert topology["summary"]["controlled_ovs_count"] == 9
     mpls_node = next(node for node in topology["nodes"] if node["id"] == "mpls_cloud")
     assert mpls_node["label"] == "MPLS L3VPN Logic Cloud"
     assert "WAN transport" in mpls_node["subtitle"]
@@ -70,12 +71,17 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     assert denied["blocked_at"] == "core_hq"
 
     social = policy_decision("h50_01", "hsocial")
-    assert social["path"] == ["telesale", "access_branch", "dist_branch"]
-    assert social["blocked_at"] == "dist_branch"
+    assert social["path"] == ["telesale", "access_telesale", "dist_telesale", "fw_telesale"]
+    assert social["blocked_at"] == "fw_telesale"
+    assert social["enforcement_point"] == "fw_telesale"
 
     intersite = policy_decision("h50_01", "h20_01")
     assert intersite["action"] == "deny"
-    assert intersite["blocked_at"] == "dist_branch"
+    assert intersite["blocked_at"] == "dist_telesale"
+
+    reverse_intersite = policy_decision("h60_01", "h50_01")
+    assert reverse_intersite["action"] == "deny"
+    assert reverse_intersite["blocked_at"] == "core_hq"
 
     support = policy_decision("h70_01", "h20_01")
     assert support["action"] == "allow"
@@ -88,7 +94,7 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
 
     support_social = policy_decision("h70_01", "hsocial")
     assert support_social["action"] == "deny"
-    assert support_social["blocked_at"] == "core_hq"
+    assert support_social["blocked_at"] == "fw_hq"
 
 
 def test_call_quality_score_uses_call_center_thresholds():
@@ -163,7 +169,8 @@ def test_manual_block_uses_cookie_and_single_enforcement_switch():
     from app.live_mininet import manual_block_cookie, manual_enforcement_switch, parse_flow_line
 
     assert manual_enforcement_switch("h20_01", "h30_01") == "core_hq"
-    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_branch"
+    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_telesale"
+    assert manual_enforcement_switch("h60_01", "h50_01") == "core_hq"
     assert manual_enforcement_switch("h70_01", "h50_01") == "core_hq"
     assert manual_block_cookie("h20_01", "h30_01") == manual_block_cookie("h30_01", "h20_01")
 
@@ -229,7 +236,7 @@ def test_live_link_control_uses_mininet_agent_not_backend_state():
     assert "shell=True" not in client_source
     assert "ALLOWED_CONTROL_COMMANDS" in topology_source
     assert "GET_INTERFACE_MAP" in topology_source
-    assert "self.net.configLinkStatus(left, right, state)" in topology_source
+    assert "self.net.configLinkStatus(left_node.name, right_node.name, state)" in topology_source
     assert "MininetControlAgent(net, policy)" in topology_source
     assert '"LINK_DOWN"' in client_source
     assert '"LINK_UP"' in client_source
@@ -292,6 +299,76 @@ def test_backend_decision_schema_is_authoritative_for_animation_metadata():
     assert voice["policy"] == "voice"
     assert voice["cookie"] == "0x1200"
     assert voice["priority"] == 425
+
+
+def test_static_decision_ignores_stale_controller_flow_inventory(tmp_path, monkeypatch):
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app import live_mininet
+
+    stale_inventory = tmp_path / "installed_flows.json"
+    stale_inventory.write_text(
+        '[{"switch":"core_hq","cookie":"0x1001","priority":400,'
+        '"source":"project_a","destination":"project_b","action":"DROP"}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(live_mininet, "RUNTIME_FLOWS_FILE", stale_inventory)
+    monkeypatch.setattr(
+        live_mininet.mininet_control,
+        "dump_flows",
+        lambda _switch: pytest.fail("static enrich_decision must not query OVS"),
+    )
+
+    decision = live_mininet.enrich_decision(
+        "h20_01",
+        "h30_01",
+        live_mininet.policy_decision("h20_01", "h30_01"),
+    )
+
+    assert decision["flow_runtime_available"] is False
+    assert decision["metadata_source"] == "policy_engine"
+
+
+def test_valid_live_flow_evidence_enriches_decision_metadata():
+    repo_root = Path(__file__).resolve().parents[1]
+    backend_root = repo_root / "dashboard" / "backend"
+    sys.path.insert(0, str(backend_root))
+
+    from app import live_mininet
+
+    static_decision = live_mininet.policy_decision("h20_01", "h30_01")
+    live_flow = {
+        "switch": "core_hq",
+        "source": "project_a",
+        "destination": "project_b",
+        "action": "DROP",
+        "cookie": "0x1001",
+        "priority": 400,
+        "raw_match": "priority=400,ip,nw_src=172.16.20.0/24,nw_dst=172.16.30.0/24",
+        "raw_action": "drop",
+    }
+
+    decision = live_mininet.enrich_decision(
+        "h20_01",
+        "h30_01",
+        static_decision,
+        runtime_flow=live_flow,
+    )
+
+    assert decision["flow_runtime_available"] is True
+    assert decision["metadata_source"] == "controller_runtime"
+    assert decision["enforcement_switch"] == "core_hq"
+    assert decision["cookie"] == "0x1001"
+    assert decision["priority"] == 400
+    assert decision["runtime_flow"]["switch"] == "core_hq"
+    assert decision["runtime_flow"]["cookie"] == "0x1001"
+    assert decision["runtime_flow"]["priority"] == 400
+    assert "nw_src=172.16.20.0/24" in decision["runtime_flow"]["raw_match"]
+    assert "nw_dst=172.16.30.0/24" in decision["runtime_flow"]["raw_match"]
+    assert decision["runtime_flow"]["action"] == "DROP"
+    assert decision["runtime_flow"]["raw_action"] == "drop"
 
 
 def test_ping_result_preserves_backend_packet_path_contract():

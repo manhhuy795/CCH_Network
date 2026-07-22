@@ -1,9 +1,11 @@
 sites:
   hq:
     name: "Site Chinh - Tru so"
-    description: "HQ call center campus"
+    description: "HQ call center gom Project A/B/C, BackOffice, IT va Voice"
+    kind: physical
     devices:
       - name: hq-access-a
+        model_node: access_hq_a
         role: access_switch
         site: hq
         platform: cisco_ios
@@ -11,6 +13,7 @@ sites:
         management_ip: 192.0.2.11
         access_vlans: [20]
       - name: hq-access-b
+        model_node: access_hq_b
         role: access_switch
         site: hq
         platform: cisco_ios
@@ -18,68 +21,108 @@ sites:
         management_ip: 192.0.2.12
         access_vlans: [30]
       - name: hq-access-c
+        model_node: access_hq_c
         role: access_switch
         site: hq
         platform: cisco_ios
         template: cisco_ios/access_switch.j2
         management_ip: 192.0.2.13
         access_vlans: [40]
+      - name: hq-backoffice-access
+        model_node: access_backoffice
+        role: access_switch
+        site: hq
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.60
+        access_vlans: [60]
       - name: hq-voice-access
+        model_node: voice_access
         role: voice_access_switch
         site: hq
         platform: cisco_ios
         template: cisco_ios/voice_access_switch.j2
         management_ip: 192.0.2.14
         access_vlans: [10, 90]
+      - name: hq-access-it
+        model_node: access_hq_it
+        role: access_switch
+        site: hq
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.17
+        access_vlans: [70]
       - name: hq-core-l3
+        model_node: core_hq
         role: core_hq
         site: hq
         platform: cisco_ios
         template: cisco_ios/core_hq.j2
         management_ip: 192.0.2.10
-        svi_vlans: [10, 20, 30, 40, 90]
+        svi_vlans: [10, 20, 30, 40, 60, 70, 90]
       - name: hq-ce-router
+        model_node: ce_hq
         role: ce_router
         site: hq
         platform: cisco_ios
         template: cisco_ios/ce_router.j2
         management_ip: 192.0.2.15
       - name: hq-firewall
+        model_node: fw_hq
         role: firewall
         site: hq
         platform: vendor_neutral
         template: firewall/firewall_policy_vendor_neutral.j2
         management_ip: 192.0.2.16
-  branch:
-    name: "Site Chi nhanh - Telesale"
-    description: "Branch telesale office"
+
+  branch_telesale:
+    name: "Chi nhanh Telesale"
+    description: "Dia diem vat ly rieng cho Telesale VLAN 50"
+    kind: physical
     devices:
       - name: br-access
+        model_node: access_telesale
         role: access_switch
-        site: branch
+        site: branch_telesale
         platform: cisco_ios
         template: cisco_ios/access_switch.j2
         management_ip: 192.0.2.50
-        access_vlans: [50, 60]
+        access_vlans: [50]
       - name: br-dist-l3
+        model_node: dist_telesale
         role: distribution_branch
-        site: branch
+        site: branch_telesale
         platform: cisco_ios
         template: cisco_ios/distribution_branch.j2
         management_ip: 192.0.2.51
-        svi_vlans: [50, 60]
+        svi_vlans: [50]
       - name: br-ce-router
+        model_node: ce_telesale
         role: ce_router
-        site: branch
+        site: branch_telesale
         platform: cisco_ios
         template: cisco_ios/ce_router.j2
         management_ip: 192.0.2.52
       - name: br-firewall
+        model_node: fw_telesale
         role: firewall
-        site: branch
+        site: branch_telesale
         platform: vendor_neutral
         template: firewall/firewall_policy_vendor_neutral.j2
         management_ip: 192.0.2.53
+
+  wan:
+    name: "MPLS L3VPN Logic WAN"
+    description: "Logical transport only; khong co managed PE/P trong automation inventory"
+    kind: logical
+    devices: []
+
+  internet:
+    name: "Internet va dich vu mo phong"
+    description: "Service zone; khong co managed OpenFlow device"
+    kind: logical
+    devices: []
+
 deployment_order:
   - access_switch
   - voice_access_switch

@@ -150,7 +150,7 @@ Terminal 2:
 ```bash
 CONTROLLED_OVS=(
   access_hq_a access_hq_b access_hq_c access_hq_it
-  voice_access core_hq access_branch dist_branch
+  voice_access core_hq access_telesale dist_telesale access_bo
 )
 
 for bridge in "${CONTROLLED_OVS[@]}"; do
@@ -169,7 +169,7 @@ for bridge in mpls_cloud internet; do
   sudo ovs-vsctl get-controller "$bridge"
 done | tee "$ACCEPT_DIR/flows/non-openflow-boundaries.txt"
 
-for node in ce_hq ce_branch fw_hq fw_branch; do
+for node in ce_hq ce_telesale fw_hq fw_telesale; do
   if sudo ovs-vsctl br-exists "$node"; then
     echo "FAIL $node khong duoc la OVS do controller quan ly"
   else
@@ -412,12 +412,12 @@ Dump flow:
 ```bash
 sudo ovs-ofctl -O OpenFlow13 dump-flows core_hq \
   > "$ACCEPT_DIR/flows/core_hq.txt"
-sudo ovs-ofctl -O OpenFlow13 dump-flows dist_branch \
-  > "$ACCEPT_DIR/flows/dist_branch.txt"
+sudo ovs-ofctl -O OpenFlow13 dump-flows dist_telesale \
+  > "$ACCEPT_DIR/flows/dist_telesale.txt"
 sudo ovs-ofctl -O OpenFlow13 dump-flows access_hq_a \
   > "$ACCEPT_DIR/flows/access_hq_a.txt"
-sudo ovs-ofctl -O OpenFlow13 dump-flows access_branch \
-  > "$ACCEPT_DIR/flows/access_branch.txt"
+sudo ovs-ofctl -O OpenFlow13 dump-flows access_telesale \
+  > "$ACCEPT_DIR/flows/access_telesale.txt"
 ```
 
 Kiểm tra cookie/priority quan trọng:
@@ -425,11 +425,11 @@ Kiểm tra cookie/priority quan trọng:
 ```bash
 grep -E 'cookie=0x(1001|1002|1100|1200|1301|1304)' \
   "$ACCEPT_DIR/flows/core_hq.txt" \
-  "$ACCEPT_DIR/flows/dist_branch.txt"
+  "$ACCEPT_DIR/flows/dist_telesale.txt"
 ```
 
 HQ policy phải enforce tại `core_hq`; Branch policy phải enforce tại
-`dist_branch`. Không cài cùng một DROP/ALLOW lên mọi OVS.
+`dist_telesale`. Không cài cùng một DROP/ALLOW lên mọi OVS.
 
 ### I2. Reload thất bại
 

@@ -41,6 +41,16 @@ export type Topology = {
   groups: Group[];
   hosts: Host[];
   links: Link[];
+  sites?: Array<{ id: "hq" | "telesale"; label: string; kind: string; source_id: string; groups: string[]; devices: string[] }>;
+  site_ids?: string[];
+  devices?: Array<Record<string, unknown>>;
+  logical_switches?: Array<Record<string, unknown>>;
+  runtime_bridge_map?: Record<string, string>;
+  ce_nodes?: Array<Record<string, unknown>>;
+  firewalls?: Firewall[];
+  mpls?: Record<string, unknown>;
+  internet_zone?: Record<string, unknown>;
+  phase44_runtime?: PhaseRuntimeStatus;
   policy_map: Record<string, { title: string; allow: string[]; deny: string[]; notes: Record<string, string> }>;
   summary: {
     user_count: number;
@@ -49,6 +59,36 @@ export type Topology = {
     live_link_control?: boolean;
     link_control_message?: string;
   };
+};
+
+export type FirewallCounter = { packets: number; bytes: number } | null;
+
+export type Firewall = {
+  name: string;
+  logical_name: string;
+  site: string;
+  inside_interface?: string | null;
+  outside_interface?: string | null;
+  inside_logical_interface?: string | null;
+  outside_logical_interface?: string | null;
+  ipv4_forwarding?: boolean | null;
+  nftables_table?: string;
+  chain?: string;
+  rule_count?: number | null;
+  expected_rule_count?: number | null;
+  counters?: Record<string, FirewallCounter> | null;
+  nftables_status?: string;
+  runtime_status?: "verified" | "pending" | "failed" | "unavailable";
+  nat?: { configured: boolean; status: string; conclusion: string };
+  error_code?: string | null;
+};
+
+export type PhaseRuntimeStatus = {
+  status: "verified" | "pending" | "failed" | "unavailable";
+  message_vi: string;
+  evidence_available: boolean;
+  nat_conclusion?: string;
+  checked_at?: string;
 };
 
 export type Decision = {
@@ -107,11 +147,13 @@ export type RealtimeMetric = {
   delay_ms?: number;
   packet_loss_percent?: number;
   jitter_ms?: number;
-  throughput_mbps: number;
+  throughput_mbps: number | null;
   flow_packets: number;
   flow_bytes: number;
   byte_count?: number;
   status: "monitoring" | "idle" | "error";
+  metric_state?: "live" | "stale" | "unavailable" | "demo";
+  data_source?: string | null;
   message?: string;
 };
 
@@ -166,7 +208,10 @@ export type PolicyInventoryItem = {
   enabled: boolean | null;
   configuration_status: "Enabled" | "Disabled" | "Draft";
   lifecycle_status: PolicyLifecycleStatus;
+  enforcement_engine?: "openflow" | "nftables";
   controller_acknowledged: boolean;
+  firewall_acknowledged?: boolean;
+  runtime_acknowledged?: boolean;
   updated_at: string;
   technical_detail?: unknown;
 };
@@ -175,6 +220,9 @@ export type PolicyPayload = {
   metadata?: Record<string, unknown>;
   policies: Record<string, unknown>;
   inventory: PolicyInventoryItem[];
+  enforcement_layers?: Record<string, { engine: string; devices: string[]; responsibilities: string[] }>;
+  firewalls?: Firewall[];
+  phase44_runtime?: PhaseRuntimeStatus;
 };
 
 export type ActivityEvent = {
@@ -262,6 +310,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   topology: () => request<Topology>("/api/topology"),
+  sites: () => request<{ sites: Topology["sites"] }>("/api/sites"),
+  devices: () => request<{ devices: Array<Record<string, unknown>>; logical_switches: Array<Record<string, unknown>>; runtime_bridge_map: Record<string, string> }>("/api/devices"),
+  firewalls: () => request<{ firewalls: Firewall[]; phase44_runtime: PhaseRuntimeStatus }>("/api/firewalls"),
   authStatus: () => request<AuthStatus>("/api/auth/status"),
   policies: () => request<PolicyPayload>("/api/policies"),
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),

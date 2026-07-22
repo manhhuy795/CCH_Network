@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from . import mininet_control
 from .activity import activity_payload, append_event, record_operation, utc_now
 from .errors import ERROR_HTTP_STATUS
-from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
+from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, firewall_inventory, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, phase44_runtime_status, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
 from .policy import get_policy_payload, toggle_policy
@@ -101,6 +101,29 @@ def api_topology():
     return get_topology()
 
 
+@router.get("/sites")
+def api_sites():
+    return {"sites": get_topology()["sites"]}
+
+
+@router.get("/devices")
+def api_devices():
+    topology = get_topology()
+    return {
+        "devices": topology["devices"],
+        "logical_switches": topology["logical_switches"],
+        "runtime_bridge_map": topology["runtime_bridge_map"],
+    }
+
+
+@router.get("/firewalls")
+def api_firewalls():
+    return {
+        "firewalls": firewall_inventory(),
+        "phase44_runtime": phase44_runtime_status(),
+    }
+
+
 @router.get("/auth/status")
 def api_auth_status():
     return auth_status()
@@ -134,7 +157,12 @@ def api_metrics_pair(payload: HostPair):
 
 @router.get("/live/status")
 def api_live_status():
-    return {**live_health_payload(), "iperf_sessions": iperf_runtime_status()}
+    return {
+        **live_health_payload(),
+        "iperf_sessions": iperf_runtime_status(),
+        "firewalls": firewall_inventory(),
+        "phase44_runtime": phase44_runtime_status(),
+    }
 
 
 @router.get("/live/iperf-sessions", dependencies=[operator_required])

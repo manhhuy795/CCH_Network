@@ -65,7 +65,7 @@ Suite kiem tra:
 - controller `6653`, backend `8000`, frontend `5173`;
 - process topology Mininet;
 - Control Agent HEALTH;
-- bridge `core_hq`, `dist_branch` va OpenFlow flows;
+- bridge `core_hq`, `dist_telesale` va OpenFlow flows;
 - Ping ALLOW `h30_01 -> h90`;
 - Ping DENY `h20_01 -> h30_01`;
 - UDP hai lan lien tiep, TCP va Voice Quality;
@@ -97,7 +97,7 @@ tail -n 120 logs/controller.log
 tail -n 120 sdn_mpls_demo/runtime/controller.log
 tail -n 120 sdn_mpls_demo/runtime/mininet_control_agent.log
 sudo ovs-ofctl -O OpenFlow13 dump-flows core_hq
-sudo ovs-ofctl -O OpenFlow13 dump-flows dist_branch
+sudo ovs-ofctl -O OpenFlow13 dump-flows dist_telesale
 ```
 
 Khong danh dau live runtime PASS chi dua tren pytest hoac mock.

@@ -188,6 +188,15 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
 .policy-facts > div { min-width: 0; }.policy-facts dt { color: var(--text-muted); font-size: 9px; text-transform: uppercase; }
 .policy-facts dd { font-size: 11px; font-weight: 650; margin: 2px 0 0; overflow-wrap: anywhere; }
 .policy-actions { display: flex; justify-content: flex-end; }.policy-actions button { min-height: 32px; }
+.firewall-panel { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.firewall-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px 12px; }
+.firewall-card { background: #f7f9fb; border: 1px solid #dfe6ed; border-radius: var(--radius-md); display: grid; gap: 8px; padding: 10px; }
+.firewall-card-heading { align-items: center; display: flex; gap: 7px; }.firewall-card-heading strong { flex: 1; font-size: 12px; }
+.firewall-card dl { display: grid; gap: 4px 8px; grid-template-columns: 105px minmax(0, 1fr); margin: 0; }
+.firewall-card dt, .firewall-card dd { font-size: 10px; margin: 0; overflow-wrap: anywhere; }.firewall-card dt { color: var(--text-muted); }
+.firewall-card dd { font-weight: 650; }.firewall-counters { display: grid; gap: 4px; }
+.firewall-counters span { color: var(--text-muted); font-size: 10px; overflow-wrap: anywhere; }
+.firewall-note { color: var(--text-muted); font-size: 10px; line-height: 1.4; padding: 0 12px 12px; }
 .empty-inline { padding: 14px; }
 .explanation { border-left: 4px solid #7c3aed; margin: 4px 12px 12px; padding: 8px 10px; }
 .explanation p { font-size: 12px; margin-bottom: 6px; }
@@ -363,6 +372,7 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
   .policy-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .realtime-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .event-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .firewall-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 820px) {
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 1fr; }

@@ -18,6 +18,11 @@ from typing import Any, Callable
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
+
+from scripts.network_model import enforcement_switches, load_network_model
+
+ENFORCEMENT_SWITCHES = enforcement_switches(load_network_model())
 REPORT_DIR = ROOT_DIR / "runtime_reports"
 TOKEN_FILE = ROOT_DIR / "logs" / "operator.token"
 BASE_URL = os.environ.get("CCH_DASHBOARD_API_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -361,16 +366,18 @@ def main() -> int:
         "mininet_topology_process",
         lambda: command_check(["pgrep", "-f", "[t]opology_hybrid_sdn.py"]),
     )
-    run_case("ovs_core_hq", lambda: command_check(["ovs-vsctl", "br-exists", "core_hq"]))
-    run_case("ovs_dist_branch", lambda: command_check(["ovs-vsctl", "br-exists", "dist_branch"]))
-    run_case(
-        "openflow_core_hq",
-        lambda: command_check(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "core_hq"], contains="actions="),
-    )
-    run_case(
-        "openflow_dist_branch",
-        lambda: command_check(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "dist_branch"], contains="actions="),
-    )
+    for switch in ENFORCEMENT_SWITCHES:
+        run_case(
+            f"ovs_{switch}",
+            lambda switch=switch: command_check(["ovs-vsctl", "br-exists", switch]),
+        )
+        run_case(
+            f"openflow_{switch}",
+            lambda switch=switch: command_check(
+                ["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch],
+                contains="actions=",
+            ),
+        )
     run_case("api_health", health_case)
     run_case("agent_health_before", agent_health_case)
 

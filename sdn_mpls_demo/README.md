@@ -2,12 +2,17 @@
 
 ## Simulation Honesty
 
-- `fw_hq` va `fw_branch` la **Internet Edge Boundary** bang Linux router namespace.
-- Chung khong phai stateful firewall thiet bi neu chua cau hinh nftables/iptables/conntrack that.
+- `fw_hq` va `fw_telesale` la **stateful nftables firewall** trong Linux router namespace.
+- Chung ap dung `inet cch_filter`, conntrack, default-deny va counter that; day van la firewall lab, khong phai appliance production.
 - SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
+- Phase 42 co dung 9 OVS duoc OS-Ken dieu khien. `service_net` la Linux
+  bridge cho Service LAN, khong phai OVS va khong co OpenFlow control link.
+- `SERVICE_NET_MININET_DPID=00000000000000fe` chi la bookkeeping DPID de
+  Mininet khoi tao lop `Switch`. Gia tri nay khong thuoc controller inventory,
+  khong ket noi OS-Ken va khong duoc tinh thanh OVS thu 10.
 
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 8 Open vSwitch
+24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 9 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
 
 ## Phạm vi đúng
@@ -26,20 +31,20 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 | User Telesale/BackOffice | 40 |
 | User Phòng IT Support | 10 |
 | Voice/Zalo/Call App/Social/Internet | 5 |
-| OVS được OS-Ken điều khiển | 8 |
+| OVS được OS-Ken điều khiển | 9 |
 
 Đường liên site:
 
 ```text
-Branch Distribution → CE Router Branch → MPLS L3VPN Logic Cloud
+Telesale Distribution → CE Router Telesale → MPLS L3VPN Logic Cloud
 → CE Router HQ → HQ Core SDN
 ```
 
 Internet breakout:
 
 ```text
-HQ user     → HQ Core → Firewall HQ → Internet Zone
-Branch user → Branch Distribution → Firewall Branch → Internet Zone
+HQ user       → HQ Core → Firewall HQ → Internet Zone
+Telesale user → Telesale Distribution → Firewall Telesale → Internet Zone
 ```
 
 ## Lưu ý cho Cfono/Gphone/softphone
@@ -67,7 +72,7 @@ cd ~/Downloads
 
 sudo apt update
 sudo apt install -y \
-  git mininet openvswitch-switch iperf3 \
+  git mininet openvswitch-switch iperf3 nftables tcpdump \
   python3 python3-venv python3-pip python3-dev \
   build-essential curl jq iproute2 procps util-linux \
   nodejs npm
@@ -98,7 +103,7 @@ git pull
 # Các thư viện/package cần cho SDN lab, Mininet, Open vSwitch và dashboard.
 sudo apt update
 sudo apt install -y \
-  git mininet openvswitch-switch iperf3 \
+  git mininet openvswitch-switch iperf3 nftables tcpdump \
   python3 python3-venv python3-pip python3-dev \
   build-essential curl jq iproute2 procps util-linux \
   nodejs npm
@@ -117,6 +122,8 @@ Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
 ```text
 testpolicy       # chạy ma trận ALLOW/DENY chi tiết bằng ping thật
 isolationflows   # xem DROP flow priority 400 trên 8 OVS
+firewallrules    # xem nftables rule/counter tren fw_hq va fw_telesale
+reloadfirewall   # reload hai ruleset idempotent
 ```
 
 ## Chạy lab lại sau khi đã cài xong

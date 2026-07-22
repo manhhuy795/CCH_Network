@@ -7,12 +7,14 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from . import mininet_control
+from scripts.network_model import enforcement_switches, load_network_model
 
 
 Status = str
 TcpProbe = Callable[[str, int, float], tuple[bool, float | None, str | None]]
 _WEBSOCKET_LOCK = threading.Lock()
 _ACTIVE_WEBSOCKETS = 0
+REQUIRED_ENFORCEMENT_SWITCHES = enforcement_switches(load_network_model())
 
 
 def now_iso() -> str:
@@ -75,7 +77,7 @@ def _agent_error_code(response: dict[str, Any]) -> str:
 def _flow_inventory(checked_at: str) -> dict[str, Any]:
     total = 0
     details = {}
-    for switch in ("core_hq", "dist_branch"):
+    for switch in REQUIRED_ENFORCEMENT_SWITCHES:
         ok, output = mininet_control.dump_flows(switch)
         count = sum(
             1
@@ -102,7 +104,7 @@ def _flow_inventory(checked_at: str) -> dict[str, Any]:
         )
     return component(
         "online",
-        f"Da doc {total} flow OpenFlow tu core_hq va dist_branch.",
+        f"Da doc {total} flow OpenFlow tu {', '.join(REQUIRED_ENFORCEMENT_SWITCHES)}.",
         checked_at=checked_at,
         technical_detail=details,
     )
@@ -183,13 +185,17 @@ def system_health(
     )
 
     bridges = runtime.get("bridges", {}) if isinstance(runtime.get("bridges"), dict) else {}
-    required_bridges = {"core_hq", "dist_branch"}
+    required_bridges = set(REQUIRED_ENFORCEMENT_SWITCHES)
     live_bridges = {name for name in required_bridges if bridges.get(name)}
     ovs_ok = bool(runtime.get("ovs_bridge") and live_bridges == required_bridges)
     ovs_status = "online" if ovs_ok else ("degraded" if live_bridges else "offline")
     components["openvswitch"] = component(
         ovs_status,
-        "Open vSwitch core_hq va dist_branch dang hoat dong." if ovs_ok else "Khong xac nhan duoc day du bridge OVS bat buoc.",
+        (
+            f"Open vSwitch {', '.join(REQUIRED_ENFORCEMENT_SWITCHES)} dang hoat dong."
+            if ovs_ok
+            else "Khong xac nhan duoc day du bridge OVS bat buoc."
+        ),
         checked_at=checked_at,
         error_code=None if ovs_ok else "OVS_UNAVAILABLE",
         technical_detail={"bridges": bridges, "required": sorted(required_bridges)},
@@ -238,4 +244,3 @@ def live_health_payload() -> dict[str, Any]:
         **snapshot,
         "available": snapshot["components"]["mininet_control_agent"]["status"] == "online",
     }
-
