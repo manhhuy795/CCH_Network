@@ -90,10 +90,8 @@ def is_stale_socket(path: Path, token: str, timeout: float = 1.5) -> bool:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.settimeout(timeout)
             client.connect(str(path))
-            client.sendall((json.dumps({"token": token, "command": "HEALTH"}) + "\
-").encode())
-            payload = json.loads(client.recv(65536).split(b"\
-", 1)[0].decode())
+            client.sendall((json.dumps({"token": token, "command": "HEALTH"}) + "\n").encode())
+            payload = json.loads(client.recv(65536).split(b"\n", 1)[0].decode())
         return not (isinstance(payload, dict) and payload.get("ok") is True and payload.get("agent_alive") is True)
     except (OSError, ValueError, json.JSONDecodeError):
         return True
@@ -176,32 +174,13 @@ class Gate:
 
     def inventory(self) -> None:
         status = self.git(["status", "--short", "--branch"])
-        (self.report_dir / "baseline.log").write_text(f"checked_at={datetime.now(timezone.utc).isoformat()}\
-branch={self.branch}\
-head={self.head}\
-{status}\
-", encoding="utf-8")
+        (self.report_dir / "baseline.log").write_text(f"checked_at={datetime.now(timezone.utc).isoformat()}\nbranch={self.branch}\nhead={self.head}\n{status}\n", encoding="utf-8")
         tracked = self.git(["ls-files"]).splitlines()
-        (self.report_dir / "project_inventory.md").write_text("# Project inventory\
-\
-Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
-\
-" + "\
-".join(f"- {item}" for item in tracked if item) + "\
-", encoding="utf-8")
-        (self.report_dir / "automation_inventory.md").write_text("# Automation inventory\
-\
-" + "\
-".join(f"- {item}" for item in REQUIRED_SCRIPTS) + "\
-", encoding="utf-8")
+        (self.report_dir / "project_inventory.md").write_text("# Project inventory\n\nIdentity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\n\n" + "\n".join(f"- {item}" for item in tracked if item) + "\n", encoding="utf-8")
+        (self.report_dir / "automation_inventory.md").write_text("# Automation inventory\n\n" + "\n".join(f"- {item}" for item in REQUIRED_SCRIPTS) + "\n", encoding="utf-8")
         docs = sorted(path.relative_to(ROOT_DIR).as_posix() for path in ROOT_DIR.glob("docs/**/*.md"))
-        (self.report_dir / "documentation_inventory.md").write_text("# Documentation inventory\
-\
-" + "\
-".join(f"- {item}" for item in docs) + "\
-", encoding="utf-8")
-        (self.report_dir / "files_changed.txt").write_text(status + "\
-", encoding="utf-8")
+        (self.report_dir / "documentation_inventory.md").write_text("# Documentation inventory\n\n" + "\n".join(f"- {item}" for item in docs) + "\n", encoding="utf-8")
+        (self.report_dir / "files_changed.txt").write_text(status + "\n", encoding="utf-8")
 
     def record(self, name: str, status: str, *, exit_code: int = 0, reason: str = "", summary: Any = None, duration: float = 0.0) -> bool:
         case = {"name": name, "status": status, "exit_code": exit_code, "duration_seconds": round(duration, 3), "error_code": reason or None, "response_summary": summary}
@@ -244,11 +223,9 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.settimeout(10)
             client.connect(str(path))
-            client.sendall((json.dumps({"token": token, "command": command}) + "\
-").encode())
+            client.sendall((json.dumps({"token": token, "command": command}) + "\n").encode())
             payload = client.recv(65536)
-        return json.loads(payload.split(b"\
-", 1)[0].decode())
+        return json.loads(payload.split(b"\n", 1)[0].decode())
 
     def preflight(self) -> bool:
         ok = self.value("linux_platform", platform.system() == "Linux", reason="LINUX_REQUIRED", blocked=platform.system() != "Linux")
@@ -314,9 +291,7 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
             ok &= frontend_build_ok
         else:
             ok &= self.value("frontend_build", False, reason="FRONTEND_DEPENDENCY_MISSING", blocked=True)
-        (self.report_dir / "static_validation.log").write_text("\
-".join(f"{c['status']} {c['name']}" for c in self.cases) + "\
-", encoding="utf-8")
+        (self.report_dir / "static_validation.log").write_text("\n".join(f"{c['status']} {c['name']}" for c in self.cases) + "\n", encoding="utf-8")
         return bool(ok)
 
     def clean_clone(self) -> tuple[bool, dict[str, Any]]:
@@ -420,17 +395,11 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
         finally:
             safe_stop(self.started)
             payload = summary_payload(",".join(modes), self.branch, self.head, self.cases, self.report_dir)
-            (self.report_dir / "summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\
-", encoding="utf-8")
-            (self.report_dir / "files_changed.txt").write_text(self.git(["status", "--short"]) + "\
-", encoding="utf-8")
+            (self.report_dir / "summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            (self.report_dir / "files_changed.txt").write_text(self.git(["status", "--short"]) + "\n", encoding="utf-8")
             if payload["overall_status"] != "PASS":
                 first = payload.get("first_failure") or {}
-                (self.report_dir / "NEXT_ACTION.md").write_text(f"# NEXT ACTION\
-\
-First failure: {first.get('name', 'unknown')}\
-Reason: {first.get('error_code', 'unknown')}\
-", encoding="utf-8")
+                (self.report_dir / "NEXT_ACTION.md").write_text(f"# NEXT ACTION\n\nFirst failure: {first.get('name', 'unknown')}\nReason: {first.get('error_code', 'unknown')}\n", encoding="utf-8")
         statuses = {c["status"] for c in self.cases}
         return 1 if "FAIL" in statuses else (3 if "BLOCKED" in statuses else 0)
 
