@@ -35,6 +35,7 @@ CONTROL_TOKEN = os.environ.get("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-t
 ALLOWED_RUNTIME_BRANCHES = {
     "feature/dual-branch-topology",
     "transfer/phase45-regression-fix",
+    "feature/phase46-automation-docs",
 }
 ERROR_PATTERNS = (
     "Traceback",

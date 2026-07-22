@@ -299,3 +299,18 @@ pytest
 - Voice Flow Priority chưa phải QoS hoàn chỉnh.
 - Softphone như Cfono/Gphone cần kiểm thử thật thêm SIP registration, call setup, RTP media, one-way audio, NAT/SBC và QoS.
 - Lab không mở ping ngang giữa Project/Telesale/BackOffice chỉ vì máy agent có cài softphone.
+
+
+## Phase 46: Automation, Documentation Va Ubuntu Gate
+
+Phase 46 gom mot gate cho automation, tai lieu va runtime Ubuntu. Gate khong tu coi port dang listen la healthy, khong coi socket stale la agent online, khong ghi token vao artifact va khong tu khoi dong topology khi chua co tuy chon ro rang.
+
+~~~bash
+bash scripts/phase46_automation_docs_gate.sh preflight --reuse-running
+bash scripts/phase46_automation_docs_gate.sh static --reuse-running
+bash scripts/phase46_automation_docs_gate.sh automation --reuse-running
+bash scripts/phase46_automation_docs_gate.sh docs --reuse-running
+sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1 bash scripts/phase46_automation_docs_gate.sh runtime --reuse-running
+~~~
+
+Report tao tai runtime_reports/phase46_automation_docs_<UTC>/; xem summary.json va NEXT_ACTION.md neu FAIL/BLOCKED. Tai lieu chi tiet nam trong docs/architecture.md, docs/installation_ubuntu.md, docs/runtime_operations.md, docs/troubleshooting.md, docs/testing_and_acceptance.md va docs/security_notes.md.

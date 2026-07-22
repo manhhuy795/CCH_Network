@@ -122,6 +122,9 @@ def phase44_runtime_status() -> dict[str, Any]:
         "evidence_available": False,
         "nat_conclusion": "NAT REQUIREMENT NOT YET CONCLUDED",
     }
+    live = mininet_control.live_status()
+    if not isinstance(live, dict) or live.get("ok") is not True or live.get("available") is False:
+        return pending
     try:
         payload = json.loads(COMBINED_ACCEPTANCE_FILE.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):

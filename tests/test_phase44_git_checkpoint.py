@@ -14,6 +14,7 @@ SPEC.loader.exec_module(MODULE)
 
 def test_transfer_branch_allowed():
     assert MODULE.branch_allowed("transfer/phase45-regression-fix")
+    assert MODULE.branch_allowed("feature/phase46-automation-docs")
 
 
 def test_unrelated_branch_rejected():
