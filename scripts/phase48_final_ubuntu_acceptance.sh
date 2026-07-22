@@ -129,10 +129,12 @@ clean_clone_checks() {
   if [ -e "$clone_dir" ]; then record_blocked C01_clone_dir_exists CLEAN_CLONE_DIR_EXISTS; return 0; fi
   run_case C01_clone git clone --branch "$BRANCH_EXPECTED" --single-branch "$(git -C "$ROOT_DIR" remote get-url origin)" "$clone_dir"
   run_case C02_clone_head bash -c 'test "$(git -C "$1" branch --show-current)" = "$2"' _ "$clone_dir" "$BRANCH_EXPECTED"
-  run_case C03_phase48_tests python3 -m pytest -q "$clone_dir/tests/test_phase48_acceptance_contract.py" "$clone_dir/tests/test_phase48_failure_bundle.py"
-  run_case C04_validate python3 "$clone_dir/scripts/validate_vars.py"
-  run_case C05_frontend_install npm ci --prefix "$clone_dir/dashboard/frontend"
-  run_case C06_frontend_build npm run build --prefix "$clone_dir/dashboard/frontend"
+  run_case C03_venv python3 -m venv "$clone_dir/.venv"
+  run_case C04_python_deps "$clone_dir/.venv/bin/python" -m pip install --disable-pip-version-check -r "$clone_dir/requirements.txt"
+  run_case C05_phase48_tests "$clone_dir/.venv/bin/python" -m pytest -q "$clone_dir/tests/test_phase48_acceptance_contract.py" "$clone_dir/tests/test_phase48_failure_bundle.py"
+  run_case C06_validate "$clone_dir/.venv/bin/python" "$clone_dir/scripts/validate_vars.py"
+  run_case C07_frontend_install npm ci --prefix "$clone_dir/dashboard/frontend"
+  run_case C08_frontend_build npm run build --prefix "$clone_dir/dashboard/frontend"
   git -C "$clone_dir" status --short > "$REPORT_DIR/environment/clean_clone_status.txt"
   printf '%s\n' "$clone_dir" > "$REPORT_DIR/environment/clean_clone_path.txt"
 }
