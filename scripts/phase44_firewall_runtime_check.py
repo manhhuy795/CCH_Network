@@ -37,6 +37,7 @@ ALLOWED_RUNTIME_BRANCHES = {
     "transfer/phase45-regression-fix",
     "feature/phase46-automation-docs",
     "feature/phase47-full-regression",
+    "feature/phase48-final-ubuntu-acceptance",
 }
 PHASE47_BRANCH = "feature/phase47-full-regression"
 PHASE47_WORKTREE_FILES = frozenset({
@@ -44,6 +45,17 @@ PHASE47_WORKTREE_FILES = frozenset({
     "scripts/phase44_firewall_runtime_check.py",
     "scripts/phase47_full_regression_gate.sh",
     "tests/test_phase47_full_regression.py",
+})
+PHASE48_BRANCH = "feature/phase48-final-ubuntu-acceptance"
+PHASE48_WORKTREE_FILES = frozenset({
+    "docs/phase48_acceptance_checklist.md",
+    "docs/phase48_expected_results.md",
+    "docs/phase48_final_acceptance_runbook.md",
+    "scripts/phase44_firewall_runtime_check.py",
+    "scripts/phase48_failure_bundle.sh",
+    "scripts/phase48_final_ubuntu_acceptance.sh",
+    "tests/test_phase48_acceptance_contract.py",
+    "tests/test_phase48_failure_bundle.py",
 })
 ERROR_PATTERNS = (
     "Traceback",
@@ -66,14 +78,18 @@ def runtime_worktree_is_acceptable(branch_name: str, status_text: str) -> bool:
         return False
     if not status_text.strip():
         return True
-    if branch_name != PHASE47_BRANCH:
+    if branch_name == PHASE47_BRANCH:
+        allowed_files = PHASE47_WORKTREE_FILES
+    elif branch_name == PHASE48_BRANCH:
+        allowed_files = PHASE48_WORKTREE_FILES
+    else:
         return False
     changed_files = {
         line[3:].split(" -> ", 1)[-1]
         for line in status_text.splitlines()
         if len(line) >= 4 and line.strip()
     }
-    return bool(changed_files) and changed_files <= PHASE47_WORKTREE_FILES
+    return bool(changed_files) and changed_files <= allowed_files
 
 
 class RuntimeCheckError(RuntimeError):
