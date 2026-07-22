@@ -36,7 +36,15 @@ ALLOWED_RUNTIME_BRANCHES = {
     "feature/dual-branch-topology",
     "transfer/phase45-regression-fix",
     "feature/phase46-automation-docs",
+    "feature/phase47-full-regression",
 }
+PHASE47_BRANCH = "feature/phase47-full-regression"
+PHASE47_WORKTREE_FILES = frozenset({
+    "docs/phase47_regression_matrix.md",
+    "scripts/phase44_firewall_runtime_check.py",
+    "scripts/phase47_full_regression_gate.sh",
+    "tests/test_phase47_full_regression.py",
+})
 ERROR_PATTERNS = (
     "Traceback",
     "BrokenPipeError",
@@ -49,6 +57,23 @@ ERROR_PATTERNS = (
     "FAILED",
     "CRITICAL",
 )
+
+
+def runtime_worktree_is_acceptable(branch_name: str, status_text: str) -> bool:
+    """Allow only the controlled pre-commit Phase 47 files to be dirty."""
+    branch_is_allowed = branch_name in ALLOWED_RUNTIME_BRANCHES
+    if not branch_is_allowed:
+        return False
+    if not status_text.strip():
+        return True
+    if branch_name != PHASE47_BRANCH:
+        return False
+    changed_files = {
+        line[3:].split(" -> ", 1)[-1]
+        for line in status_text.splitlines()
+        if len(line) >= 4 and line.strip()
+    }
+    return bool(changed_files) and changed_files <= PHASE47_WORKTREE_FILES
 
 
 class RuntimeCheckError(RuntimeError):
@@ -251,12 +276,15 @@ def main() -> int:
         head = run(["git", "rev-parse", "--short", "HEAD"], reporter, check=True)
         status = run(["git", "status", "--short"], reporter, check=True)
         branch_name = branch.stdout.strip()
+        checkpoint_worktree_ok = runtime_worktree_is_acceptable(branch_name, status.stdout)
         reporter.record(
             "Git checkpoint",
-            branch_name in ALLOWED_RUNTIME_BRANCHES and not status.stdout.strip(),
+            checkpoint_worktree_ok,
             branch=branch_name,
             head=head.stdout.strip(),
             clean=not status.stdout.strip(),
+            runtime_worktree_acceptable=checkpoint_worktree_ok,
+            dirty_files=[line for line in status.stdout.splitlines() if line.strip()],
         )
 
         health = agent_request("HEALTH")
