@@ -50,3 +50,26 @@ class ApiMessage(BaseModel):
     ok: bool
     message: str
     data: dict[str, Any] | None = None
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., pattern=r"^[A-Za-z][A-Za-z0-9_.-]{2,31}$")
+    password: str = Field(..., min_length=1, max_length=256)
+
+
+class UserCreateRequest(BaseModel):
+    username: str = Field(..., pattern=r"^[A-Za-z][A-Za-z0-9_.-]{2,31}$")
+    password: str = Field(..., min_length=12, max_length=256)
+    role: Literal["admin", "operator", "viewer", "auditor"] = "viewer"
+
+
+class RoleUpdateRequest(BaseModel):
+    role: Literal["admin", "operator", "viewer", "auditor"]
+
+
+class PasswordUpdateRequest(BaseModel):
+    password: str = Field(..., min_length=12, max_length=256)
+
+
+class UserStatusUpdateRequest(BaseModel):
+    disabled: bool

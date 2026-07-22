@@ -1,6 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ||
   `${window.location.protocol}//${window.location.hostname}:8000`;
-const OPERATOR_TOKEN_KEY = "cch_operator_token";
 
 export type Host = {
   name: string;
@@ -187,10 +186,25 @@ export type ClusterDetailResult = {
 };
 
 export type AuthStatus = {
+  human_auth_enabled: boolean;
+  session_cookie: string;
+  csrf_header: string;
+  session_ttl_seconds: number;
+  roles: string[];
   operator_auth_required: boolean;
   operator_token_configured: boolean;
-  token_header: string;
-  role: string;
+  operator_token_header: string;
+  operator_token_exposure: string;
+};
+
+export type AuthUser = {
+  id: string;
+  username: string;
+  role: "admin" | "operator" | "viewer" | "auditor";
+  disabled?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  last_login_at?: string | null;
 };
 
 export type PolicyLifecycleStatus = "Draft" | "Applying" | "Applied" | "Failed" | "Out of sync";
@@ -258,25 +272,21 @@ export type ActivityPayload = {
   count: number;
 };
 
-export function getOperatorToken() {
-  return window.localStorage.getItem(OPERATOR_TOKEN_KEY) || "";
-}
-
-export function setOperatorToken(token: string) {
-  const trimmed = token.trim();
-  if (trimmed) window.localStorage.setItem(OPERATOR_TOKEN_KEY, trimmed);
-  else window.localStorage.removeItem(OPERATOR_TOKEN_KEY);
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getOperatorToken();
-  return token ? { "X-CCH-Operator-Token": token } : {};
+function csrfToken(): string {
+  const item = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("cch_csrf="));
+  return item ? decodeURIComponent(item.slice("cch_csrf=".length)) : "";
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   let response: Response;
+  const headers = new Headers(options?.headers);
+  const method = (options?.method || "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const csrf = csrfToken();
+    if (csrf) headers.set("X-CCH-CSRF", csrf);
+  }
   try {
-    response = await fetch(`${API_BASE}${path}`, options);
+    response = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new ApiClientError("Đã hủy chờ kết quả trên dashboard.", "TASK_CANCELLED");
@@ -319,13 +329,19 @@ export const api = {
   status: () => request<Record<string, unknown>>("/api/live/status"),
   health: () => request<Record<string, unknown>>("/api/health"),
   activity: () => request<ActivityPayload>("/api/activity"),
-  verifyOperator: () => request<{ ok: boolean; authenticated: boolean; role: string }>("/api/auth/verify", {
-    headers: authHeaders(),
+  login: (username: string, password: string) => request<{ ok: boolean; user: AuthUser; expires_at: string }>("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
   }),
+  me: () => request<{ ok: boolean; authenticated: boolean; user: AuthUser }>("/api/auth/me"),
+  refreshSession: () => request<{ ok: boolean; user: AuthUser; expires_at?: string }>("/api/auth/refresh", { method: "POST" }),
+  logout: () => request<{ ok: boolean; message_vi: string }>("/api/auth/logout", { method: "POST" }),
+  adminUsers: () => request<{ users: AuthUser[] }>("/api/admin/users"),
   post: <T>(path: string, body: object, signal?: AbortSignal) =>
     request<T>(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal,
     }),

@@ -18,6 +18,12 @@ class ApiError(Exception):
 ERROR_HTTP_STATUS = {
     "AUTH_REQUIRED": 401,
     "AUTH_INVALID": 403,
+    "AUTH_EXPIRED": 401,
+    "AUTH_LOCKED": 429,
+    "RBAC_FORBIDDEN": 403,
+    "CSRF_INVALID": 403,
+    "USER_EXISTS": 409,
+    "USER_NOT_FOUND": 404,
     "IPERF_BUSY": 409,
     "MININET_NOT_RUNNING": 503,
     "AGENT_NOT_READY": 503,
@@ -47,4 +53,3 @@ def error_payload(
     if technical_detail is not None:
         payload["technical_detail"] = technical_detail
     return payload
-

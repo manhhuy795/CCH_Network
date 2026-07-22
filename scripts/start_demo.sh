@@ -91,12 +91,20 @@ prepare_backend_privileges() {
   fi
 
   echo "Backend can quyen root de truy cap namespace Mininet."
-  echo "Xac thuc sudo truoc khi khoi dong backend nen..."
-  if ! sudo -v; then
+  echo "Kiem tra quyen sudo khong tuong tac truoc khi khoi dong backend..."
+  if ! sudo -n -E true; then
     echo "FAIL Khong xac thuc duoc sudo; backend chua duoc khoi dong."
     return 1
   fi
   BACKEND_PRIVILEGE_PREFIX=(sudo -n -E)
+}
+
+prepare_auth_database() {
+  echo "Khoi tao schema auth runtime bang user hien tai..."
+  (
+    cd "$BACKEND_DIR"
+    CCH_AUTH_DB="$LOG_DIR/auth.sqlite3" "$BACKEND_VENV/bin/python" -c 'from app import auth_store; auth_store.initialize()'
+  )
 }
 
 wait_backend_health() {
@@ -209,6 +217,8 @@ if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
   exit 1
 fi
 
+prepare_auth_database
+
 : > "$PID_FILE"
 
 if port_open 6653; then
@@ -258,9 +268,9 @@ VM_IPS="$(hostname -I 2>/dev/null | xargs || true)"
 
 echo
 echo "Da khoi dong dashboard."
-echo "IT operator token:"
-echo "  $CCH_DASHBOARD_OPERATOR_TOKEN"
-echo "Nhap token nay vao o IT token tren dashboard de ping/iperf/block/link fail/policy toggle."
+echo "Dashboard dung dang nhap human account voi RBAC; operator token chi danh cho runtime script/backend."
+echo "Neu chua co admin, tao tai khoan an toan bang:"
+echo "  $ROOT_DIR/scripts/phase49_bootstrap_admin.py"
 echo "Mo trong Ubuntu VM:"
 echo "  Dashboard: http://127.0.0.1:5173"
 echo "  Backend:   http://127.0.0.1:8000"

@@ -277,10 +277,11 @@ def test_health_and_live_status_expose_all_components(monkeypatch):
     }
     monkeypatch.setattr(api, "system_health", lambda: payload)
     monkeypatch.setattr(api, "live_health_payload", lambda: {**payload, "available": True})
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "phase49-health-secret")
     client = TestClient(app)
 
     health = client.get("/api/health")
-    live = client.get("/api/live/status")
+    live = client.get("/api/live/status", headers={"X-CCH-Operator-Token": "phase49-health-secret"})
     assert health.status_code == 200
     assert live.status_code == 200
     for response in (health, live):
@@ -302,7 +303,7 @@ def test_start_and_health_scripts_use_component_checks():
     assert 'port_open 6653' in start_script
     assert 'port_open 5173' in start_script
     assert "prepare_backend_privileges" in start_script
-    assert "sudo -v" in start_script
+    assert "sudo -n -E true" in start_script
     assert "sudo -n -E" in start_script
     assert "sudo -n" in health_script
     assert "mininet_control_agent" in health_script or "components" in health_script

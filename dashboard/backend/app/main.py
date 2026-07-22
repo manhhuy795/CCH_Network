@@ -11,12 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .api import router
+from . import auth_store
 from .errors import ApiError, error_payload
 from .live_page import LIVE_DASHBOARD_HTML
 from .live_mininet import pair_realtime_metrics
 from .metrics import current_metrics
 from .runtime_health import websocket_connected, websocket_disconnected
-from .security import cors_origin_regex, cors_origins
+from .security import cors_origin_regex, cors_origins, websocket_principal
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -27,11 +28,16 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins(),
     allow_origin_regex=cors_origin_regex(),
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-CCH-Operator-Token", "Authorization"],
+    allow_headers=["Content-Type", "Cookie", "X-CCH-CSRF", "X-CCH-Operator-Token", "Authorization", "X-Request-ID"],
 )
 app.include_router(router)
+
+
+@app.on_event("startup")
+def initialize_auth_store() -> None:
+    auth_store.initialize()
 
 
 def _request_id(request: Request) -> str:
@@ -114,6 +120,13 @@ def live_dashboard():
 
 @app.websocket("/ws/metrics")
 async def ws_metrics(websocket: WebSocket):
+    principal = websocket_principal(websocket)
+    if not principal:
+        await websocket.close(code=4401, reason="AUTH_REQUIRED")
+        return
+    if not auth_store.has_permission(principal, "dashboard.read"):
+        await websocket.close(code=4403, reason="RBAC_FORBIDDEN")
+        return
     await websocket.accept()
     websocket_connected()
     try:

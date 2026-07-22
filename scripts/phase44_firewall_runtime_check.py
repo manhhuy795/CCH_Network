@@ -38,6 +38,7 @@ ALLOWED_RUNTIME_BRANCHES = {
     "feature/phase46-automation-docs",
     "feature/phase47-full-regression",
     "feature/phase48-final-ubuntu-acceptance",
+    "feature/phase49-auth-rbac",
 }
 PHASE47_BRANCH = "feature/phase47-full-regression"
 PHASE47_WORKTREE_FILES = frozenset({
@@ -57,6 +58,35 @@ PHASE48_WORKTREE_FILES = frozenset({
     "tests/test_phase48_acceptance_contract.py",
     "tests/test_phase48_failure_bundle.py",
 })
+PHASE49_BRANCH = "feature/phase49-auth-rbac"
+PHASE49_WORKTREE_FILES = frozenset({
+    "dashboard/backend/app/api.py",
+    "dashboard/backend/app/auth_store.py",
+    "dashboard/backend/app/errors.py",
+    "dashboard/backend/app/main.py",
+    "dashboard/backend/app/models.py",
+    "dashboard/backend/app/security.py",
+    "dashboard/frontend/src/App.tsx",
+    "dashboard/frontend/src/api/client.ts",
+    "dashboard/frontend/src/components/LoginPanel.tsx",
+    "dashboard/frontend/src/components/layout/AppShell.test.tsx",
+    "dashboard/frontend/src/components/layout/AppShell.tsx",
+    "dashboard/frontend/src/styles/global.css",
+    "docs/phase49_authentication_design.md",
+    "docs/phase49_inventory_threat_model_vi.md",
+    "docs/phase49_rbac_matrix.md",
+    "docs/phase49_security_operations.md",
+    "docs/phase49_security_test_matrix.md",
+    "scripts/phase44_45_combined_acceptance.sh",
+    "scripts/phase44_firewall_runtime_check.py",
+    "scripts/phase49_auth_rbac_gate.sh",
+    "scripts/phase49_bootstrap_admin.py",
+    "scripts/phase49_secret_scan.py",
+    "scripts/start_demo.sh",
+    "tests/test_dashboard_api.py",
+    "tests/test_dashboard_health_api.py",
+    "tests/test_phase49_auth_rbac.py",
+})
 ERROR_PATTERNS = (
     "Traceback",
     "BrokenPipeError",
@@ -72,7 +102,7 @@ ERROR_PATTERNS = (
 
 
 def runtime_worktree_is_acceptable(branch_name: str, status_text: str) -> bool:
-    """Allow only the controlled pre-commit Phase 47 files to be dirty."""
+    """Allow only the current phase's explicitly scoped files to be dirty."""
     branch_is_allowed = branch_name in ALLOWED_RUNTIME_BRANCHES
     if not branch_is_allowed:
         return False
@@ -82,6 +112,8 @@ def runtime_worktree_is_acceptable(branch_name: str, status_text: str) -> bool:
         allowed_files = PHASE47_WORKTREE_FILES
     elif branch_name == PHASE48_BRANCH:
         allowed_files = PHASE48_WORKTREE_FILES
+    elif branch_name == PHASE49_BRANCH:
+        allowed_files = PHASE49_WORKTREE_FILES
     else:
         return False
     changed_files = {

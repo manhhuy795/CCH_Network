@@ -1,24 +1,74 @@
 from __future__ import annotations
 
+import sqlite3
 import time
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 
-from . import mininet_control
+from . import auth_store, mininet_control
 from .activity import activity_payload, append_event, record_operation, utc_now
-from .errors import ERROR_HTTP_STATUS
+from .errors import ApiError, ERROR_HTTP_STATUS
 from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, firewall_inventory, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, phase44_runtime_status, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
-from .models import ClusterTestRequest, HostPair, IperfRequest, LinkStateRequest, LinkUpdateRequest, PolicyToggleRequest
+from .models import (
+    ClusterTestRequest,
+    HostPair,
+    IperfRequest,
+    LinkStateRequest,
+    LinkUpdateRequest,
+    LoginRequest,
+    PasswordUpdateRequest,
+    PolicyToggleRequest,
+    RoleUpdateRequest,
+    UserCreateRequest,
+    UserStatusUpdateRequest,
+)
 from .policy import get_policy_payload, toggle_policy
-from .security import auth_status, require_operator
+from .security import (
+    CSRF_COOKIE,
+    SESSION_COOKIE,
+    auth_status,
+    cookie_secure,
+    current_principal,
+    require_admin,
+    require_audit_reader,
+    require_permission,
+    require_operator,
+)
 from .topology import get_topology
 from .runtime_health import live_health_payload, system_health
 
 
 router = APIRouter(prefix="/api")
 operator_required = Depends(require_operator)
+dashboard_read_required = Depends(require_permission("dashboard.read"))
+
+
+def _public_principal(principal: dict) -> dict:
+    return {key: value for key, value in principal.items() if not key.startswith("_") and key != "permissions"}
+
+
+def _set_session_cookies(response: Response, login_result: dict) -> None:
+    max_age = auth_store.session_ttl_seconds()
+    response.set_cookie(
+        SESSION_COOKIE,
+        login_result["token"],
+        max_age=max_age,
+        httponly=True,
+        secure=cookie_secure(),
+        samesite="lax",
+        path="/",
+    )
+    response.set_cookie(
+        CSRF_COOKIE,
+        login_result["csrf_token"],
+        max_age=max_age,
+        httponly=False,
+        secure=cookie_secure(),
+        samesite="lax",
+        path="/",
+    )
 
 
 def _normalize_operation_error(payload: dict) -> dict:
@@ -97,17 +147,17 @@ def tracked_operation(
 
 
 @router.get("/topology")
-def api_topology():
+def api_topology(principal: dict = Depends(require_permission("dashboard.read"))):
     return get_topology()
 
 
 @router.get("/sites")
-def api_sites():
+def api_sites(principal: dict = Depends(require_permission("dashboard.read"))):
     return {"sites": get_topology()["sites"]}
 
 
 @router.get("/devices")
-def api_devices():
+def api_devices(principal: dict = Depends(require_permission("dashboard.read"))):
     topology = get_topology()
     return {
         "devices": topology["devices"],
@@ -117,7 +167,7 @@ def api_devices():
 
 
 @router.get("/firewalls")
-def api_firewalls():
+def api_firewalls(principal: dict = Depends(require_permission("dashboard.read"))):
     return {
         "firewalls": firewall_inventory(),
         "phase44_runtime": phase44_runtime_status(),
@@ -129,24 +179,131 @@ def api_auth_status():
     return auth_status()
 
 
-@router.get("/auth/verify", dependencies=[operator_required])
-def api_auth_verify():
+@router.post("/auth/login")
+def api_auth_login(payload: LoginRequest, request: Request, response: Response):
+    result = auth_store.login(
+        payload.username,
+        payload.password,
+        request_id=getattr(request.state, "request_id", None),
+        source_ip=request.client.host if request.client else None,
+    )
+    if not result.get("ok"):
+        code = str(result.get("error_code") or "AUTH_INVALID")
+        status = 429 if code == "AUTH_LOCKED" else 401
+        message = "Tài khoản đang tạm khóa do đăng nhập sai quá nhiều lần." if code == "AUTH_LOCKED" else "Tên đăng nhập hoặc mật khẩu không đúng."
+        raise ApiError(status_code=status, error_code=code, message_vi=message)
+    _set_session_cookies(response, result)
+    return {"ok": True, "user": result["user"], "expires_at": result["expires_at"]}
+
+
+@router.get("/auth/me")
+def api_auth_me(principal: dict = Depends(current_principal)):
+    return {"ok": True, "authenticated": True, "user": _public_principal(principal)}
+
+
+@router.post("/auth/refresh")
+def api_auth_refresh(request: Request, response: Response, principal: dict = Depends(current_principal)):
+    token = principal.get("_session_token")
+    if not token:
+        return {"ok": True, "user": _public_principal(principal), "auth_method": "operator_token"}
+    rotated = auth_store.rotate_session(
+        token,
+        request_id=getattr(request.state, "request_id", None),
+        actor=principal,
+        source_ip=request.client.host if request.client else None,
+    )
+    if not rotated:
+        raise ApiError(status_code=401, error_code="AUTH_EXPIRED", message_vi="Phiên đăng nhập đã hết hạn.")
+    _set_session_cookies(response, rotated)
+    return {"ok": True, "user": rotated["user"], "expires_at": rotated["expires_at"]}
+
+
+@router.post("/auth/logout")
+def api_auth_logout(request: Request, response: Response, principal: dict = Depends(current_principal)):
+    from .security import csrf_check
+
+    csrf_check(request, principal)
+    auth_store.revoke_session(
+        request.cookies.get(SESSION_COOKIE),
+        request_id=getattr(request.state, "request_id", None),
+        actor=principal,
+        source_ip=request.client.host if request.client else None,
+    )
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(CSRF_COOKIE, path="/")
+    return {"ok": True, "message_vi": "Đã đăng xuất phiên hiện tại."}
+
+
+@router.get("/auth/verify")
+def api_auth_verify(principal: dict = Depends(require_operator)):
     append_event(component="backend", event_type="auth", message="Xác thực IT Operator thành công.", severity="info")
-    return {"ok": True, "authenticated": True, "role": "it_operator"}
+    return {"ok": True, "authenticated": True, "role": principal.get("role"), "auth_method": principal.get("auth_method")}
+
+
+@router.get("/admin/users")
+def api_admin_users(principal: dict = Depends(require_admin)):
+    return {"users": auth_store.list_users()}
+
+
+@router.post("/admin/users")
+def api_admin_create_user(payload: UserCreateRequest, request: Request, principal: dict = Depends(require_admin)):
+    try:
+        user = auth_store.create_user(payload.username, payload.password, payload.role)
+    except sqlite3.IntegrityError:
+        raise ApiError(status_code=409, error_code="USER_EXISTS", message_vi="Username đã tồn tại.") from None
+    except ValueError as exc:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message_vi=str(exc)) from exc
+    auth_store.audit(action="user.create", result="success", request_id=getattr(request.state, "request_id", None), actor=principal, source_ip=request.client.host if request.client else None, detail={"username": user["username"], "role": user["role"]})
+    return {"ok": True, "user": user}
+
+
+@router.patch("/admin/users/{username}/role")
+def api_admin_update_role(username: str, payload: RoleUpdateRequest, request: Request, principal: dict = Depends(require_admin)):
+    try:
+        user = auth_store.update_role(username, payload.role)
+    except (KeyError, ValueError) as exc:
+        raise ApiError(status_code=404, error_code="USER_NOT_FOUND", message_vi=str(exc)) from exc
+    auth_store.audit(action="user.role_change", result="success", request_id=getattr(request.state, "request_id", None), actor=principal, source_ip=request.client.host if request.client else None, detail={"username": username, "role": payload.role})
+    return {"ok": True, "user": user}
+
+
+@router.patch("/admin/users/{username}/password")
+def api_admin_update_password(username: str, payload: PasswordUpdateRequest, request: Request, principal: dict = Depends(require_admin)):
+    try:
+        user = auth_store.change_password(username, payload.password)
+    except (KeyError, ValueError) as exc:
+        raise ApiError(status_code=404, error_code="USER_NOT_FOUND", message_vi=str(exc)) from exc
+    auth_store.audit(action="user.password_change", result="success", request_id=getattr(request.state, "request_id", None), actor=principal, source_ip=request.client.host if request.client else None, detail={"username": username})
+    return {"ok": True, "user": user}
+
+
+@router.patch("/admin/users/{username}/status")
+def api_admin_update_status(username: str, payload: UserStatusUpdateRequest, request: Request, principal: dict = Depends(require_admin)):
+    try:
+        user = auth_store.set_disabled(username, payload.disabled)
+    except (KeyError, ValueError) as exc:
+        raise ApiError(status_code=404, error_code="USER_NOT_FOUND", message_vi=str(exc)) from exc
+    auth_store.audit(action="user.status_change", result="success", request_id=getattr(request.state, "request_id", None), actor=principal, source_ip=request.client.host if request.client else None, detail={"username": username, "disabled": payload.disabled})
+    return {"ok": True, "user": user}
+
+
+@router.get("/admin/audit")
+def api_admin_audit(limit: int = 200, principal: dict = Depends(require_audit_reader)):
+    return {"events": auth_store.audit_events(limit)}
 
 
 @router.get("/policies")
-def api_policies():
+def api_policies(principal: dict = Depends(require_permission("dashboard.read"))):
     return get_policy_payload()
 
 
 @router.get("/flows")
-def api_flows(request: Request):
+def api_flows(request: Request, principal: dict = Depends(require_permission("dashboard.read"))):
     return ovs_flows()
 
 
 @router.get("/metrics/current")
-def api_metrics_current(request: Request):
+def api_metrics_current(request: Request, principal: dict = Depends(require_permission("dashboard.read"))):
     return current_metrics()
 
 
@@ -156,7 +313,7 @@ def api_metrics_pair(payload: HostPair):
 
 
 @router.get("/live/status")
-def api_live_status():
+def api_live_status(principal: dict = Depends(require_permission("dashboard.read"))):
     return {
         **live_health_payload(),
         "iperf_sessions": iperf_runtime_status(),

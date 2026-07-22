@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiClientError, api, getOperatorToken, setOperatorToken, type ActivityEvent, type AuthStatus, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
+import { ApiClientError, api, type ActivityEvent, type AuthStatus, type AuthUser, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog from "./components/EventLog";
@@ -15,6 +15,7 @@ import { ensureTestResult, type NetworkTestType } from "./components/testWorkflo
 import Drawer from "./components/ui/Drawer";
 import FeedbackState from "./components/ui/FeedbackState";
 import ToastRegion, { type ToastItem } from "./components/ui/ToastRegion";
+import LoginPanel from "./components/LoginPanel";
 
 type Action = NetworkTestType | "simulate" | "block" | "unblock";
 type LinkOperation = { linkId: string; action: "fail" | "recover"; status: "running" | "success" | "failed"; message: string };
@@ -44,9 +45,11 @@ export default function App() {
   const [online, setOnline] = useState(0);
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
   const [websocketOnline, setWebsocketOnline] = useState(false);
-  const [operatorToken, setOperatorTokenState] = useState(getOperatorToken());
-  const [authenticated, setAuthenticated] = useState(false);
-  const [authChecking, setAuthChecking] = useState(false);
+  const [user, setUser] = useState<AuthUser>();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authChecking, setAuthChecking] = useState(true);
   const [authStatus, setAuthStatus] = useState<AuthStatus>();
   const [helpOpen, setHelpOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
@@ -78,7 +81,7 @@ export default function App() {
   }, []);
 
   const refreshActivity = useCallback(async () => {
-    if (!getOperatorToken()) return;
+    if (!user) return;
     try {
       const payload = await api.activity();
       setEvents((current) => [
@@ -89,7 +92,7 @@ export default function App() {
     } catch {
       // Health and authentication surfaces already report why protected activity is unavailable.
     }
-  }, []);
+  }, [user]);
 
   const refresh = useCallback(async () => {
     try {
@@ -110,44 +113,45 @@ export default function App() {
       const message = error instanceof Error ? error.message : "Không tải được dữ liệu dashboard.";
       addEvent(message, "deny");
       notify(message, "error");
+      if (error instanceof ApiClientError && error.status === 401) setUser(undefined);
     }
   }, [addEvent, notify, refreshActivity]);
 
   const authenticate = useCallback(async () => {
-    if (!operatorToken.trim()) return;
+    if (!username.trim() || !password) return;
     setAuthChecking(true);
-    setOperatorToken(operatorToken);
+    setAuthError("");
     try {
-      await api.verifyOperator();
-      setAuthenticated(true);
-      setOperatorTokenState("");
-      notify("Đã xác thực phiên IT Operator.", "success");
-      await refreshActivity();
+      const result = await api.login(username, password);
+      setUser(result.user);
+      setPassword("");
+      notify(`Đã đăng nhập với role ${result.user.role}.`, "success");
     } catch (error) {
-      setAuthenticated(false);
-      setOperatorToken("");
-      const message = error instanceof Error ? error.message : "Không xác thực được token.";
+      const message = error instanceof Error ? error.message : "Không xác thực được tài khoản.";
+      setAuthError(message);
       notify(message, "error");
     } finally {
       setAuthChecking(false);
     }
-  }, [notify, operatorToken, refreshActivity]);
+  }, [notify, password, username]);
 
   useEffect(() => {
-    void refresh();
-    if (getOperatorToken()) {
-      setAuthChecking(true);
-      api.verifyOperator()
-        .then(() => setAuthenticated(true))
-        .catch(() => setOperatorToken(""))
-        .finally(() => setAuthChecking(false));
-    }
+    let active = true;
+    api.me()
+      .then((payload) => { if (active) setUser(payload.user); })
+      .catch(() => { if (active) setUser(undefined); })
+      .finally(() => { if (active) setAuthChecking(false); });
     return () => {
+      active = false;
       window.clearInterval(timer.current);
       window.clearInterval(taskTimer.current);
       abortController.current?.abort();
     };
-  }, [refresh]);
+  }, []);
+
+  useEffect(() => {
+    if (user) void refresh();
+  }, [refresh, user]);
 
   useEffect(() => {
     window.clearInterval(taskTimer.current);
@@ -269,7 +273,7 @@ export default function App() {
     flows,
     metrics,
     linkOperation,
-    authenticated,
+    authenticated: Boolean(user),
     source,
     onFail: (id: string) => void changeLink(id, true),
     onRecover: (id: string) => void changeLink(id, false),
@@ -278,6 +282,8 @@ export default function App() {
   };
 
   const pageContent = () => {
+    if (authChecking) return <FeedbackState kind="loading" title="Kiểm tra phiên đăng nhập" message="Dashboard đang xác thực phiên làm việc." />;
+    if (!user) return <LoginPanel username={username} password={password} busy={authChecking} error={authError} onUsername={setUsername} onPassword={setPassword} onSubmit={() => void authenticate()} />;
     if (!topology && page !== "events") {
       return <FeedbackState kind="loading" title="Đang tải dữ liệu vận hành" message="Dashboard đang đọc topology, health và OpenFlow inventory." />;
     }
@@ -322,12 +328,17 @@ export default function App() {
       onPage={setPage}
       overallStatus={overallStatus}
       websocketOnline={websocketOnline}
-      authenticated={authenticated}
+      user={user}
       authChecking={authChecking}
-      token={operatorToken}
-      onToken={setOperatorTokenState}
-      onAuthenticate={() => void authenticate()}
-      onLogout={() => { setOperatorToken(""); setAuthenticated(false); setOperatorTokenState(""); }}
+      onLogout={() => {
+        void api.logout().catch(() => undefined).finally(() => {
+          setUser(undefined);
+          setTopology(undefined);
+          setPolicies({ policies: {}, inventory: [] });
+          setFlows([]);
+          setPage("overview");
+        });
+      }}
       onHelp={() => setHelpOpen(true)}
     >
       {pageContent()}
@@ -338,8 +349,8 @@ export default function App() {
           <h3>Kết quả thật</h3>
           <p>Ping và iperf được backend chạy trong namespace Mininet. Packet path lấy từ backend policy decision.</p>
           <h3>Quyền thao tác</h3>
-          <p>Link fail/recover, policy toggle và phép đo yêu cầu phiên IT Operator đã xác thực.</p>
-          {authStatus && <p>Header xác thực: {authStatus.token_header}</p>}
+          <p>Link fail/recover, policy toggle và phép đo yêu cầu phiên operator hoặc admin đã xác thực.</p>
+          {authStatus && <p>Phiên: {authStatus.session_ttl_seconds} giây · CSRF header: {authStatus.csrf_header}</p>}
         </div>
       </Drawer>
       <ToastRegion items={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} />

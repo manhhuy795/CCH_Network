@@ -12,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useState } from "react";
+import type { AuthUser } from "../../api/client";
 import StatusBadge from "../ui/StatusBadge";
 
 export type DashboardPage = "overview" | "topology" | "testing" | "policy" | "performance" | "events";
@@ -30,11 +31,8 @@ type Props = {
   onPage: (page: DashboardPage) => void;
   overallStatus: string;
   websocketOnline: boolean;
-  authenticated: boolean;
+  user?: AuthUser;
   authChecking: boolean;
-  token: string;
-  onToken: (token: string) => void;
-  onAuthenticate: () => void;
   onLogout: () => void;
   onHelp: () => void;
   children: React.ReactNode;
@@ -43,6 +41,11 @@ type Props = {
 export default function AppShell(props: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const visibleNavigation = props.user ? navigation.filter((item) => {
+    if (props.user?.role === "admin" || props.user?.role === "operator") return true;
+    if (props.user?.role === "viewer") return item.id !== "testing" && item.id !== "events";
+    return item.id === "overview" || item.id === "events";
+  }) : [];
   return (
     <div className={collapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
       <aside className="app-sidebar">
@@ -52,7 +55,7 @@ export default function AppShell(props: Props) {
           <button className="icon-button sidebar-toggle" title="Thu gọn điều hướng" onClick={() => setCollapsed((value) => !value)}><Menu size={18} /></button>
         </div>
         <nav aria-label="Điều hướng chính">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const Icon = item.icon;
             return (
               <button className={props.page === item.id ? "nav-item active" : "nav-item"} key={item.id} onClick={() => props.onPage(item.id)} title={collapsed ? item.label : undefined}>
@@ -73,24 +76,17 @@ export default function AppShell(props: Props) {
           <div className="header-status">
             <StatusBadge status={props.overallStatus} />
             <StatusBadge status={props.websocketOnline ? "online" : "unknown"} label={props.websocketOnline ? "WebSocket online" : "WebSocket chưa kết nối"} />
+            <StatusBadge status={props.user ? "online" : "unknown"} label={props.user ? `Đã đăng nhập · ${props.user.role}` : "Chưa đăng nhập"} />
           </div>
           <div className="header-tools">
-            {!props.authenticated ? (
-              <form className="auth-form" onSubmit={(event) => { event.preventDefault(); props.onAuthenticate(); }}>
-                <input aria-label="IT operator token" type="password" value={props.token} placeholder="IT operator token" onChange={(event) => props.onToken(event.target.value)} />
-                <button className="primary" disabled={props.authChecking || !props.token.trim()}>{props.authChecking ? "Đang xác thực" : "Xác thực"}</button>
-              </form>
-            ) : (
-              <StatusBadge status="online" label="Đã xác thực" />
-            )}
             <button className="icon-button" title="Trợ giúp" onClick={props.onHelp}><CircleHelp size={18} /></button>
             <div className="user-menu">
               <button className="icon-button" title="Tài khoản" onClick={() => setUserMenu((value) => !value)}><UserRound size={18} /></button>
               {userMenu && (
                 <div className="user-popover">
-                  <strong>IT Operator</strong>
-                  <span>{props.authenticated ? "Phiên đã xác thực" : "Chưa xác thực"}</span>
-                  {props.authenticated && <button onClick={() => { setUserMenu(false); props.onLogout(); }}><LogOut size={15} />Đăng xuất</button>}
+                  <strong>{props.user?.username || "Khách"}</strong>
+                  <span>{props.user ? `Role: ${props.user.role}` : (props.authChecking ? "Đang kiểm tra phiên" : "Chưa đăng nhập")}</span>
+                  {props.user && <button onClick={() => { setUserMenu(false); props.onLogout(); }}><LogOut size={15} />Đăng xuất</button>}
                 </div>
               )}
             </div>
