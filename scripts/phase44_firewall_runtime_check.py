@@ -60,6 +60,7 @@ PHASE48_WORKTREE_FILES = frozenset({
 })
 PHASE49_BRANCH = "feature/phase49-auth-rbac"
 PHASE49_WORKTREE_FILES = frozenset({
+    "README.md",
     "dashboard/backend/app/api.py",
     "dashboard/backend/app/auth_store.py",
     "dashboard/backend/app/errors.py",
@@ -81,6 +82,7 @@ PHASE49_WORKTREE_FILES = frozenset({
     "scripts/phase44_firewall_runtime_check.py",
     "scripts/phase49_auth_rbac_gate.sh",
     "scripts/phase49_bootstrap_admin.py",
+    "scripts/phase49_detailed_status_event_test.py",
     "scripts/phase49_secret_scan.py",
     "scripts/start_demo.sh",
     "tests/test_dashboard_api.py",

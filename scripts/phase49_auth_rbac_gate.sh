@@ -127,12 +127,12 @@ api_post_operator() {
 preflight_checks() {
   run_case P01_linux test "$(uname -s)" = Linux
   run_case P02_branch bash -c 'test "$(git -C "$1" branch --show-current)" = "$2"' _ "$ROOT_DIR" "$BRANCH_EXPECTED"
-  run_case P03_scope bash -c 'git -C "$1" status --porcelain | awk "{print substr(\$0,4)}" | grep -Ev "^(dashboard/backend/app/(api|auth_store|errors|main|models|security)\\.py|dashboard/frontend/src/(App\\.tsx|api/client\\.ts|components/LoginPanel\\.tsx|components/layout/AppShell(\\.tsx|\\.test\\.tsx)|styles/global\\.css)|scripts/(start_demo\\.sh|phase44_45_combined_acceptance\\.sh|phase44_firewall_runtime_check\\.py|phase49_bootstrap_admin\\.py|phase49_auth_rbac_gate\\.sh|phase49_secret_scan\\.py)|docs/phase49_.*\\.md|tests/(test_dashboard_api\\.py|test_dashboard_health_api\\.py|test_phase49_auth_rbac\\.py))$" | grep -q . && exit 1 || exit 0' _ "$ROOT_DIR"
+  run_case P03_scope bash -c 'git -C "$1" status --porcelain | awk "{print substr(\$0,4)}" | grep -Ev "^(README\\.md|dashboard/backend/app/(api|auth_store|errors|main|models|security)\\.py|dashboard/frontend/src/(App\\.tsx|api/client\\.ts|components/LoginPanel\\.tsx|components/layout/AppShell(\\.tsx|\\.test\\.tsx)|styles/global\\.css)|scripts/(start_demo\\.sh|phase44_45_combined_acceptance\\.sh|phase44_firewall_runtime_check\\.py|phase49_bootstrap_admin\\.py|phase49_auth_rbac_gate\\.sh|phase49_detailed_status_event_test\\.py|phase49_secret_scan\\.py)|docs/phase49_.*\\.md|tests/(test_dashboard_api\\.py|test_dashboard_health_api\\.py|test_phase49_auth_rbac\\.py))$" | grep -q . && exit 1 || exit 0' _ "$ROOT_DIR"
   run_case P04_main_phase48 bash -c 'git -C "$1" cat-file -e origin/main:scripts/phase48_final_ubuntu_acceptance.sh && git -C "$1" cat-file -e origin/main:docs/phase48_final_acceptance_runbook.md' _ "$ROOT_DIR"
   run_case P05_python "$PYTHON_BIN" --version
   run_case P06_node node --version
   run_case P07_npm npm --version
-  run_case P08_required_files bash -c 'for f in dashboard/backend/app/auth_store.py scripts/phase49_bootstrap_admin.py scripts/phase49_secret_scan.py docs/phase49_authentication_design.md docs/phase49_rbac_matrix.md docs/phase49_security_operations.md docs/phase49_security_test_matrix.md; do test -f "$1/$f" || exit 1; done' _ "$ROOT_DIR"
+  run_case P08_required_files bash -c 'for f in dashboard/backend/app/auth_store.py scripts/phase49_bootstrap_admin.py scripts/phase49_detailed_status_event_test.py scripts/phase49_secret_scan.py docs/phase49_authentication_design.md docs/phase49_rbac_matrix.md docs/phase49_security_operations.md docs/phase49_security_test_matrix.md README.md; do test -f "$1/$f" || exit 1; done' _ "$ROOT_DIR"
   run_case P09_diff_check git -C "$ROOT_DIR" diff --check
   git -C "$ROOT_DIR" status --short --branch > "$REPORT_DIR/environment/git_status.txt"
   git -C "$ROOT_DIR" log -20 --oneline > "$REPORT_DIR/environment/git_log.txt"
@@ -140,7 +140,7 @@ preflight_checks() {
 }
 
 backend_checks() {
-  run_case B01_compile "$PYTHON_BIN" -m py_compile dashboard/backend/app/*.py scripts/phase49_bootstrap_admin.py
+  run_case B01_compile "$PYTHON_BIN" -m py_compile dashboard/backend/app/*.py scripts/phase49_bootstrap_admin.py scripts/phase49_detailed_status_event_test.py
   run_case B02_auth_tests "$PYTHON_BIN" -m pytest -q tests/test_phase49_auth_rbac.py
   run_case B03_dashboard_api "$PYTHON_BIN" -m pytest -q tests/test_dashboard_api.py tests/test_dashboard_health_api.py
   run_case B04_full_pytest "$PYTHON_BIN" -m pytest -q
