@@ -205,6 +205,13 @@ class Gate:
         except (OSError, subprocess.TimeoutExpired) as exc:
             return self.record(name, "BLOCKED" if allow_blocked else "FAIL", exit_code=124 if isinstance(exc, subprocess.TimeoutExpired) else 127, reason=type(exc).__name__, summary=str(exc), duration=time.monotonic() - started)
 
+    def operator_command(self, name: str, argv: Sequence[str], **kwargs: Any) -> bool:
+        command = list(argv)
+        operator = os.environ.get("SUDO_USER")
+        if os.geteuid() == 0 and operator and operator != "root":
+            command = ["sudo", "-n", "-u", operator, "-H", "--", *command]
+        return self.command(name, command, **kwargs)
+
     def port_open(self, port: int) -> bool:
         return port in parse_listening_ports(subprocess.run(["ss", "-ltnH"], capture_output=True, text=True, check=False).stdout)
 
@@ -263,20 +270,20 @@ class Gate:
         python_files = []
         for source_root in ("scripts", "sdn_mpls_demo", "dashboard/backend"):
             python_files.extend(path for path in (ROOT_DIR / source_root).rglob("*.py") if ".venv" not in path.parts and "site-packages" not in path.parts)
-        ok = self.command("py_compile", [str(self.python), "-m", "py_compile", *[str(path) for path in sorted(python_files)]], timeout=120)
+        ok = self.operator_command("py_compile", [str(self.python), "-m", "py_compile", *[str(path) for path in sorted(python_files)]], timeout=120)
         for path in sorted(ROOT_DIR.glob("scripts/*.sh")) + sorted((ROOT_DIR / "sdn_mpls_demo").glob("*.sh")):
-            ok &= self.command(f"bash_n_{path.name}", ["bash", "-n", str(path)], timeout=30)
-        ok &= self.command("pytest_collection", [str(self.python), "-m", "pytest", "--collect-only", "-q"], timeout=180)
-        ok &= self.command("pytest_phase46", [str(self.python), "-m", "pytest", "-q", "tests/test_phase46_automation_docs.py"], timeout=180)
-        ok &= self.command("pytest_full", [str(self.python), "-m", "pytest", "-q"], timeout=300)
-        ok &= self.command("git_diff_check", ["git", "-C", str(ROOT_DIR), "diff", "--check"], timeout=30)
+            ok &= self.operator_command(f"bash_n_{path.name}", ["bash", "-n", str(path)], timeout=30)
+        ok &= self.operator_command("pytest_collection", [str(self.python), "-m", "pytest", "--collect-only", "-q"], timeout=180)
+        ok &= self.operator_command("pytest_phase46", [str(self.python), "-m", "pytest", "-q", "tests/test_phase46_automation_docs.py"], timeout=180)
+        ok &= self.operator_command("pytest_full", [str(self.python), "-m", "pytest", "-q"], timeout=300)
+        ok &= self.operator_command("git_diff_check", ["git", "-C", str(ROOT_DIR), "diff", "--check"], timeout=30)
         matches = secret_scan(ROOT_DIR)
         ok &= self.value("secret_scan", not matches, reason="SECRET_PATTERN_FOUND", summary={"files": matches})
         ok &= self.docs()
         frontend = ROOT_DIR / "dashboard/frontend"
         if command_available("npm") and (frontend / "package-lock.json").is_file():
-            ok &= self.command("frontend_npm_ci", ["npm", "ci"], cwd=frontend, timeout=600)
-            frontend_build_ok = self.command("frontend_build", ["npm", "run", "build"], cwd=frontend, timeout=300)
+            ok &= self.operator_command("frontend_npm_ci", ["npm", "ci"], cwd=frontend, timeout=600)
+            frontend_build_ok = self.operator_command("frontend_build", ["npm", "run", "build"], cwd=frontend, timeout=300)
             build_stdout_path = self.report_dir / "cases" / "frontend_build.stdout"
             build_stderr_path = self.report_dir / "cases" / "frontend_build.stderr"
             build_stdout = build_stdout_path.read_text(encoding="utf-8") if build_stdout_path.exists() else ""
