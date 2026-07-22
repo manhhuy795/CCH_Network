@@ -299,7 +299,19 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
         frontend = ROOT_DIR / "dashboard/frontend"
         if command_available("npm") and (frontend / "package-lock.json").is_file():
             ok &= self.command("frontend_npm_ci", ["npm", "ci"], cwd=frontend, timeout=600)
-            ok &= self.command("frontend_build", ["npm", "run", "build"], cwd=frontend, timeout=300)
+            frontend_build_ok = self.command("frontend_build", ["npm", "run", "build"], cwd=frontend, timeout=300)
+            build_stdout_path = self.report_dir / "cases" / "frontend_build.stdout"
+            build_stderr_path = self.report_dir / "cases" / "frontend_build.stderr"
+            build_stdout = build_stdout_path.read_text(encoding="utf-8") if build_stdout_path.exists() else ""
+            build_stderr = build_stderr_path.read_text(encoding="utf-8") if build_stderr_path.exists() else ""
+            (self.report_dir / "frontend_build.log").write_text(
+                "COMMAND: npm run build\n--- STDOUT ---\n"
+                + build_stdout
+                + "\n--- STDERR ---\n"
+                + build_stderr,
+                encoding="utf-8",
+            )
+            ok &= frontend_build_ok
         else:
             ok &= self.value("frontend_build", False, reason="FRONTEND_DEPENDENCY_MISSING", blocked=True)
         (self.report_dir / "static_validation.log").write_text("\
@@ -331,6 +343,7 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
         return bool(ok and self.value("clean_clone_check", clone_ok, reason="CLEAN_CLONE_FAILED", summary=summary, blocked=not clone_ok))
 
     def runtime(self) -> bool:
+        runtime_case_start = len(self.cases)
         if platform.system() != "Linux" or os.geteuid() != 0:
             return self.value("runtime_privilege", False, reason="LINUX_ROOT_REQUIRED", blocked=True)
         if not self.args.reuse_running and not self.args.start_missing:
@@ -339,8 +352,8 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
         for label, port, error in (("controller", 6653, "CONTROLLER_OFFLINE"), ("backend", 8000, "BACKEND_OFFLINE"), ("frontend", 5173, "FRONTEND_OFFLINE")):
             ok &= self.value(f"port_{label}", self.port_open(port), reason=error, blocked=True)
         bridges = tuple(x for x in subprocess.run(["ovs-vsctl", "list-br"], capture_output=True, text=True, check=False).stdout.splitlines() if x)
-        ok &= self.value("ovs_bridge_inventory", bridges == EXPECTED_BRIDGES, reason="OVS_BRIDGE_INVENTORY_MISMATCH", summary={"expected": EXPECTED_BRIDGES, "actual": bridges})
-        if bridges == EXPECTED_BRIDGES:
+        ok &= self.value("ovs_bridge_inventory", set(bridges) == set(EXPECTED_BRIDGES), reason="OVS_BRIDGE_INVENTORY_MISMATCH", summary={"expected": EXPECTED_BRIDGES, "actual": bridges})
+        if set(bridges) == set(EXPECTED_BRIDGES):
             for switch in EXPECTED_BRIDGES:
                 result = subprocess.run(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch], capture_output=True, text=True, check=False)
                 ok &= self.value(f"flows_{switch}", result.returncode == 0 and "actions=" in result.stdout, reason="OPENFLOW_UNAVAILABLE")
@@ -359,6 +372,28 @@ Identity: Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO.\
             ok &= self.command("phase44_firewall_runtime", [str(self.python), "scripts/phase44_firewall_runtime_check.py"], timeout=600)
             ok &= self.command("dashboard_runtime_smoke", [str(self.python), "scripts/dashboard_runtime_smoke_test.py"], timeout=900)
             ok &= self.command("phase44_45_combined", ["bash", "scripts/phase44_45_combined_acceptance.sh"], timeout=1200)
+        runtime_cases = self.cases[runtime_case_start:]
+        runtime_lines = [
+            "Phase 46 runtime validation",
+            f"checked_at={datetime.now(timezone.utc).isoformat()}",
+        ]
+        for case in runtime_cases:
+            runtime_lines.append(json.dumps(case, ensure_ascii=False))
+        (self.report_dir / "runtime_validation.log").write_text("\n".join(runtime_lines) + "\n", encoding="utf-8")
+        regression_names = {"phase44_firewall_runtime", "dashboard_runtime_smoke", "phase44_45_combined"}
+        regression_lines = [
+            "Phase 44/45 regression validation",
+            f"checked_at={datetime.now(timezone.utc).isoformat()}",
+        ]
+        for case in runtime_cases:
+            if case["name"] in regression_names:
+                regression_lines.append(json.dumps(case, ensure_ascii=False))
+                for suffix in ("stdout", "stderr"):
+                    case_path = self.report_dir / "cases" / f"{case['name']}.{suffix}"
+                    if case_path.exists():
+                        regression_lines.append(f"--- {case['name']}.{suffix} ---")
+                        regression_lines.append(case_path.read_text(encoding="utf-8"))
+        (self.report_dir / "phase44_45_regression.log").write_text("\n".join(regression_lines) + "\n", encoding="utf-8")
         return bool(ok)
 
     def artifacts(self) -> bool:

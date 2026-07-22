@@ -270,9 +270,15 @@ def _controller_reload(timeout: float = 8.0) -> dict[str, Any]:
         client.connect(str(ADMIN_SOCKET))
         client.sendall(json.dumps(request).encode("utf-8"))
         response = client.recv(65536).decode("utf-8")
+        return json.loads(response)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "ok": False,
+            "error_code": "CONTROLLER_UNAVAILABLE",
+            "message": f"Controller admin socket khong san sang: {type(exc).__name__}",
+        }
     finally:
         client.close()
-    return json.loads(response)
 
 
 def _firewall_reload() -> dict[str, Any]:
