@@ -37,6 +37,8 @@ def test_phase44_only_two_firewall_namespaces_have_exact_interfaces_and_ownershi
         "172.16.40.0/24",
         "172.16.60.0/24",
         "172.16.70.0/24",
+        "172.16.80.0/24",
+        "172.16.110.0/24",
     }
     assert plans["fw_telesale"]["inside_interface"] == "fw_tel-eth0"
     assert plans["fw_telesale"]["outside_interface"] == "fw_tel-eth1"
@@ -68,7 +70,8 @@ def test_phase44_service_rules_have_exact_source_destination_action_counter_and_
     }
     for firewall_name, plan in plans.items():
         by_name = {rule["name"]: rule for rule in plan["rules"]}
-        assert set(by_name) == set(expected)
+        expected_names = set(expected) | ({"allow-guest-general-internet"} if firewall_name == "fw_hq" else set())
+        assert set(by_name) == expected_names
         for name, (action, service, destination_ip) in expected.items():
             rule = by_name[name]
             assert rule["firewall"] == firewall_name
@@ -82,7 +85,11 @@ def test_phase44_service_rules_have_exact_source_destination_action_counter_and_
             if firewall_name == "fw_telesale"
             else {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24"}
         )
-        assert all(set(rule["source_subnets"]) == expected_sources for rule in plan["rules"])
+        for rule in plan["rules"]:
+            if firewall_name == "fw_hq" and rule["name"] == "allow-guest-general-internet":
+                assert set(rule["source_subnets"]) == {"172.16.80.0/24"}
+            else:
+                assert set(rule["source_subnets"]) == expected_sources
 
 
 def test_phase44_render_and_reload_identity_are_deterministic_without_duplicate_or_nat():
@@ -94,7 +101,8 @@ def test_phase44_render_and_reload_identity_are_deterministic_without_duplicate_
         second_ruleset = render_nftables_ruleset(second[firewall_name])
         assert first_ruleset == second_ruleset
         comments = [line.split('comment "', 1)[1].rsplit('"', 1)[0] for line in first_ruleset.splitlines() if 'comment "' in line]
-        assert len(comments) == len(set(comments)) == 13
+        expected_comment_count = 14 if firewall_name == "fw_hq" else 13
+        assert len(comments) == len(set(comments)) == expected_comment_count
         assert "masquerade" not in first_ruleset.lower()
         assert " snat " not in first_ruleset.lower()
         assert first[firewall_name]["nat"] == {
@@ -130,11 +138,11 @@ def test_phase44_apply_twice_replaces_the_same_table_without_rule_growth(tmp_pat
     second = apply_to_mininet(net, tmp_path)
 
     assert {name: item["rule_count"] for name, item in first.items()} == {
-        "fw_hq": 13,
+        "fw_hq": 14,
         "fw_telesale": 13,
     }
     assert {name: item["rule_count"] for name, item in second.items()} == {
-        "fw_hq": 13,
+        "fw_hq": 14,
         "fw_telesale": 13,
     }
     for node in net.nodes.values():
@@ -213,7 +221,7 @@ def test_phase44_runtime_checker_covers_required_live_evidence_without_shell_tru
     source = (REPO_ROOT / "scripts" / "phase44_firewall_runtime_check.py").read_text(encoding="utf-8")
     for required in (
         "Mininet Control Agent HEALTH",
-        "Nine OVS connected",
+        "Twelve OVS connected",
         "HQ Project A -> Call",
         "BackOffice -> Social",
         "Telesale -> Zalo",

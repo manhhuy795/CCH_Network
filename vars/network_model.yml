@@ -3,7 +3,7 @@ metadata:
   description: "Source of truth cho hai site vat ly HQ va Telesale, IP plan, host inventory va dashboard."
   openflow_version: "1.3"
   controller: "127.0.0.1:6653"
-  migration_note: "access_branch, dist_branch, ce_branch, fw_branch va cac node branch_backoffice, dist_backoffice, ce_backoffice, fw_backoffice chi duoc phep xuat hien trong migration guard; chung khong phai active topology node hay routing endpoint cua Phase 41."
+  migration_note: "access_branch, dist_branch, ce_branch, fw_branch va cac node branch_backoffice, dist_backoffice, ce_backoffice, fw_backoffice chi duoc phep xuat hien trong migration guard; chung khong phai active topology node hay routing endpoint cua Phase 41. VLAN 10 duoc giu cho Management; enterprise extension dung VLAN 110 cho IoT/UPS de tranh xung dot source-of-truth."
 
 sites:
   hq:
@@ -87,6 +87,38 @@ host_groups:
     first_host: 11
     switch: "access_backoffice"
 
+  iot_ups:
+    label: "IoT & UPS"
+    vlan: 110
+    site: hq
+    count: 5
+    prefix: "iot"
+    host_kind: "iot"
+    subnet: "172.16.110.0/24"
+    gateway: "172.16.110.1"
+    gateway_node: "core_hq"
+    addressing: "dhcp"
+    switch: "access_iot"
+    endpoints:
+      - {name: iot_cam_01, label: "IoT Camera 01", role: camera}
+      - {name: iot_cam_02, label: "IoT Camera 02", role: camera}
+      - {name: iot_door_01, label: "IoT Door 01", role: door_sensor}
+      - {name: ups_core_01, label: "UPS Core 01", role: ups}
+      - {name: ups_core_02, label: "UPS Core 02", role: ups}
+
+  guest:
+    label: "Guest"
+    vlan: 80
+    site: hq
+    count: 4
+    prefix: "guest"
+    host_kind: "guest"
+    subnet: "172.16.80.0/24"
+    gateway: "172.16.80.1"
+    gateway_node: "core_hq"
+    addressing: "dhcp"
+    switch: "access_guest"
+
 service_addressing:
   model: "interface_plus_service_vip"
   interface_subnet: "10.255.30.0/24"
@@ -142,6 +174,44 @@ services:
     transit_ip: "10.255.30.13"
     gateway: "10.255.30.1"
     site: internet
+
+infrastructure_services:
+  hdhcp:
+    label: "DHCP Infrastructure Service"
+    ip: "172.16.100.10"
+    subnet: "172.16.100.0/24"
+    gateway: "172.16.100.1"
+    site: hq
+    vlan: 100
+    switch: "infra_access"
+    role: dhcp
+  hdns:
+    label: "DNS Infrastructure Service"
+    ip: "172.16.100.11"
+    subnet: "172.16.100.0/24"
+    gateway: "172.16.100.1"
+    site: hq
+    vlan: 100
+    switch: "infra_access"
+    role: dns
+  hntp:
+    label: "NTP Infrastructure Service"
+    ip: "172.16.100.12"
+    subnet: "172.16.100.0/24"
+    gateway: "172.16.100.1"
+    site: hq
+    vlan: 100
+    switch: "infra_access"
+    role: ntp
+  hmonitor:
+    label: "Monitoring Infrastructure Service"
+    ip: "172.16.100.13"
+    subnet: "172.16.100.0/24"
+    gateway: "172.16.100.1"
+    site: hq
+    vlan: 100
+    switch: "infra_access"
+    role: monitoring
 
 switches:
   access_hq_a:
@@ -199,6 +269,24 @@ switches:
     controlled: true
     dpid: "0000000000000009"
     runtime_name: "access_bo"
+  access_iot:
+    label: "Access HQ IoT/UPS"
+    role: "access"
+    site: hq
+    controlled: true
+    dpid: "000000000000000a"
+  access_guest:
+    label: "Access HQ Guest"
+    role: "access"
+    site: hq
+    controlled: true
+    dpid: "000000000000000b"
+  infra_access:
+    label: "Infrastructure Services Access"
+    role: "access"
+    site: hq
+    controlled: true
+    dpid: "000000000000000c"
 
 infrastructure:
   c0:
@@ -239,12 +327,21 @@ links:
   - [project_c, access_hq_c, data]
   - [it_support, access_hq_it, data]
   - [backoffice, access_backoffice, data]
+  - [iot_ups, access_iot, data]
+  - [guest, access_guest, data]
+  - [hdhcp, infra_access, data]
+  - [hdns, infra_access, data]
+  - [hntp, infra_access, data]
+  - [hmonitor, infra_access, data]
   - [h90, voice_access, data]
   - [access_hq_a, core_hq, data]
   - [access_hq_b, core_hq, data]
   - [access_hq_c, core_hq, data]
   - [access_hq_it, core_hq, data]
   - [access_backoffice, core_hq, data]
+  - [access_iot, core_hq, data]
+  - [access_guest, core_hq, data]
+  - [infra_access, core_hq, data]
   - [voice_access, core_hq, data]
   - [telesale, access_telesale, data]
   - [access_telesale, dist_telesale, data]
@@ -268,6 +365,11 @@ group_paths:
   it_support: [it_support, access_hq_it, core_hq]
   telesale: [telesale, access_telesale, dist_telesale]
   backoffice: [backoffice, access_backoffice, core_hq]
+  iot_ups: [iot_ups, access_iot, core_hq]
+  guest: [guest, access_guest, core_hq]
+
+service_paths:
+  infrastructure_services: [infra_access, core_hq]
 
 reference_paths:
   hq_internet_hzalo: [project_a, access_hq_a, core_hq, fw_hq, internet_zone, hzalo]

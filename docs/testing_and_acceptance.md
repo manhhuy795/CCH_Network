@@ -29,7 +29,7 @@ Automation ki?m tra validate_vars, verify_network, permissions v? clean clone. D
 sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1   bash scripts/phase46_automation_docs_gate.sh runtime --reuse-running --verbose
 ~~~
 
-Gate ph?i c? b?ng ch?ng th?t cho controller, 3 port, 9 OVS, flow OpenFlow 1.3, HEALTH agent, 110 user, 2 firewall namespace, kh?ng c? iperf3 m? c?i v? c?c checker Phase 44/45.
+Gate ph?i c? b?ng ch?ng th?t cho controller, 3 port, 12 OVS, flow OpenFlow 1.3, HEALTH agent, 110 user, 2 firewall namespace, kh?ng c? iperf3 m? c?i v? c?c checker Phase 44/45.
 
 ## Ph?n lo?i
 

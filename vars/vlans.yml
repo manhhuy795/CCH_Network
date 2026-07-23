@@ -53,3 +53,24 @@ vlans:
     gateway: 172.16.60.1
     approx_users: 20
     description: "HQ BackOffice users"
+  - id: 80
+    name: GUEST
+    site: hq
+    subnet: 172.16.80.0/24
+    gateway: 172.16.80.1
+    approx_users: 4
+    description: "Guest network with internet-only policy"
+  - id: 100
+    name: INFRA_SERVICES
+    site: hq
+    subnet: 172.16.100.0/24
+    gateway: 172.16.100.1
+    approx_users: 4
+    description: "DHCP DNS NTP and monitoring infrastructure services"
+  - id: 110
+    name: IOT_UPS
+    site: hq
+    subnet: 172.16.110.0/24
+    gateway: 172.16.110.1
+    approx_users: 5
+    description: "IoT sensors and UPS management endpoints; VLAN 10 remains Management"

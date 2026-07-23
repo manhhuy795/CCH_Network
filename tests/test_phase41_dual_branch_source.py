@@ -27,9 +27,12 @@ def test_phase41_has_two_physical_sites_and_exact_inventory_counts():
     assert set(model["sites"]) == EXPECTED_SITES == {"hq", "branch_telesale", "wan", "internet"}
     assert physical_sites == EXPECTED_PHYSICAL_SITES == {"hq", "branch_telesale"}
     assert set(controlled_switches(model)) == EXPECTED_CONTROLLED_SWITCHES
-    assert len(controlled_switches(model)) == 9
+    assert len(controlled_switches(model)) == 12
     assert {name for name, item in model["infrastructure"].items() if item["type"] == "router"} == EXPECTED_CE_NODES == {"ce_hq", "ce_telesale"}
     assert {name for name, item in model["infrastructure"].items() if item["type"] == "firewall"} == EXPECTED_FIREWALL_NODES == {"fw_hq", "fw_telesale"}
+    assert model["host_groups"]["guest"]["vlan"] == 80
+    assert model["host_groups"]["iot_ups"]["vlan"] == 110
+    assert set(model["infrastructure_services"]) == {"hdhcp", "hdns", "hntp", "hmonitor"}
     assert len(users) == 110
     assert len(services) == 5
 
@@ -91,7 +94,7 @@ def test_phase41_firewall_ownership_uses_hq_for_backoffice():
     assert firewall_sites["hq"]["inside_node"] == "core_hq"
     assert set(firewall_sites["hq"]["owned_subnets"]) == {
         "172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24",
-        "172.16.60.0/24", "172.16.70.0/24",
+        "172.16.60.0/24", "172.16.70.0/24", "172.16.80.0/24", "172.16.110.0/24",
     }
     assert firewall_sites["hq"]["runtime_interfaces"] == {
         "inside": "fw_hq-eth0",

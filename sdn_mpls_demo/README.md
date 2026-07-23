@@ -2,17 +2,25 @@
 
 ## Simulation Honesty
 
+### Enterprise VLAN extension
+
+VLAN 10 được giữ cho Management. Các zone mới dùng VLAN 80 (Guest), VLAN 100
+(Infrastructure Services) và VLAN 110 (IoT/UPS). Runtime OVS cấu hình access
+tag/trunk và router subinterface cho các VLAN này; policy mặc định deny giữa
+enterprise zone và corporate/voice. Lab vẫn dùng simulator cho DHCP/DNS/NTP/
+Monitoring, không tuyên bố đó là appliance production.
+
 - `fw_hq` va `fw_telesale` la **stateful nftables firewall** trong Linux router namespace.
 - Chung ap dung `inet cch_filter`, conntrack, default-deny va counter that; day van la firewall lab, khong phai appliance production.
 - SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
-- Phase 42 co dung 9 OVS duoc OS-Ken dieu khien. `service_net` la Linux
+- Phase 42 co dung 12 OVS duoc OS-Ken dieu khien. `service_net` la Linux
   bridge cho Service LAN, khong phai OVS va khong co OpenFlow control link.
 - `SERVICE_NET_MININET_DPID=00000000000000fe` chi la bookkeeping DPID de
   Mininet khoi tao lop `Switch`. Gia tri nay khong thuoc controller inventory,
   khong ket noi OS-Ken va khong duoc tinh thanh OVS thu 10.
 
 Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service và 9 Open vSwitch
+24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service, 9 endpoint Guest/IoT-UPS và 12 Open vSwitch
 được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
 
 ## Phạm vi đúng
@@ -31,7 +39,7 @@ Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
 | User Telesale/BackOffice | 40 |
 | User Phòng IT Support | 10 |
 | Voice/Zalo/Call App/Social/Internet | 5 |
-| OVS được OS-Ken điều khiển | 9 |
+| OVS được OS-Ken điều khiển | 12 |
 
 Đường liên site:
 
@@ -121,7 +129,7 @@ Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
 
 ```text
 testpolicy       # chạy ma trận ALLOW/DENY chi tiết bằng ping thật
-isolationflows   # xem DROP flow priority 400 trên 8 OVS
+isolationflows   # xem DROP flow priority 400 trên 12 OVS
 firewallrules    # xem nftables rule/counter tren fw_hq va fw_telesale
 reloadfirewall   # reload hai ruleset idempotent
 ```
@@ -181,7 +189,7 @@ Kiểm tra nhanh segmentation bằng traffic thật:
 
 ```text
 testpolicy       # chạy ma trận ALLOW/DENY chi tiết
-isolationflows   # xem DROP flow priority 400 trên 8 OVS
+isolationflows   # xem DROP flow priority 400 trên 12 OVS
 ```
 
 `testpolicy` sẽ kiểm tra các nhóm chính:

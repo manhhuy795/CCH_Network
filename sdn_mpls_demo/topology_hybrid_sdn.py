@@ -1112,9 +1112,15 @@ def add_group_hosts(net, policy, switches):
         network = ipaddress.ip_network(group["subnet"])
         gateway = str(network.network_address + 1)
         first_host = int(group.get("first_host", 11))
-        for index in range(1, int(group["count"]) + 1):
-            host_name = f"{group['prefix']}_{index:02d}"
-            address = str(network.network_address + first_host + index - 1)
+        endpoints = list(group.get("endpoints", []))
+        if not endpoints:
+            endpoints = [
+                {"name": f"{group['prefix']}_{index:02d}", "ip": str(network.network_address + first_host + index - 1)}
+                for index in range(1, int(group["count"]) + 1)
+            ]
+        for index, endpoint in enumerate(endpoints, start=1):
+            host_name = str(endpoint["name"])
+            address = str(endpoint.get("ip") or network.network_address + first_host + index - 1)
             host = net.addHost(
                 host_name,
                 ip=f"{address}/{network.prefixlen}",
@@ -1123,7 +1129,7 @@ def add_group_hosts(net, policy, switches):
             net.addLink(
                 host,
                 switches[group["switch"]],
-                intfName2=f"{group['prefix']}-u{index:02d}",
+                intfName2=f"{group.get('interface_prefix', group['prefix'])}-u{index:02d}",
                 cls=TCLink,
                 bw=100,
                 delay="1ms",
@@ -1174,16 +1180,19 @@ def configure_routing(net, policy):
     fw_telesale = net.get("fw_telesale")
     internet_zone = net.get("internet_zone")
 
-    configure_router_interface(
+    configure_vlan_router_interface(
         hq_l3,
         "hq_l3-eth0",
         [
-            "172.16.20.1/24",
-            "172.16.30.1/24",
-            "172.16.40.1/24",
-            "172.16.60.1/24",
-            "172.16.70.1/24",
-            "172.16.90.1/24",
+            (20, "172.16.20.1/24"),
+            (30, "172.16.30.1/24"),
+            (40, "172.16.40.1/24"),
+            (60, "172.16.60.1/24"),
+            (70, "172.16.70.1/24"),
+            (80, "172.16.80.1/24"),
+            (90, "172.16.90.1/24"),
+            (100, "172.16.100.1/24"),
+            (110, "172.16.110.1/24"),
         ],
     )
     configure_router_interface(hq_l3, "hq_l3-eth1", [transit_cidr("core_hq_to_ce_hq", "endpoint_a")])
@@ -1191,11 +1200,7 @@ def configure_routing(net, policy):
     configure_router_interface(ce_hq, "ce_hq-eth0", [transit_cidr("core_hq_to_ce_hq", "endpoint_b")])
     configure_router_interface(ce_hq, "ce_hq-eth1", [transit_cidr("ce_hq_to_mpls_cloud", "endpoint_a")])
 
-    configure_router_interface(
-        telesale_l3,
-        "tele_l3-eth0",
-        ["172.16.50.1/24"],
-    )
+    configure_vlan_router_interface(telesale_l3, "tele_l3-eth0", [(50, "172.16.50.1/24")])
     configure_router_interface(
         telesale_l3,
         "tele_l3-eth1",
@@ -1268,6 +1273,15 @@ def configure_routing(net, policy):
         host.cmd(f"ip addr add {service['interface_cidr']} dev {interface}")
         add_route(host, "0.0.0.0/0", service["gateway"])
 
+    for name, service in policy.get("infrastructure_services", {}).items():
+        host = net.get(name)
+        if host is None:
+            continue
+        interface = str(host.defaultIntf())
+        host.cmd(f"ip addr flush dev {interface}")
+        host.cmd(f"ip addr add {service['ip']}/{ipaddress.ip_network(service['subnet']).prefixlen} dev {interface}")
+        add_route(host, "0.0.0.0/0", service["gateway"])
+
 
 def start_service_simulators(net):
     for name in ("hzalo", "hcall", "hsocial", "hinternet"):
@@ -1277,6 +1291,62 @@ def start_service_simulators(net):
             f"cd /tmp && python3 -m http.server 8000 "
             f">/tmp/{name}_http.log 2>&1 &"
         )
+
+
+    for name, port in (("hdhcp", 6767), ("hdns", 5353), ("hntp", 8123), ("hmonitor", 9100)):
+        host = net.get(name)
+        host.cmd(f"printf 'Infrastructure simulator: {name}\\n' > /tmp/{name}.txt")
+        host.cmd(
+            f"cd /tmp && python3 -m http.server {port} "
+            f">/tmp/{name}_http.log 2>&1 &"
+        )
+
+
+def configure_vlan_switching(switches):
+    """Apply access VLANs and trunks to runtime OVS ports."""
+    for group in NETWORK_MODEL["host_groups"].values():
+        switch = switches[group["switch"]]
+        prefix = group.get("interface_prefix", group["prefix"])
+        for index in range(1, int(group["count"]) + 1):
+            switch.cmd(f"ovs-vsctl set port {prefix}-u{index:02d} tag={int(group['vlan'])}")
+
+    switches["voice_access"].cmd("ovs-vsctl set port voice-eth01 tag=90")
+    for service_name in NETWORK_MODEL.get("infrastructure_services", {}):
+        switches["infra_access"].cmd(f"ovs-vsctl set port infra-{service_name[-3:]} tag=100")
+
+    trunks = {
+        "access_hq_a": ("hqa-eth99", "core-eth01", [20]),
+        "access_hq_b": ("hqb-eth99", "core-eth02", [30]),
+        "access_hq_c": ("hqc-eth99", "core-eth03", [40]),
+        "voice_access": ("voice-eth99", "core-eth04", [90]),
+        "access_hq_it": ("hqi-eth99", "core-eth07", [70]),
+        "access_backoffice": ("bo-eth99", "core-eth06", [60]),
+        "access_iot": ("iot-eth99", "core-eth08", [110]),
+        "access_guest": ("gst-eth99", "core-eth09", [80]),
+        "infra_access": ("inf-eth99", "core-eth10", [100]),
+    }
+    for logical, (access_port, core_port, vlans) in trunks.items():
+        vlan_set = ",".join(str(vlan) for vlan in vlans)
+        switches[logical].cmd(f"ovs-vsctl set port {access_port} vlan_mode=trunk trunks={vlan_set}")
+        switches["core_hq"].cmd(f"ovs-vsctl set port {core_port} vlan_mode=trunk trunks={vlan_set}")
+
+    switches["access_telesale"].cmd("ovs-vsctl set port tel-eth99 vlan_mode=trunk trunks=50")
+    switches["dist_telesale"].cmd("ovs-vsctl set port tdist-eth01 vlan_mode=trunk trunks=50")
+    switches["dist_telesale"].cmd("ovs-vsctl set port tdist-eth02 vlan_mode=trunk trunks=50")
+    switches["core_hq"].cmd(
+        "ovs-vsctl set port core-eth05 vlan_mode=trunk trunks=20,30,40,60,70,80,90,100,110"
+    )
+
+
+def configure_vlan_router_interface(node, parent_interface, vlan_addresses):
+    node.cmd(f"ip addr flush dev {parent_interface}")
+    node.cmd(f"ip link set {parent_interface} up")
+    for vlan, address in vlan_addresses:
+        interface = f"{parent_interface}.{vlan}"
+        node.cmd(f"ip link del {interface} 2>/dev/null || true")
+        node.cmd(f"ip link add link {parent_interface} name {interface} type vlan id {int(vlan)}")
+        node.cmd(f"ip link set {interface} up")
+        node.cmd(f"ip addr add {address} dev {interface}")
 
 
 def emit_resource_snapshot(label):
@@ -1299,11 +1369,22 @@ def emit_resource_snapshot(label):
         emit(f"EXIT_CODE={result.returncode}")
 
 
-def write_runtime_inventory(net, user_hosts, build_duration):
+def write_runtime_inventory(net, policy, group_hosts, build_duration):
+    corporate_users = [
+        name for name in group_hosts
+        if policy["hosts"].get(name, {}).get("kind") == "user"
+    ]
+    enterprise_endpoints = [
+        name for name in group_hosts
+        if policy["hosts"].get(name, {}).get("kind") in {"guest", "iot"}
+    ]
     payload = {
         "build_duration_seconds": round(build_duration, 3),
-        "user_count": len(user_hosts),
+        "user_count": len(corporate_users),
+        "enterprise_endpoint_count": len(enterprise_endpoints),
         "service_count": len(NETWORK_MODEL["services"]),
+        "infrastructure_service_count": len(NETWORK_MODEL.get("infrastructure_services", {})),
+        "endpoint_count": len(policy["hosts"]),
         "controlled_ovs_count": len(DPIDS),
         "controlled_ovs": list(DPIDS),
         "runtime_ovs_bridges": {
@@ -1315,7 +1396,10 @@ def write_runtime_inventory(net, user_hosts, build_duration):
         "firewall_table": "inet cch_filter",
         "namespace_pids": {
             name: int(net.get(name).pid)
-            for name in ("fw_hq", "fw_telesale", "hzalo", "hcall", "hsocial", "hinternet")
+            for name in (
+                "fw_hq", "fw_telesale", "hzalo", "hcall", "hsocial", "hinternet",
+                *enterprise_endpoints, *NETWORK_MODEL.get("infrastructure_services", {}),
+            )
         },
         "control_agent_socket": str(CONTROL_SOCKET),
         "mininet_nodes": sorted(getattr(net, "nameToNode", {})),
@@ -1365,7 +1449,7 @@ def build_topology():
         dpid=SERVICE_NET_MININET_DPID,
     )
 
-    user_hosts = add_group_hosts(net, policy, switches)
+    group_hosts = add_group_hosts(net, policy, switches)
     voice_service = policy["services"]["h90"]
     voice_prefix = ipaddress.ip_network(voice_service["subnet"]).prefixlen
     h90 = net.addHost(
@@ -1398,6 +1482,17 @@ def build_topology():
             cls=TCLink,
             bw=100,
             delay="4ms",
+        )
+
+    for service_name, service in policy.get("infrastructure_services", {}).items():
+        infra_host = net.addHost(service_name, ip=None)
+        net.addLink(
+            infra_host,
+            switches[service["switch"]],
+            intfName2=f"infra-{service_name[-3:]}",
+            cls=TCLink,
+            bw=100,
+            delay="1ms",
         )
 
     hq_l3 = net.addHost("hq_l3_gateway", cls=LinuxRouter, ip=None)
@@ -1457,6 +1552,33 @@ def build_topology():
         switches["core_hq"],
         intfName1="bo-eth99",
         intfName2="core-eth06",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["access_iot"],
+        switches["core_hq"],
+        intfName1="iot-eth99",
+        intfName2="core-eth08",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["access_guest"],
+        switches["core_hq"],
+        intfName1="gst-eth99",
+        intfName2="core-eth09",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
+    net.addLink(
+        switches["infra_access"],
+        switches["core_hq"],
+        intfName1="inf-eth99",
+        intfName2="core-eth10",
         cls=TCLink,
         bw=1000,
         delay="1ms",
@@ -1535,6 +1657,7 @@ def build_topology():
         switch.start([controller])
     net.waitConnected(timeout=15)
     service_net.start([])
+    configure_vlan_switching(switches)
 
     control_agent = None
     try:
@@ -1545,13 +1668,19 @@ def build_topology():
         control_agent = MininetControlAgent(net, policy)
         control_agent.start()
         build_duration = time.monotonic() - build_started
-        write_runtime_inventory(net, user_hosts, build_duration)
+        write_runtime_inventory(net, policy, group_hosts, build_duration)
         emit_resource_snapshot("AFTER_TOPOLOGY_BUILD")
 
         emit()
         emit("=" * 88)
-        emit(f"Topology da tao: {len(user_hosts)} user + 5 service")
-        emit("Controller quan ly 9 OVS; CE/MPLS/Internet Zone khong dung OpenFlow.")
+        corporate_user_count = sum(
+            1 for name in group_hosts if policy["hosts"].get(name, {}).get("kind") == "user"
+        )
+        enterprise_count = sum(
+            1 for name in group_hosts if policy["hosts"].get(name, {}).get("kind") in {"guest", "iot"}
+        )
+        emit(f"Topology da tao: {corporate_user_count} user + 5 service + {enterprise_count} Guest/IoT/UPS endpoint")
+        emit("Controller quan ly 12 OVS; CE/MPLS/Internet Zone khong dung OpenFlow.")
         emit(
             "nftables active: "
             + ", ".join(

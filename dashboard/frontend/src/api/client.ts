@@ -5,7 +5,7 @@ export type Host = {
   name: string;
   label: string;
   ip: string;
-  kind: "user" | "service";
+  kind: "user" | "service" | "guest" | "iot" | "infrastructure_service";
   group: string;
   group_label: string;
   vlan: number | null;
@@ -54,6 +54,10 @@ export type Topology = {
   summary: {
     user_count: number;
     service_count: number;
+    endpoint_count?: number;
+    iot_ups_count?: number;
+    guest_count?: number;
+    infrastructure_service_count?: number;
     controlled_ovs_count: number;
     live_link_control?: boolean;
     link_control_message?: string;

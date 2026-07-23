@@ -20,9 +20,12 @@ def test_dashboard_api_topology_and_policy_endpoints():
 
     assert topology["nodes"]
     assert topology["links"]
-    assert len(topology["hosts"]) == 115
+    assert len(topology["hosts"]) == 128
     assert topology["summary"]["user_count"] == 110
-    assert topology["summary"]["controlled_ovs_count"] == 9
+    assert topology["summary"]["controlled_ovs_count"] == 12
+    assert topology["summary"]["iot_ups_count"] == 5
+    assert topology["summary"]["guest_count"] == 4
+    assert topology["summary"]["infrastructure_service_count"] == 4
     mpls_node = next(node for node in topology["nodes"] if node["id"] == "mpls_cloud")
     assert mpls_node["label"] == "MPLS L3VPN Logic Cloud"
     assert "WAN transport" in mpls_node["subtitle"]

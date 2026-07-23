@@ -17,6 +17,10 @@ EXPECTED_HOST_GROUPS = {
     "backoffice": {"vlan": 60, "count": 20, "prefix": "h60", "subnet": "172.16.60.0/24", "gateway": "172.16.60.1", "gateway_node": "core_hq", "site": "hq", "switch": "access_backoffice", "first_ip": "172.16.60.11", "last_ip": "172.16.60.30"},
     "it_support": {"vlan": 70, "count": 10, "prefix": "h70", "subnet": "172.16.70.0/24", "gateway": "172.16.70.1", "site": "hq", "switch": "access_hq_it", "first_ip": "172.16.70.11", "last_ip": "172.16.70.20"},
 }
+EXPECTED_ENTERPRISE_GROUPS = {
+    "iot_ups": {"vlan": 110, "count": 5, "subnet": "172.16.110.0/24", "gateway": "172.16.110.1", "site": "hq", "switch": "access_iot", "kind": "iot"},
+    "guest": {"vlan": 80, "count": 4, "subnet": "172.16.80.0/24", "gateway": "172.16.80.1", "site": "hq", "switch": "access_guest", "kind": "guest"},
+}
 EXPECTED_SERVICES = {
     "h90": "172.16.90.10",
     "hzalo": "172.16.200.10",
@@ -24,11 +28,17 @@ EXPECTED_SERVICES = {
     "hsocial": "172.16.202.10",
     "hinternet": "172.16.203.10",
 }
+EXPECTED_INFRASTRUCTURE_SERVICES = {
+    "hdhcp": "172.16.100.10",
+    "hdns": "172.16.100.11",
+    "hntp": "172.16.100.12",
+    "hmonitor": "172.16.100.13",
+}
 EXPECTED_SITES = {"hq", "branch_telesale", "wan", "internet"}
 EXPECTED_PHYSICAL_SITES = {"hq", "branch_telesale"}
 EXPECTED_CONTROLLED_SWITCHES = {
     "access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq",
-    "access_telesale", "dist_telesale", "access_backoffice",
+    "access_telesale", "dist_telesale", "access_backoffice", "access_iot", "access_guest", "infra_access",
 }
 EXPECTED_CE_NODES = {"ce_hq", "ce_telesale"}
 EXPECTED_FIREWALL_NODES = {"fw_hq", "fw_telesale"}
@@ -58,18 +68,32 @@ def build_host_inventory(model: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for group_name, group in model["host_groups"].items():
         network = ipaddress.ip_network(group["subnet"])
         first_host = int(group.get("first_host", 11))
-        for index in range(1, int(group["count"]) + 1):
-            name = f"{group['prefix']}_{index:02d}"
+        explicit_endpoints = group.get("endpoints")
+        if explicit_endpoints:
+            endpoint_items = list(explicit_endpoints)
+        else:
+            endpoint_items = [
+                {
+                    "name": f"{group['prefix']}_{index:02d}",
+                    "label": f"{group['label']} - User {index:02d}",
+                    "ip": str(network.network_address + first_host + index - 1),
+                }
+                for index in range(1, int(group["count"]) + 1)
+            ]
+        for index, endpoint in enumerate(endpoint_items, start=1):
+            name = str(endpoint["name"])
             hosts[name] = {
                 "name": name,
-                "label": f"{group['label']} - User {index:02d}",
-                "ip": str(network.network_address + first_host + index - 1),
-                "kind": "user",
+                "label": str(endpoint.get("label") or f"{group['label']} - User {index:02d}"),
+                "ip": str(endpoint.get("ip") or network.network_address + first_host + index - 1),
+                "kind": str(endpoint.get("kind") or group.get("host_kind", "user")),
+                "role": endpoint.get("role"),
                 "group": group_name,
                 "group_label": group["label"],
                 "vlan": int(group["vlan"]),
                 "site": group["site"],
                 "switch": group["switch"],
+                "addressing": group.get("addressing", "static"),
             }
 
     for name, service in model["services"].items():
@@ -84,6 +108,20 @@ def build_host_inventory(model: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "site": service.get("site", "internet"),
             "switch": service.get("switch", "internet_zone"),
         }
+    for name, service in model.get("infrastructure_services", {}).items():
+        hosts[name] = {
+            "name": name,
+            "label": service["label"],
+            "ip": service["ip"],
+            "kind": "infrastructure_service",
+            "role": service.get("role"),
+            "group": "infrastructure_services",
+            "group_label": "Infrastructure Services",
+            "vlan": int(service["vlan"]),
+            "site": service.get("site", "hq"),
+            "switch": service.get("switch", "infra_access"),
+            "addressing": service.get("addressing", "static"),
+        }
     return hosts
 
 
@@ -95,8 +133,8 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
 
     if len(user_hosts) != 110:
         errors.append(f"Network model must define exactly 110 user hosts, found {len(user_hosts)}")
-    if len(hosts) != 115:
-        errors.append(f"Network model must define exactly 115 endpoints, found {len(hosts)}")
+    if len(hosts) != 128:
+        errors.append(f"Network model must define exactly 128 endpoints, found {len(hosts)}")
     if int(model.get("host_groups", {}).get("it_support", {}).get("count", 0)) != 10:
         errors.append("IT Support must have exactly 10 users")
 
@@ -133,6 +171,37 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
             errors.append(f"{first_name} must use IP {expected['first_ip']}, found {hosts.get(first_name, {}).get('ip')}")
         if hosts.get(last_name, {}).get("ip") != expected["last_ip"]:
             errors.append(f"{last_name} must use IP {expected['last_ip']}, found {hosts.get(last_name, {}).get('ip')}")
+
+    for group_name, expected in EXPECTED_ENTERPRISE_GROUPS.items():
+        group = model.get("host_groups", {}).get(group_name)
+        if not group:
+            errors.append(f"Missing enterprise host group {group_name}")
+            continue
+        for key in ("vlan", "count", "subnet", "gateway", "site", "switch"):
+            if group.get(key) != expected[key]:
+                errors.append(f"Enterprise host group {group_name} {key} must be {expected[key]}, found {group.get(key)}")
+        if group.get("host_kind") != expected["kind"]:
+            errors.append(f"Enterprise host group {group_name} host_kind must be {expected['kind']}")
+        group_hosts = [host for host in hosts.values() if host.get("group") == group_name]
+        if len(group_hosts) != expected["count"]:
+            errors.append(f"Enterprise host group {group_name} must define {expected['count']} endpoints, found {len(group_hosts)}")
+        if group_name == "iot_ups":
+            expected_names = {"iot_cam_01", "iot_cam_02", "iot_door_01", "ups_core_01", "ups_core_02"}
+            if {host["name"] for host in group_hosts} != expected_names:
+                errors.append(f"IoT/UPS endpoint names must be {sorted(expected_names)}")
+
+    infrastructure_services = model.get("infrastructure_services", {})
+    if set(infrastructure_services) != set(EXPECTED_INFRASTRUCTURE_SERVICES):
+        errors.append(
+            f"Infrastructure services must be {sorted(EXPECTED_INFRASTRUCTURE_SERVICES)}, "
+            f"found {sorted(infrastructure_services)}"
+        )
+    for service_name, expected_ip in EXPECTED_INFRASTRUCTURE_SERVICES.items():
+        service = infrastructure_services.get(service_name, {})
+        if service.get("ip") != expected_ip:
+            errors.append(f"Infrastructure service {service_name} must use IP {expected_ip}, found {service.get('ip')}")
+        if service.get("vlan") != 100 or service.get("switch") != "infra_access":
+            errors.append(f"Infrastructure service {service_name} must use VLAN 100 on infra_access")
 
     host_names = [host["name"] for host in hosts.values()]
     duplicate_names = sorted({name for name in host_names if host_names.count(name) > 1})
@@ -218,6 +287,7 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
     node_categories = {
         "host_groups": set(model.get("host_groups", {})),
         "services": set(model.get("services", {})),
+        "infrastructure_services": set(model.get("infrastructure_services", {})),
         "switches": set(model.get("switches", {})),
         "infrastructure": set(model.get("infrastructure", {})),
     }
@@ -318,6 +388,9 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         frozenset(("core_hq", "fw_hq")),
         frozenset(("fw_hq", "internet_zone")),
         frozenset(("fw_telesale", "internet_zone")),
+        frozenset(("iot_ups", "access_iot")),
+        frozenset(("guest", "access_guest")),
+        frozenset(("infra_access", "core_hq")),
     }
     missing_edges = required_edges - topology_edges
     if missing_edges:

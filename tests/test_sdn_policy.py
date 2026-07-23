@@ -44,7 +44,7 @@ def test_it_support_controlled_access_schema_is_explicit():
 
     assert policy["enabled"] is True
     assert policy["source_group"] == "it_support"
-    assert set(policy["managed_user_groups"]) == {"project_a", "project_b", "project_c", "telesale", "backoffice"}
+    assert set(policy["managed_user_groups"]) == {"project_a", "project_b", "project_c", "telesale", "backoffice", "iot_ups"}
     assert set(policy["allowed_services"]) == {"h90", "hzalo", "hcall", "hinternet"}
     assert "hsocial" in policy["denied_services"]
     assert "hsocial" not in policy["allowed_services"]

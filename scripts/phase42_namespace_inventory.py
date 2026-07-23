@@ -10,8 +10,15 @@ from collections.abc import Iterable
 
 EXPECTED_SERVICES = frozenset({"h90", "hzalo", "hcall", "hsocial", "hinternet"})
 EXPECTED_INFRA_NAMESPACES = frozenset(
-    {"ce_hq", "ce_telesale", "fw_hq", "fw_telesale", "mpls_cloud", "internet_zone"}
+    {
+        "ce_hq", "ce_telesale", "fw_hq", "fw_telesale", "mpls_cloud", "internet_zone",
+        "hdhcp", "hdns", "hntp", "hmonitor",
+    }
 )
+EXPECTED_ENTERPRISE_ENDPOINTS = frozenset({
+    "iot_cam_01", "iot_cam_02", "iot_door_01", "ups_core_01", "ups_core_02",
+    "guest_01", "guest_02", "guest_03", "guest_04",
+})
 KNOWN_NON_SERVICE_NODES = frozenset({"hq_l3_gateway", "telesale_l3_gateway", "service_net"})
 USER_COUNTS = {20: 20, 30: 20, 40: 20, 50: 20, 60: 20, 70: 10}
 EXPECTED_USERS = frozenset(
@@ -46,6 +53,7 @@ def classify_live_namespaces(live_names: Iterable[str]) -> dict[str, set[str]]:
             SERVICE_LIKE_PATTERN.fullmatch(name)
             and name not in EXPECTED_USERS
             and name not in KNOWN_NON_SERVICE_NODES
+            and name not in EXPECTED_INFRA_NAMESPACES
         )
     }
     infrastructure = {
@@ -53,11 +61,13 @@ def classify_live_namespaces(live_names: Iterable[str]) -> dict[str, set[str]]:
         for name in live
         if name in EXPECTED_INFRA_NAMESPACES or INFRA_LIKE_PATTERN.fullmatch(name)
     }
+    enterprise = {name for name in live if name in EXPECTED_ENTERPRISE_ENDPOINTS}
     return {
         "live": live,
         "users": users,
         "services": services,
         "infrastructure": infrastructure,
+        "enterprise": enterprise,
     }
 
 
@@ -93,6 +103,11 @@ def render_report(process_lines: Iterable[str]) -> bool:
             "INFRA",
             EXPECTED_INFRA_NAMESPACES,
             inventory["infrastructure"],
+        ),
+        _report_set(
+            "ENTERPRISE",
+            EXPECTED_ENTERPRISE_ENDPOINTS,
+            inventory["enterprise"],
         ),
     )
     return all(checks)

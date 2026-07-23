@@ -10,6 +10,7 @@ policies:
   allow_zalo: true
   allow_call_app: true
   allow_general_internet: true
+  allow_guest_general_internet: true
   block_social_media: true
   allow_it_support_controlled_access: true
   it_support_allowed_services: ["h90", "hzalo", "hcall", "hinternet"]
@@ -23,6 +24,7 @@ policies:
       - project_c
       - telesale
       - backoffice
+      - iot_ups
     allowed_services:
       - h90
       - hzalo
@@ -41,6 +43,29 @@ policies:
   steer_telesale_internet_to: "fw_telesale"
   intersite_via_mpls_l3vpn: true
   intersite_allow: []
+  enterprise_zones:
+    iot_ups:
+      vlan: 110
+      subnet: "172.16.110.0/24"
+      access_switch: access_iot
+      addressing: dhcp
+      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
+      allow_management_from: it_support
+      deny_by_default: true
+    guest:
+      vlan: 80
+      subnet: "172.16.80.0/24"
+      access_switch: access_guest
+      addressing: dhcp
+      allow_infrastructure_services: [hdhcp, hdns, hntp]
+      allow_services: [hinternet]
+      deny_by_default: true
+    infrastructure_services:
+      vlan: 100
+      subnet: "172.16.100.0/24"
+      access_switch: infra_access
+      services: [hdhcp, hdns, hntp, hmonitor]
+      deny_unsolicited_inbound: true
   softphone_model:
     note: "Cfone/Gphone/softphone la ung dung tren may agent; agent van nam trong VLAN du an va chi duoc di toi PBX/SBC Voice Service, Call App va dich vu duoc phep."
     signaling_examples: ["SIP UDP/TCP 5060", "SIP TLS 5061"]

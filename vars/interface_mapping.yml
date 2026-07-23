@@ -19,6 +19,15 @@ interfaces:
       - name: GigabitEthernet1/0/6
         description: "TRUNK to hq-access-it"
         allowed_vlans: [10, 70]
+      - name: GigabitEthernet1/0/7
+        description: "TRUNK to hq-access-iot"
+        allowed_vlans: [10, 110]
+      - name: GigabitEthernet1/0/8
+        description: "TRUNK to hq-access-guest"
+        allowed_vlans: [10, 80]
+      - name: GigabitEthernet1/0/9
+        description: "TRUNK to hq-infra-access"
+        allowed_vlans: [10, 100]
     routed:
       - name: GigabitEthernet1/0/47
         description: "L3 link to HQ CE router"
@@ -83,6 +92,33 @@ interfaces:
       name: GigabitEthernet1/0/49
       description: "TRUNK to hq-core-l3"
       allowed_vlans: [10, 90]
+  hq-access-iot:
+    access_ports:
+      - range: GigabitEthernet1/0/1-48
+        description: "IoT and UPS endpoint ports"
+        vlan: 110
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 110]
+  hq-access-guest:
+    access_ports:
+      - range: GigabitEthernet1/0/1-48
+        description: "Guest endpoint ports"
+        vlan: 80
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 80]
+  hq-infra-access:
+    access_ports:
+      - range: GigabitEthernet1/0/1-48
+        description: "Infrastructure service ports"
+        vlan: 100
+    uplink:
+      name: GigabitEthernet1/0/49
+      description: "TRUNK to hq-core-l3"
+      allowed_vlans: [10, 100]
   br-access:
     access_ports:
       - range: GigabitEthernet1/0/1-36

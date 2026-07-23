@@ -131,6 +131,8 @@ routes:
       - {prefix: 172.16.40.0/24, next_hop: 10.10.254.1}
       - {prefix: 172.16.60.0/24, next_hop: 10.10.254.1}
       - {prefix: 172.16.70.0/24, next_hop: 10.10.254.1}
+      - {prefix: 172.16.80.0/24, next_hop: 10.10.254.1}
+      - {prefix: 172.16.110.0/24, next_hop: 10.10.254.1}
   fw_telesale:
     default_route: {next_hop: 10.255.10.6, description: "Internet Zone"}
     internal_routes:
@@ -142,6 +144,8 @@ routes:
       - {prefix: 172.16.40.0/24, next_hop: 10.255.10.1}
       - {prefix: 172.16.60.0/24, next_hop: 10.255.10.1}
       - {prefix: 172.16.70.0/24, next_hop: 10.255.10.1}
+      - {prefix: 172.16.80.0/24, next_hop: 10.255.10.1}
+      - {prefix: 172.16.110.0/24, next_hop: 10.255.10.1}
       - {prefix: 172.16.50.0/24, next_hop: 10.255.10.5}
     service_routes:
       - {prefix: 172.16.200.10/32, next_hop: 10.255.30.10, service: hzalo}

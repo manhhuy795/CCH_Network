@@ -59,6 +59,8 @@ firewall_policy:
         - 172.16.40.0/24
         - 172.16.60.0/24
         - 172.16.70.0/24
+        - 172.16.80.0/24
+        - 172.16.110.0/24
       policies:
         - name: allow-zalo
           action: allow
@@ -87,6 +89,13 @@ firewall_policy:
           destinations: [internet]
           applications: [general_internet]
           enable_flag: allow_general_internet
+          log: true
+        - name: allow-guest-general-internet
+          action: allow
+          sources: [80]
+          destinations: [internet]
+          applications: [general_internet]
+          enable_flag: allow_guest_general_internet
           log: true
 
     branch_telesale:

@@ -36,7 +36,7 @@ This is the Ubuntu-only acceptance inventory for the CCH Network hybrid MPLS/SDN
 | F02 | Topology | Backend 8000 | FastAPI | ss -ltn | Listening | |
 | F03 | Topology | Frontend 5173 | Vite | ss -ltn | Listening | |
 | F04 | Topology | Topology process | Mininet | pgrep topology | Present | |
-| F05 | Topology | Nine OVS bridges | OVS | ovs-vsctl list-br | Exact nine | |
+| F05 | Topology | Twelve OVS bridges | OVS | ovs-vsctl list-br | Exact twelve | |
 | F06 | Topology | Two firewall namespaces | Mininet | ip netns list | fw_hq/fw_telesale | |
 | F07 | Topology | Agent health | Socket live | /api/health | agent online | |
 | G01 | SDN/OpenFlow | OpenFlow flows on all OVS | Controller | ovs-ofctl dump-flows | actions present | |
