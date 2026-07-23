@@ -29,7 +29,7 @@ def test_dashboard_api_topology_and_policy_endpoints():
     assert policies["policies"]["block_social_media"] is True
 
 
-def test_dashboard_serves_live_web_page():
+def test_dashboard_serves_live_web_page(monkeypatch):
     pytest.importorskip("fastapi")
     pytest.importorskip("fastapi.testclient")
 
@@ -40,6 +40,7 @@ def test_dashboard_serves_live_web_page():
     from fastapi.testclient import TestClient
     from app.main import app
 
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "phase49-read-secret")
     client = TestClient(app)
 
     response = client.get("/")
@@ -51,7 +52,7 @@ def test_dashboard_serves_live_web_page():
     assert "/api/topology" in html
     assert "voice_mgmt" not in html
 
-    topology = client.get("/api/topology")
+    topology = client.get("/api/topology", headers={"X-CCH-Operator-Token": "phase49-read-secret"})
     assert topology.status_code == 200
 
 
@@ -545,7 +546,7 @@ def test_operator_actions_require_it_token(monkeypatch):
 
     denied = client.post("/api/test/ping", json={"source": "h20_01", "destination": "h90"})
     assert denied.status_code == 401
-    assert "IT operator token" in denied.text
+    assert "đăng nhập" in denied.text
 
     allowed = client.post(
         "/api/test/ping",
@@ -559,11 +560,12 @@ def test_operator_actions_require_it_token(monkeypatch):
     shell_source = (repo_root / "dashboard" / "frontend" / "src" / "components" / "layout" / "AppShell.tsx").read_text(encoding="utf-8")
     start_script = (repo_root / "scripts" / "start_demo.sh").read_text(encoding="utf-8")
 
-    assert "X-CCH-Operator-Token" in client_source
-    assert "localStorage" in client_source
-    assert "IT operator token" in shell_source
-    assert "verifyOperator" in app_source
-    assert 'label="Đã xác thực"' in shell_source
+    assert "X-CCH-Operator-Token" not in client_source
+    assert "localStorage" not in client_source
+    assert "IT operator token" not in shell_source
+    assert "api.login" in app_source
+    assert "credentials: \"include\"" in client_source
+    assert "Đã đăng nhập" in shell_source
     assert "secrets.token_urlsafe" in start_script
     assert "cch-it-demo-token" not in start_script
 
@@ -627,7 +629,7 @@ def test_cors_is_restricted_to_dashboard_origins():
 
     assert 'allow_origins=["*"]' not in main_source
     assert 'allow_headers=["*"]' not in main_source
-    assert "allow_credentials=False" in main_source
+    assert "allow_credentials=True" in main_source
     assert "X-CCH-Operator-Token" in main_source
     assert cors_origins() == ["http://127.0.0.1:5173", "http://localhost:5173"]
     assert "192\\.168" in cors_origin_regex()

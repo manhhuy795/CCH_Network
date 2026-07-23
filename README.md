@@ -3,6 +3,26 @@
 > **Demo chinh thuc dung cho bao ve:** `sdn_mpls_demo/`.
 > `sdn_demo/` la demo legacy, khong dung trong buoi bao ve chinh de tranh nham entry point.
 
+## Xác Thực Và Phân Quyền Phase 49
+
+Dashboard dùng xác thực người dùng bằng session cookie phía server và CSRF token. Operator token là credential máy dành riêng cho runtime script/API; token không được đưa vào frontend, không hiển thị trên dashboard và không ghi vào report.
+
+| Vai trò | Quyền chính |
+|---|---|
+| `admin` | Quản lý user/role, xem audit, dashboard và runtime |
+| `operator` | Dashboard, ping/iperf/voice quality, link/policy runtime và activity |
+| `viewer` | Chỉ xem dashboard/topology/trạng thái |
+| `auditor` | Xem dashboard và audit event |
+
+Không có mật khẩu mặc định trong repository. Tạo admin lần đầu bằng cách nhập mật khẩu qua stdin, không đặt mật khẩu trên command line:
+
+```bash
+cd ~/Downloads/CCH_Network
+read -r -s ADMIN_PASSWORD; echo
+printf '%s\n' "$ADMIN_PASSWORD" | .venv/bin/python scripts/phase49_bootstrap_admin.py --username admin --password-stdin
+unset ADMIN_PASSWORD
+```
+
 
 ## Simulation Honesty
 
@@ -166,7 +186,7 @@ Các lần sau, nếu dependency đã có:
 ./scripts/start_demo.sh
 ```
 
-Dashboard se in `IT operator token` ra terminal va luu trong `logs/operator.token`. Nhap token nay vao o `IT token` tren web de chay ping that, iperf, block/unblock, link fail/recover va policy toggle.
+`start_demo.sh` chỉ tạo/đọc operator token cho các script runtime và lưu token trong `logs/operator.token`; giá trị token không được in ra. Người dùng truy cập dashboard bằng tài khoản Phase 49, không dán operator token vào giao diện.
 
 Mở dashboard:
 
@@ -209,12 +229,16 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ## Dashboard
 
-React Dashboard là giao diện chính, gồm 4 tab:
+React Dashboard là giao diện chính cho IT Support và Network Administrator:
 
-- **Tổng quan**: sơ đồ mạng, trạng thái OS-Ken/Mininet/OVS, số user, số switch, số flow, WebSocket.
-- **Đo kiểm mạng**: Ping, Throughput TCP, Jitter UDP, chất lượng thoại, real-time metrics.
-- **Chính sách & OpenFlow**: policy đang bật, bảng flow dễ đọc, chặn/gỡ chặn thủ công, chi tiết OpenFlow.
-- **Nhật ký hệ thống**: sự kiện thao tác, allow/deny, cảnh báo.
+- **Tổng quan**: trạng thái từng thành phần, số user/host, cảnh báo và quick action.
+- **Topology**: sơ đồ HQ, MPLS logic, Telesale, BackOffice và Internet/Services; packet path lấy từ backend runtime.
+- **Kiểm tra kết nối**: Ping thật, TCP throughput, UDP jitter và Voice Quality.
+- **Chính sách & OpenFlow**: policy, enforcement point, cookie, priority, match/action và flow runtime.
+- **Hiệu năng**: metrics, session iperf và kết quả đo có session ID.
+- **Sự kiện & nhật ký**: activity event, audit event, allow/deny, lỗi và request ID.
+
+Navigation và thao tác được giới hạn theo role. `viewer` không thấy thao tác runtime; `auditor` chỉ xem audit; `admin` mới quản lý user/role. Dashboard không hiển thị token máy.
 
 Real-time metrics:
 
@@ -223,6 +247,36 @@ Real-time metrics:
 - Packet Loss từ ping.
 - Jitter từ ping/UDP probe trong phép đo chủ động.
 - Iperf3 chỉ dùng cho đo throughput chủ động, không chạy liên tục mỗi 1-2 giây.
+
+## Kiểm Thử Runtime Chi Tiết Phase 49
+
+Sau khi topology, backend và frontend đang chạy, dùng script dưới đây để kiểm tra toàn bộ status và event bằng dữ liệu thật:
+
+```bash
+cd ~/Downloads/CCH_Network
+.venv/bin/python scripts/phase49_detailed_status_event_test.py
+```
+
+Script kiểm tra:
+
+- port controller/backend/frontend, Mininet Control Agent, Open vSwitch và OpenFlow flow tại `core_hq`;
+- toàn bộ component trong `/api/health` và `/api/live/status`;
+- unauthenticated `401`, RBAC `403`, operator token không có quyền admin;
+- login đúng/sai, `/api/auth/me`, refresh, logout và session hết hiệu lực;
+- tạo user `admin/operator/viewer/auditor`, disable/reenable và đổi role;
+- ping thật ALLOW, ping thật POLICY DENIED và quyền runtime của từng role;
+- activity event, audit event, request history và kiểm tra report không chứa token/mật khẩu.
+
+Kết quả được lưu tại `runtime_reports/phase49_detailed_status_events_<timestamp>/summary.json` và `runtime.log`. Script không ghi operator token hoặc mật khẩu test vào console hay artifact.
+
+Gate regression đầy đủ:
+
+```bash
+./scripts/phase49_auth_rbac_gate.sh full --reuse-running
+sudo -n -E bash scripts/phase44_45_combined_acceptance.sh
+```
+
+Chỉ kết luận PASS khi command trả exit code `0` và artifact có đầy đủ case PASS.
 
 
 ## Ranh Gioi Network Automation Va SDN Runtime

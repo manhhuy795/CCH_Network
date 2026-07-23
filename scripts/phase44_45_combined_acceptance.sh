@@ -61,7 +61,7 @@ run_case() {
 
 api_get() {
   local path="$1" output="$2"
-  curl -fsS --max-time 20 "http://127.0.0.1:8000${path}" > "$output"
+  curl -fsS --max-time 20 "${AUTH_ARGS[@]}" "http://127.0.0.1:8000${path}" > "$output"
   cat "$output"
 }
 

@@ -889,6 +889,11 @@ class MininetControlAgent:
                     "link_id": link_id,
                     "changed": changed,
                 }
+        if state == "up":
+            # Linux can remove routes whose next hop was on a link that went
+            # down. Reapply the declared routing after recovery so an UP
+            # link also restores the real MPLS data path.
+            configure_declared_routes(self.net)
         self.link_state[link_id] = state
         return {
             "ok": True,

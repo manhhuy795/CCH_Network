@@ -6,11 +6,8 @@ const baseProps = {
   onPage: vi.fn(),
   overallStatus: "online",
   websocketOnline: false,
-  authenticated: false,
+  user: { id: "u1", username: "operator", role: "operator" as const },
   authChecking: false,
-  token: "",
-  onToken: vi.fn(),
-  onAuthenticate: vi.fn(),
   onLogout: vi.fn(),
   onHelp: vi.fn(),
 };
@@ -23,12 +20,16 @@ describe("AppShell", () => {
     }
   });
 
-  it("hides token input after authentication", () => {
-    const { rerender } = render(<AppShell {...baseProps} token="secret">Nội dung</AppShell>);
-    expect(screen.getByLabelText("IT operator token")).toBeInTheDocument();
-    rerender(<AppShell {...baseProps} authenticated token="">Nội dung</AppShell>);
+  it("does not expose an operator token and shows the authenticated role", () => {
+    render(<AppShell {...baseProps}>Nội dung</AppShell>);
     expect(screen.queryByLabelText("IT operator token")).not.toBeInTheDocument();
-    expect(screen.getByText("Đã xác thực")).toBeInTheDocument();
+    expect(screen.getByText("Đã đăng nhập · operator")).toBeInTheDocument();
+  });
+
+  it("limits viewer navigation to read-only destinations", () => {
+    render(<AppShell {...baseProps} user={{ id: "u2", username: "viewer", role: "viewer" }}>Nội dung</AppShell>);
+    expect(screen.queryByRole("button", { name: "Kiểm tra kết nối" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sự kiện & nhật ký" })).not.toBeInTheDocument();
   });
 
   it("changes page from sidebar", () => {
