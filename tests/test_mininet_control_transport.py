@@ -213,3 +213,43 @@ def test_active_socket_is_not_removed(agent, tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="dang chay"):
         control_agent._remove_stale_socket()
     assert path.exists()
+
+
+def test_link_recovery_reapplies_declared_routes(monkeypatch):
+    module = _load_topology_module(monkeypatch)
+
+    class FakeNode:
+        def __init__(self, name):
+            self.name = name
+
+    class FakeNet:
+        def __init__(self):
+            self.nameToNode = {
+                "hq_l3_gateway": FakeNode("hq_l3_gateway"),
+                "ce_hq": FakeNode("ce_hq"),
+            }
+            self.link_changes = []
+
+        def get(self, name):
+            return self.nameToNode[name]
+
+        def configLinkStatus(self, left, right, state):
+            self.link_changes.append((left, right, state))
+
+    net = FakeNet()
+    control_agent = module.MininetControlAgent(
+        net,
+        {"links": [["core_hq", "ce_hq", "mpls"]], "host_groups": {}},
+        Path("unused-test.sock"),
+        "test-token",
+    )
+    monkeypatch.setattr(module, "runtime_node_name", lambda name: name)
+    monkeypatch.setattr(module, "configure_declared_routes", lambda value: routes_seen.append(value))
+    control_agent._interface_map = lambda _link_id: {"interfaces": []}
+    routes_seen = []
+
+    result = control_agent._set_link("core_hq-ce_hq", "up")
+
+    assert result["ok"] is True
+    assert net.link_changes == [("hq_l3_gateway", "ce_hq", "up")]
+    assert routes_seen == [net]
