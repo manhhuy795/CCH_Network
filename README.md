@@ -239,6 +239,25 @@ Luu y quan trong: generated Cisco config khong duoc load vao OVS va khong dung d
 
 Checkpoint nftables Phase 44: `docs/phase_44_ubuntu_firewall_validation_vi.md`.
 
+### Kiem thu bao mat ha tang
+
+Audit source-of-truth tren Windows hoac Ubuntu:
+
+```bash
+python scripts/infrastructure_security_check.py
+```
+
+Kiem tra runtime that tren Ubuntu, sau khi topology va Control Agent da san
+sang:
+
+```bash
+sudo ./scripts/infrastructure_security_runtime_check.sh
+```
+
+Script runtime dung ping that tu Mininet, dump flow OpenFlow, FIREWALL_STATUS
+va doi chieu nftables counters. Static PASS khong duoc coi la live runtime
+PASS. Artifact nam trong `runtime_reports/infrastructure_security_<timestamp>.*`.
+
 Trong prompt `mininet>`:
 
 ```text
