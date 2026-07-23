@@ -30,7 +30,7 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof TestPanel>> = 
     resultType: "ping",
     busy: false,
     elapsedSeconds: 0,
-    websocketOnline: true,
+    websocketState: "monitoring" as const,
     onSource: vi.fn(),
     onDestination: vi.fn(),
     onSeconds: vi.fn(),
@@ -71,8 +71,15 @@ describe("TestPanel", () => {
     expect(screen.getByRole("button", { name: /Dự án A/ })).toBeDisabled();
   });
 
-  it("reports a disconnected realtime channel without blocking HTTP tests", () => {
-    render(<TestPanel {...baseProps({ websocketOnline: false })} />);
+  it("does not report a disconnected realtime channel before monitoring starts", () => {
+    render(<TestPanel {...baseProps({ websocketState: "idle" })} />);
+    expect(screen.queryByText("WebSocket mất kết nối")).not.toBeInTheDocument();
+    expect(screen.getByText("Chưa bật giám sát")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Chạy Ping/ })).toBeEnabled();
+  });
+
+  it("reports a reconnecting realtime channel without blocking HTTP tests", () => {
+    render(<TestPanel {...baseProps({ websocketState: "reconnecting" })} />);
     const warning = screen.getByText("WebSocket mất kết nối").closest("[role='status']");
     expect(warning).toHaveTextContent("WebSocket mất kết nối");
     expect(warning).toHaveTextContent("API HTTP");

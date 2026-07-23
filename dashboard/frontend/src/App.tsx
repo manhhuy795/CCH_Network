@@ -8,7 +8,7 @@ import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
 import OverviewPage from "./components/OverviewPage";
 import PolicyPanel from "./components/PolicyPanel";
-import RealtimePanel from "./components/RealtimePanel";
+import RealtimePanel, { type RealtimeConnectionState } from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
 import { ensureTestResult, type NetworkTestType } from "./components/testWorkflow";
@@ -44,7 +44,7 @@ export default function App() {
   const [linkOperation, setLinkOperation] = useState<LinkOperation>();
   const [online, setOnline] = useState(0);
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
-  const [websocketOnline, setWebsocketOnline] = useState(false);
+  const [websocketState, setWebsocketState] = useState<RealtimeConnectionState>("idle");
   const [user, setUser] = useState<AuthUser>();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -293,7 +293,7 @@ export default function App() {
         <TopologyCanvas {...topologyProps} />
         <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
           policyMap={topology?.policy_map} testType={testType} resultType={resultType} busy={busy} elapsedSeconds={elapsedSeconds}
-          websocketOnline={websocketOnline} result={result} onSource={setSource} onDestination={setDestination}
+          websocketState={websocketState} result={result} onSource={setSource} onDestination={setDestination}
           onSeconds={setSeconds} onTestType={setTestType} onRun={(action) => void runAction(action)}
           onCancel={() => abortController.current?.abort()} />
       </div>
@@ -306,7 +306,7 @@ export default function App() {
     );
     if (page === "performance") return (
       <div className="performance-grid">
-        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={setSource} onDestination={setDestination} onStatus={setWebsocketOnline} />
+        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={setSource} onDestination={setDestination} onStatus={setWebsocketState} />
         <MetricsPanel metrics={metrics} />
       </div>
     );
@@ -327,7 +327,7 @@ export default function App() {
       page={page}
       onPage={setPage}
       overallStatus={overallStatus}
-      websocketOnline={websocketOnline}
+      websocketState={websocketState}
       user={user}
       authChecking={authChecking}
       onLogout={() => {
