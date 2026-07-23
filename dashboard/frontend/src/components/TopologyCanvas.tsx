@@ -59,16 +59,49 @@ function isPathLink(path: string[], source: string, target: string) {
   });
 }
 
+function displayNodeTitle(node: Record<string, unknown>) {
+  if (String(node.type || "") === "firewall") {
+    const site = String(node.site || "").toLowerCase();
+    return site.includes("telesale") ? "Firewall Telesale" : "Firewall HQ";
+  }
+  return String(node.label || node.id);
+}
+
+function wrapNodeText(value: string, maxChars = 17, maxLines = 2) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (word.length > maxChars && !line) {
+      lines.push(`${word.slice(0, Math.max(1, maxChars - 3))}...`);
+      continue;
+    }
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= maxChars || !line) line = candidate;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length <= maxLines) return lines;
+  const visible = lines.slice(0, maxLines);
+  const last = visible[maxLines - 1];
+  visible[maxLines - 1] = `${last.slice(0, Math.max(1, maxChars - 3))}...`;
+  return visible;
+}
+
 function labelMap(topology?: Topology) {
   const labels: Record<string, [string, string]> = {};
   topology?.nodes.forEach((node) => {
     const id = String(node.id);
-    const title = String(node.label || id);
+    const title = displayNodeTitle(node);
     let subtitle = "";
     if (node.subtitle) subtitle = String(node.subtitle);
     else if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
-    else if (node.type === "firewall") subtitle = "Internet Edge Boundary";
+    else if (node.type === "firewall") subtitle = "nftables - Internet breakout";
     else if (node.type === "wan") subtitle = "WAN transport";
     else if (node.type === "controller") subtitle = "127.0.0.1:6653";
     else if (node.ip) subtitle = String(node.ip);
@@ -223,6 +256,8 @@ export default function TopologyCanvas(props: Props) {
 
           {Object.entries(positions).filter(([id]) => labels[id]).map(([id, [x, y]]) => {
             const [title, subtitle] = labels[id];
+            const titleLines = wrapNodeText(title);
+            const subtitleLines = wrapNodeText(subtitle, 20, 1);
             const node = props.topology?.nodes.find((item) => String(item.id) === id);
             const type = String(node?.type || "");
             const matched = matchingNodes.has(id);
@@ -237,8 +272,10 @@ export default function TopologyCanvas(props: Props) {
                 aria-label={`Node ${title}`}
               >
                 <rect width="120" height="50" rx="5" />
-                <text x="60" y="20">{title}</text>
-                <text className="node-subtitle" x="60" y="36">{subtitle}</text>
+                <text x="60" y={titleLines.length > 1 ? 14 : 20}>
+                  {titleLines.map((line, index) => <tspan key={`${id}-title-${index}`} x="60" dy={index === 0 ? 0 : 12}>{line}</tspan>)}
+                </text>
+                <text className="node-subtitle" x="60" y={titleLines.length > 1 ? 43 : 36}>{subtitleLines[0]}</text>
               </g>
             );
           })}
@@ -256,7 +293,11 @@ export default function TopologyCanvas(props: Props) {
           <span><i className="mpls" />MPLS transport</span>
         </div>
       )}
-      <Drawer open={Boolean(inspector)} title={selectedNode ? `Node · ${String(selectedNode.label || selectedNode.id)}` : selectedLink ? `Link · ${selectedLink.source} → ${selectedLink.target}` : "Inspector"} onClose={() => setInspector(null)}>
+      <div className="topology-explanation">
+        <p><strong>Luồng liên chi nhánh:</strong> User → Access/Distribution → CE → MPLS L3VPN Logic Cloud → CE → Distribution/Access → User. Luồng này không đi qua firewall.</p>
+        <p><strong>Luồng Internet:</strong> User → Firewall nftables tại site → Internet/Service. Firewall chỉ xử lý local Internet breakout, không nằm trên data path MPLS.</p>
+      </div>
+      <Drawer open={Boolean(inspector)} title={selectedNode ? (String(selectedNode.type) === "firewall" ? labels[String(selectedNode.id)]?.[0] : `Node · ${labels[String(selectedNode.id)]?.[0] || String(selectedNode.id)}`) : selectedLink ? `Link · ${selectedLink.source} → ${selectedLink.target}` : "Inspector"} onClose={() => setInspector(null)}>
         {selectedNode && (
           <div className="inspector-grid">
             <StatusBadge status={currentNode === selectedNode.id ? "online" : "unknown"} label={currentNode === selectedNode.id ? "Đang có packet" : "Theo inventory"} />

@@ -52,7 +52,7 @@ describe("RealtimePanel", () => {
       flow_bytes: 1200,
       status: "monitoring",
     }) } as MessageEvent));
-    expect(screen.getByText("WebSocket online")).toBeInTheDocument();
+    expect(screen.getByText("Đang giám sát")).toBeInTheDocument();
     expect(screen.getByLabelText(/RTT trung bình: 8 ms/)).toBeInTheDocument();
     expect(screen.getByText(/Flow bytes 1.200/)).toBeInTheDocument();
   });
