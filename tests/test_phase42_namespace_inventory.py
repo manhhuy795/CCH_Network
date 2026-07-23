@@ -1,5 +1,6 @@
 from scripts.phase42_namespace_inventory import (
     EXPECTED_INFRA_NAMESPACES,
+    EXPECTED_ENTERPRISE_ENDPOINTS,
     EXPECTED_SERVICES,
     EXPECTED_USERS,
     classify_live_namespaces,
@@ -19,6 +20,7 @@ def valid_live_names():
         *EXPECTED_USERS,
         *EXPECTED_SERVICES,
         *EXPECTED_INFRA_NAMESPACES,
+        *EXPECTED_ENTERPRISE_ENDPOINTS,
         "hq_l3_gateway",
         "telesale_l3_gateway",
         "service_net",
@@ -38,7 +40,8 @@ def test_exact_service_user_and_infrastructure_sets_ignore_duplicate_processes()
     assert inventory["services"] == EXPECTED_SERVICES
     assert len(inventory["services"]) == 5
     assert inventory["infrastructure"] == EXPECTED_INFRA_NAMESPACES
-    assert len(inventory["infrastructure"]) == 6
+    assert len(inventory["infrastructure"]) == 10
+    assert inventory["enterprise"] == EXPECTED_ENTERPRISE_ENDPOINTS
     assert "h90" in inventory["services"]
     assert "h90" not in inventory["users"]
     for non_service in (*EXPECTED_INFRA_NAMESPACES, "service_net"):
@@ -53,12 +56,14 @@ def test_valid_inventory_report_prints_exact_counts_and_passes(capsys):
     output = capsys.readouterr().out
     assert "USER_NAMESPACE_COUNT=110" in output
     assert "SERVICE_NAMESPACE_COUNT=5" in output
-    assert "INFRA_NAMESPACE_COUNT=6" in output
+    assert "INFRA_NAMESPACE_COUNT=10" in output
+    assert "ENTERPRISE_NAMESPACE_COUNT=9" in output
     assert "ACTUAL_SERVICE_NAMES=h90 hcall hinternet hsocial hzalo" in output
-    assert "ACTUAL_INFRA_NAMES=ce_hq ce_telesale fw_hq fw_telesale internet_zone mpls_cloud" in output
+    assert "ACTUAL_INFRA_NAMES=ce_hq ce_telesale fw_hq fw_telesale hdhcp hdns hmonitor hntp internet_zone mpls_cloud" in output
     assert "PASS Dung 110 user namespace" in output
     assert "PASS Dung 5 service namespace" in output
-    assert "PASS Dung 6 infra namespace" in output
+    assert "PASS Dung 10 infra namespace" in output
+    assert "PASS Dung 9 enterprise namespace" in output
 
 
 def test_missing_service_fails_and_prints_exact_name(capsys):

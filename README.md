@@ -118,7 +118,7 @@ Internet Branch:
 Telesale Distribution SDN → Firewall Telesale → Internet Zone → Service
 ```
 
-Controller chỉ điều khiển 9 Open vSwitch:
+Controller chỉ điều khiển 12 Open vSwitch:
 
 - `access_hq_a`
 - `access_hq_b`
@@ -129,6 +129,9 @@ Controller chỉ điều khiển 9 Open vSwitch:
 - `access_telesale`
 - `dist_telesale`
 - `access_backoffice` (logical ID; Linux runtime bridge: `access_bo`)
+- `access_iot`
+- `access_guest`
+- `infra_access`
 
 Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cloud.
 
@@ -368,3 +371,15 @@ sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1 bash scripts/phase46_automa
 ~~~
 
 Report tao tai runtime_reports/phase46_automation_docs_<UTC>/; xem summary.json va NEXT_ACTION.md neu FAIL/BLOCKED. Tai lieu chi tiet nam trong docs/architecture.md, docs/installation_ubuntu.md, docs/runtime_operations.md, docs/troubleshooting.md, docs/testing_and_acceptance.md va docs/security_notes.md.
+
+## Enterprise VLAN Zones
+
+Enterprise extension dùng các VLAN chưa có trong mô hình cũ để tránh xung đột với VLAN 10 Management:
+
+| VLAN | Zone | Subnet | Chính sách chính |
+|---:|---|---|---|
+| 80 | Guest | 172.16.80.0/24 | DHCP/DNS/NTP và General Internet; chặn mạng nội bộ |
+| 100 | Infrastructure Services | 172.16.100.0/24 | DHCP, DNS, NTP, Monitoring |
+| 110 | IoT/UPS | 172.16.110.0/24 | Chỉ hạ tầng cần thiết; IT Support quản trị theo least privilege |
+
+VLAN 10 vẫn dành cho Management. Mô hình runtime có 110 user doanh nghiệp, 5 service hiện hữu, 9 endpoint Guest/IoT/UPS, 4 infrastructure service và 12 OVS. Chi tiết xem `docs/enterprise_vlan_plan_vi.md`.

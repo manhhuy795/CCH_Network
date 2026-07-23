@@ -344,7 +344,7 @@ def main() -> int:
         reporter.record("Named firewall namespaces", set(FIREWALL_NAMES).issubset(names), namespaces=sorted(names))
 
         ovs = run(["ovs-vsctl", "show"], reporter, check=True)
-        reporter.record("Nine OVS connected", ovs.stdout.count("is_connected: true") == 9, connected=ovs.stdout.count("is_connected: true"))
+        reporter.record("Twelve OVS connected", ovs.stdout.count("is_connected: true") == 12, connected=ovs.stdout.count("is_connected: true"))
 
         inventory = json.loads(INVENTORY_FILE.read_text(encoding="utf-8"))
         hosts = build_host_inventory(load_network_model())

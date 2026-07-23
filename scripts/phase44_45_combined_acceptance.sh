@@ -81,7 +81,7 @@ import sys
 
 topology, firewalls, health = (json.load(open(path, encoding="utf-8")) for path in sys.argv[1:])
 assert topology["site_ids"] == ["hq", "telesale"]
-assert len(topology["logical_switches"]) == 9
+assert len(topology["logical_switches"]) == 12
 assert topology["runtime_bridge_map"]["access_backoffice"] == "access_bo"
 assert {item["name"] for item in firewalls["firewalls"]} == {"fw_hq", "fw_telesale"}
 assert firewalls["phase44_runtime"]["status"] in {"pending", "verified"}

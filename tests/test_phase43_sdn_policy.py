@@ -32,6 +32,9 @@ EXPECTED_CONTROLLER_TARGETS = {
     "core_hq",
     "access_telesale",
     "dist_telesale",
+    "access_iot",
+    "access_guest",
+    "infra_access",
 }
 
 
@@ -46,9 +49,9 @@ def test_phase43_controller_target_set_dpids_and_runtime_alias_are_exact():
     runtime_names = runtime_switch_map(model)
 
     assert targets == EXPECTED_CONTROLLER_TARGETS
-    assert len(targets) == 9
+    assert len(targets) == 12
     assert set(dpid_names.values()) == EXPECTED_CONTROLLER_TARGETS
-    assert len(dpid_names) == len(set(dpid_names)) == 9
+    assert len(dpid_names) == len(set(dpid_names)) == 12
     assert {
         logical: model["switches"][logical]["dpid"]
         for logical in targets
@@ -62,6 +65,9 @@ def test_phase43_controller_target_set_dpids_and_runtime_alias_are_exact():
         "dist_telesale": "0000000000000007",
         "access_hq_it": "0000000000000008",
         "access_backoffice": "0000000000000009",
+        "access_iot": "000000000000000a",
+        "access_guest": "000000000000000b",
+        "infra_access": "000000000000000c",
     }
     assert runtime_names["access_backoffice"] == "access_bo"
     assert runtime_switch_name(model, "access_backoffice") == "access_bo"

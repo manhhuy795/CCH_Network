@@ -8,6 +8,8 @@ import StatusBadge from "./ui/StatusBadge";
 const positions: Record<string, [number, number]> = {
   project_a: [90, 135], project_b: [90, 215], project_c: [90, 295], it_support: [90, 375], backoffice: [90, 455], h90: [90, 535],
   access_hq_a: [270, 135], access_hq_b: [270, 215], access_hq_c: [270, 295], access_hq_it: [270, 375], access_backoffice: [270, 455], voice_access: [270, 535],
+  iot_ups: [90, 595], guest: [270, 595], access_iot: [410, 595], access_guest: [550, 595],
+  infra_access: [470, 245], hdhcp: [650, 125], hdns: [650, 185], hntp: [650, 245], hmonitor: [650, 305],
   core_hq: [470, 335], fw_hq: [665, 455], ce_hq: [790, 300],
   c0: [775, 55], mpls_cloud: [900, 475],
   telesale: [90, 690], access_telesale: [270, 690], dist_telesale: [470, 690],
@@ -26,7 +28,9 @@ const routedLinks: Record<string, [number, number][]> = {
 const regions: Record<string, string> = {
   project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", h90: "hq",
   access_hq_a: "hq", access_hq_b: "hq", access_hq_c: "hq", access_hq_it: "hq", voice_access: "hq",
-  backoffice: "hq", access_backoffice: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
+  backoffice: "hq", access_backoffice: "hq", iot_ups: "hq", guest: "hq", access_iot: "hq", access_guest: "hq",
+  infra_access: "hq", hdhcp: "hq", hdns: "hq", hntp: "hq", hmonitor: "hq",
+  core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
   mpls_cloud: "wan",
   telesale: "telesale", access_telesale: "telesale", dist_telesale: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
   internet_zone: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
@@ -100,6 +104,7 @@ function labelMap(topology?: Topology) {
     let subtitle = "";
     if (node.subtitle) subtitle = String(node.subtitle);
     else if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
+    else if (node.type === "endpoint_group") subtitle = `${node.count} endpoints · VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
     else if (node.type === "firewall") subtitle = "nftables - Internet breakout";
     else if (node.type === "wan") subtitle = "WAN transport";
@@ -111,7 +116,7 @@ function labelMap(topology?: Topology) {
 }
 
 function nodeClass(type: string, id: string) {
-  if (type === "user_group") return "user";
+  if (type === "user_group" || type === "endpoint_group") return "user";
   if (type === "switch") return "switch";
   if (type === "router") return "router";
   if (type === "wan") return "cloud";
@@ -198,8 +203,8 @@ export default function TopologyCanvas(props: Props) {
       </div>
       <div className="topology-scroll">
         <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
-          <rect className="zone" x="20" y="85" width="780" height="470" /><text className="zone-label" x="35" y="107">HQ</text>
-          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">TELESALE</text>
+          <rect className="zone" x="20" y="85" width="780" height="540" /><text className="zone-label" x="35" y="107">HQ</text>
+          <rect className="zone" x="20" y="645" width="780" height="150" /><text className="zone-label" x="35" y="667">TELESALE</text>
           <rect className="zone" x="815" y="185" width="220" height="610" /><text className="zone-label" x="830" y="207">MPLS L3VPN LOGIC</text>
           <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">INTERNET / SERVICES</text>
 
@@ -322,7 +327,7 @@ export default function TopologyCanvas(props: Props) {
                 {selectedGroup.hosts.slice(0, 10).map((host: Host) => <span key={host.name}>{host.name} · {host.ip}</span>)}
               </div>
             )}
-            {["user_group", "service", "blocked_service"].includes(String(selectedNode.type)) && (
+            {["user_group", "endpoint_group", "service", "blocked_service"].includes(String(selectedNode.type)) && (
               <div className="drawer-actions">
                 <button onClick={() => chooseEndpoint("source")}>Chọn làm nguồn</button>
                 <button onClick={() => chooseEndpoint("destination")}>Chọn làm đích</button>

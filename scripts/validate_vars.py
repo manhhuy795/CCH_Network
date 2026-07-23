@@ -39,7 +39,8 @@ REQUIRED_TRANSIT_LINKS = {
 EXPECTED_SITE_MODEL_NODES = {
     "hq": {
         "access_hq_a", "access_hq_b", "access_hq_c", "access_backoffice",
-        "voice_access", "access_hq_it", "core_hq", "ce_hq", "fw_hq",
+        "voice_access", "access_hq_it", "access_iot", "access_guest", "infra_access",
+        "core_hq", "ce_hq", "fw_hq",
     },
     "branch_telesale": {"access_telesale", "dist_telesale", "ce_telesale", "fw_telesale"},
 }
@@ -65,6 +66,7 @@ def _model_node_ids(model: dict[str, Any]) -> set[str]:
     return set().union(
         model.get("host_groups", {}),
         model.get("services", {}),
+        model.get("infrastructure_services", {}),
         model.get("switches", {}),
         model.get("infrastructure", {}),
     )
@@ -124,7 +126,10 @@ def validate_all(config: dict[str, Any]) -> list[str]:
             f"found {sorted(physical_sites)}"
         )
 
-    expected_vlan_sites = {10: "hq", 20: "hq", 30: "hq", 40: "hq", 50: "branch_telesale", 60: "hq", 70: "hq", 90: "hq"}
+    expected_vlan_sites = {
+        10: "hq", 20: "hq", 30: "hq", 40: "hq", 50: "branch_telesale", 60: "hq",
+        70: "hq", 80: "hq", 90: "hq", 100: "hq", 110: "hq",
+    }
     for vlan_id, expected_site in expected_vlan_sites.items():
         actual_site = vlan_by_id.get(vlan_id, {}).get("site")
         if actual_site != expected_site:
@@ -294,7 +299,7 @@ def validate_all(config: dict[str, Any]) -> list[str]:
     firewall_defaults = config.get("firewall_policy", {}).get("runtime_defaults", {})
     expected_firewall_sites = {"hq", "branch_telesale"}
     expected_firewall_ownership = {
-        "hq": ("fw_hq", "core_hq", {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24"}),
+        "hq": ("fw_hq", "core_hq", {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24", "172.16.80.0/24", "172.16.110.0/24"}),
         "branch_telesale": ("fw_telesale", "dist_telesale", {"172.16.50.0/24"}),
     }
     if set(firewall_sites) != expected_firewall_sites:
@@ -331,9 +336,12 @@ def validate_all(config: dict[str, Any]) -> list[str]:
         if policy.get("runtime_interfaces") != expected_runtime_interfaces.get(site_name):
             errors.append(f"Firewall policy {site_name} has incorrect runtime interfaces")
         policies = {str(item.get("name")): item for item in policy.get("policies", [])}
-        if set(policies) != set(expected_policy_actions):
-            errors.append(f"Firewall policy {site_name} must define {sorted(expected_policy_actions)}")
-        for policy_name, (expected_action, expected_application) in expected_policy_actions.items():
+        site_expected_actions = dict(expected_policy_actions)
+        if site_name == "hq":
+            site_expected_actions["allow-guest-general-internet"] = ("allow", "general_internet")
+        if set(policies) != set(site_expected_actions):
+            errors.append(f"Firewall policy {site_name} must define {sorted(site_expected_actions)}")
+        for policy_name, (expected_action, expected_application) in site_expected_actions.items():
             item = policies.get(policy_name, {})
             if item.get("action") != expected_action:
                 errors.append(f"Firewall policy {site_name}/{policy_name} action must be {expected_action}")

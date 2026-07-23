@@ -314,7 +314,7 @@ export default function App() {
     return <OverviewPage
       components={healthComponents}
       onlineHosts={online}
-      totalHosts={(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}
+      totalHosts={topology?.summary.endpoint_count ?? ((topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5))}
       failedLinks={failedLinks}
       lastError={events.find((event) => event.severity === "error")?.message}
       lastUpdated={lastUpdated}

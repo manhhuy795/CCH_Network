@@ -130,10 +130,10 @@ if [[ -S "$SOCKET_PATH" ]]; then
   LIVE_EXIT=$?
   echo "$LIVE_STATUS"
   echo "EXIT_CODE=$LIVE_EXIT"
-  if [[ "$LIVE_EXIT" -eq 0 ]] && python3 -c 'import json,sys; p=json.loads(sys.stdin.read()); raise SystemExit(0 if p.get("user_hosts_online") == 110 and len(p.get("bridges", {})) == 9 and all(p.get("bridges", {}).values()) else 1)' <<<"$LIVE_STATUS"; then
-    pass "Agent bao 110 user va 9 controlled OVS online"
+  if [[ "$LIVE_EXIT" -eq 0 ]] && python3 -c 'import json,sys; p=json.loads(sys.stdin.read()); enterprise={"iot_cam_01","iot_cam_02","iot_door_01","ups_core_01","ups_core_02","guest_01","guest_02","guest_03","guest_04"}; hosts=p.get("hosts",{}); raise SystemExit(0 if p.get("user_hosts_online") == 110 and len(p.get("bridges", {})) == 12 and all(p.get("bridges", {}).values()) and all(hosts.get(name) for name in enterprise) else 1)' <<<"$LIVE_STATUS"; then
+    pass "Agent bao 110 user, 9 enterprise endpoint va 12 controlled OVS online"
   else
-    fail "LIVE_STATUS khong bao dung 110 user va 9 controlled OVS"
+    fail "LIVE_STATUS khong bao dung 110 user, 9 enterprise endpoint va 12 controlled OVS"
   fi
 else
   fail "Control Agent socket khong ton tai"

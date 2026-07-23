@@ -44,6 +44,7 @@ def test_network_model_is_single_source_of_truth():
     assert set(controlled_switches(model)) == {
         "access_hq_a", "access_hq_b", "access_hq_c", "voice_access", "core_hq",
         "access_telesale", "dist_telesale", "access_hq_it", "access_backoffice",
+        "access_iot", "access_guest", "infra_access",
     }
     assert validate_network_model(model) == []
 
@@ -74,7 +75,7 @@ def test_phase27_static_source_of_truth_contract():
     ]
 
     assert len(users) == 110
-    assert len(hosts) == 115
+    assert len(hosts) == 128
     assert len(services) == 5
     assert model["host_groups"]["it_support"]["count"] == 10
     assert model["services"]["h90"]["switch"] == "voice_access"
@@ -90,7 +91,7 @@ def test_network_model_validation_catches_inventory_drift():
     errors = validate_network_model(model)
 
     assert any("110 user hosts" in error for error in errors)
-    assert any("115 endpoints" in error for error in errors)
+    assert any("128 endpoints" in error for error in errors)
     assert any("IT Support" in error for error in errors)
 
 
@@ -121,7 +122,7 @@ def test_topology_forces_intersite_path_through_ce_and_mpls():
     assert 'switches["dist_telesale"], switches["core_hq"]' not in source
     assert 'switches["access_backoffice"],' in source
     assert 'switches["access_telesale"],' in source
-    assert 'intfName2=f"{group[\'prefix\']}-u{index:02d}"' in source
+    assert 'intfName2=f"{group.get(\'interface_prefix\', group[\'prefix\'])}-u{index:02d}"' in source
     assert 'intfName1="tel-eth99"' in source
     assert 'intfName2="tdist-eth01"' in source
 
@@ -134,14 +135,15 @@ def test_topology_forces_intersite_path_through_ce_and_mpls():
 def test_l3_gateways_own_user_gateways_and_ce_only_routes_wan():
     source = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
-    assert 'configure_router_interface(\n        hq_l3,\n        "hq_l3-eth0",' in source
+    assert 'configure_vlan_router_interface(\n        hq_l3,\n        "hq_l3-eth0",' in source
     assert '"172.16.20.1/24"' in source
     assert '"172.16.30.1/24"' in source
     assert '"172.16.40.1/24"' in source
     assert '"172.16.60.1/24"' in source
     assert '"172.16.70.1/24"' in source
+    assert '"172.16.80.1/24"' in source
     assert '"172.16.90.1/24"' in source
-    assert 'configure_router_interface(\n        telesale_l3,\n        "tele_l3-eth0",\n        ["172.16.50.1/24"],' in source
+    assert 'configure_vlan_router_interface(telesale_l3, "tele_l3-eth0", [(50, "172.16.50.1/24")])' in source
     assert '["172.16.50.1/24", "172.16.60.1/24"]' not in source
     assert 'transit_cidr("core_hq_to_ce_hq", "endpoint_b")' in source
     assert 'transit_cidr("ce_telesale_to_dist_telesale", "endpoint_a")' in source
@@ -156,7 +158,7 @@ def test_only_expected_ovs_are_controller_managed():
     topology = TOPOLOGY_PATH.read_text(encoding="utf-8")
 
     assert policy["runtime"]["controller"] == "127.0.0.1:6653"
-    assert len(controlled_switches(model)) == 9
+    assert len(controlled_switches(model)) == 12
     assert 'for name, dpid in DPIDS.items()' in topology
     assert model["switches"]["access_backoffice"]["runtime_name"] == "access_bo"
     assert runtime_switch_name(model, "access_backoffice") == "access_bo"
@@ -182,14 +184,14 @@ def test_phase42_service_linux_bridge_has_bookkeeping_dpid_without_openflow_cont
     bookkeeping_dpid = match.group(1)
     assert re.fullmatch(r"[0-9a-fA-F]{16}", bookkeeping_dpid)
     assert bookkeeping_dpid not in controlled_dpids
-    assert len(controlled_dpids) == 9
+    assert len(controlled_dpids) == 12
     assert '"service_net",\n        cls=LinuxBridgeSwitch,\n        dpid=SERVICE_NET_MININET_DPID,' in topology
     assert 'service_net.start([])' in topology
     assert 'service_net.start([controller])' not in topology
     assert '"controlled_ovs": list(DPIDS)' in topology
     assert '"controlled_ovs_count": len(DPIDS)' in topology
     assert "service_net" not in model["switches"]
-    assert "9 Open vSwitch" in readme
+    assert "12 Open vSwitch" in readme
     assert "SERVICE_NET_MININET_DPID=00000000000000fe" in readme
     assert "khong phai OVS" in readme
     assert "khong ket noi OS-Ken" in readme

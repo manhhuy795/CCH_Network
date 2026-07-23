@@ -24,7 +24,7 @@ Topology phải đang chạy bằng /usr/bin/python3 cho Mininet. Backend, front
 
 ## Runtime bắt buộc
 
-Kiểm tra controller 6653, backend 8000, frontend 5173, namespace Mininet, socket Control Agent HEALTH, 9 OVS bridge, 2 firewall namespace, flow OpenFlow 1.3, dashboard health, ping allow/deny, firewall counter, dashboard smoke, link fail/recover và log lỗi transport.
+Kiểm tra controller 6653, backend 8000, frontend 5173, namespace Mininet, socket Control Agent HEALTH, 12 OVS bridge, 2 firewall namespace, flow OpenFlow 1.3, dashboard health, ping allow/deny, firewall counter, dashboard smoke, link fail/recover và log lỗi transport.
 
 Các bài đo phải lấy kết quả từ API/runtime thật. Khi policy DENY, response phải giữ đúng contract DENY/POLICY_DENIED, không biến thành lỗi server.
 

@@ -32,7 +32,7 @@ def test_phase45_exposes_exact_two_public_sites_and_runtime_bridge_map(monkeypat
     assert payload["site_ids"] == ["hq", "telesale"]
     assert {site["id"] for site in payload["sites"]} == {"hq", "telesale"}
     assert next(site for site in payload["sites"] if site["id"] == "telesale")["source_id"] == "branch_telesale"
-    assert len(payload["logical_switches"]) == 9
+    assert len(payload["logical_switches"]) == 12
     assert payload["runtime_bridge_map"]["access_backoffice"] == "access_bo"
     assert "access_bo" not in {item["logical_name"] for item in payload["logical_switches"]}
     assert {item["logical_name"] for item in payload["ce_nodes"]} == {"ce_hq", "ce_telesale"}

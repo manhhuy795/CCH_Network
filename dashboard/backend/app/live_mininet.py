@@ -201,11 +201,11 @@ def topology_payload() -> dict[str, Any]:
         key=lambda item: (item["kind"] != "user", item["name"]),
     )
     for name, group in ENGINE.groups.items():
-        group_hosts = [host for host in hosts if host.get("group") == name and host.get("kind") == "user"]
+        group_hosts = [host for host in hosts if host.get("group") == name]
         item = {
             "id": name,
             "label": group["label"],
-            "type": "user_group",
+            "type": "user_group" if group.get("host_kind", "user") == "user" else "endpoint_group",
             "site": dashboard_site_id(group.get("site")),
             "vlan": int(group["vlan"]),
             "count": int(group["count"]),
@@ -247,6 +247,21 @@ def topology_payload() -> dict[str, Any]:
             "type": "blocked_service" if service_name == "hsocial" else "service",
             "site": "internet",
             "ip": service["ip"],
+            "controller_managed": False,
+            "status": "unknown",
+            "status_source": "live_mininet",
+        })
+
+    for service_name, service in ENGINE.infrastructure_services.items():
+        nodes.append({
+            "id": service_name,
+            "logical_name": service_name,
+            "label": service["label"],
+            "type": "infrastructure_service",
+            "site": dashboard_site_id(service.get("site")),
+            "ip": service["ip"],
+            "vlan": int(service["vlan"]),
+            "role": service.get("role"),
             "controller_managed": False,
             "status": "unknown",
             "status_source": "live_mininet",
@@ -301,12 +316,25 @@ def topology_payload() -> dict[str, Any]:
             "controller_managed": False,
             "path_between": ["ce_hq", "mpls_cloud", "ce_telesale"],
         },
+        "enterprise_zones": {
+            "iot_ups": {"vlan": 110, "subnet": "172.16.110.0/24", "endpoint_count": 5, "addressing": "dhcp"},
+            "guest": {"vlan": 80, "subnet": "172.16.80.0/24", "endpoint_count": 4, "addressing": "dhcp"},
+            "infrastructure_services": {"vlan": 100, "subnet": "172.16.100.0/24", "service_count": 4},
+        },
         "internet_zone": {"id": "internet_zone", "status": "logical_only", "controller_managed": False},
         "phase44_runtime": phase44_runtime_status(),
         "policy_map": policy_map_payload(),
         "summary": {
-            "user_count": sum(int(group["count"]) for group in ENGINE.groups.values()),
+            "user_count": sum(
+                int(group["count"])
+                for group in ENGINE.groups.values()
+                if group.get("host_kind", "user") == "user"
+            ),
             "service_count": len(ENGINE.services),
+            "iot_ups_count": sum(1 for host in hosts if host.get("kind") == "iot"),
+            "guest_count": sum(1 for host in hosts if host.get("kind") == "guest"),
+            "infrastructure_service_count": len(ENGINE.infrastructure_services),
+            "endpoint_count": len(hosts),
             "controlled_ovs_count": len(CONTROLLED_SWITCHES),
             "site_count": 2,
             "ce_count": 2,
@@ -318,15 +346,19 @@ def topology_payload() -> dict[str, Any]:
 def representative_endpoint(node_id: str) -> str:
     if node_id in ENGINE.groups:
         group = ENGINE.groups[node_id]
+        first_host = next((host for host in ENGINE.hosts.values() if host.get("group") == node_id), None)
+        if first_host:
+            return str(first_host["name"])
         return f"{group['prefix']}_01"
     return node_id
 
 
 def policy_map_payload() -> dict[str, Any]:
-    selectable = [*ENGINE.groups.keys(), *ENGINE.services.keys()]
+    selectable = [*ENGINE.groups.keys(), *ENGINE.services.keys(), *ENGINE.infrastructure_services.keys()]
     names = {
         **{name: group["label"] for name, group in ENGINE.groups.items()},
         **{name: service["label"] for name, service in ENGINE.services.items()},
+        **{name: service["label"] for name, service in ENGINE.infrastructure_services.items()},
     }
     payload: dict[str, Any] = {}
     for source_id in selectable:
@@ -356,6 +388,7 @@ def policy_payload() -> dict[str, Any]:
         "metadata": ENGINE.data["metadata"],
         "host_groups": ENGINE.groups,
         "services": ENGINE.services,
+        "infrastructure_services": ENGINE.infrastructure_services,
         "policies": ENGINE.policies,
     }
 

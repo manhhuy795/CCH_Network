@@ -59,7 +59,7 @@ sites:
         platform: cisco_ios
         template: cisco_ios/core_hq.j2
         management_ip: 192.0.2.10
-        svi_vlans: [10, 20, 30, 40, 60, 70, 90]
+        svi_vlans: [10, 20, 30, 40, 60, 70, 80, 90, 100, 110]
       - name: hq-ce-router
         model_node: ce_hq
         role: ce_router
@@ -74,6 +74,30 @@ sites:
         platform: vendor_neutral
         template: firewall/firewall_policy_vendor_neutral.j2
         management_ip: 192.0.2.16
+      - name: hq-access-iot
+        model_node: access_iot
+        role: access_switch
+        site: hq
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.110
+        access_vlans: [110]
+      - name: hq-access-guest
+        model_node: access_guest
+        role: access_switch
+        site: hq
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.80
+        access_vlans: [80]
+      - name: hq-infra-access
+        model_node: infra_access
+        role: access_switch
+        site: hq
+        platform: cisco_ios
+        template: cisco_ios/access_switch.j2
+        management_ip: 192.0.2.100
+        access_vlans: [100]
 
   branch_telesale:
     name: "Chi nhanh Telesale"
