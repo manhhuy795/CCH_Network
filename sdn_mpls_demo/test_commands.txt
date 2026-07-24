@@ -37,10 +37,14 @@ hcall ping -c 2 h50_01      # expected fail
 hinternet ping -c 2 h70_01  # expected fail
 
 # Real OpenFlow inspection.
-sh ovs-ofctl -O OpenFlow13 dump-flows access_hq_a
+sh ovs-ofctl -O OpenFlow13 dump-flows access_floor1
+sh ovs-ofctl -O OpenFlow13 dump-flows access_floor2
+sh ovs-ofctl -O OpenFlow13 dump-flows dist_hq_1
+sh ovs-ofctl -O OpenFlow13 dump-flows dist_hq_2
 sh ovs-ofctl -O OpenFlow13 dump-flows core_hq
-sh ovs-ofctl -O OpenFlow13 dump-flows dist_telesale
-sh ovs-ofctl -O OpenFlow13 dump-flows access_bo
+sh ovs-ofctl -O OpenFlow13 dump-flows access_branch
+sh ovs-ofctl -O OpenFlow13 dump-flows dist_branch
+sh ovs-ofctl -O OpenFlow13 dump-flows infra_access
 
 # From Ubuntu terminal outside Mininet.
 # sudo python3 sdn_mpls_demo/metrics_collector.py ping --source h20_01 --destination h90

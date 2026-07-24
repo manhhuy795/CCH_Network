@@ -1,78 +1,81 @@
 metadata:
-  name: "sdn-edge-policy-callcenter-bpo"
-  description: "Luat SDN Edge Policy cho Call Center BPO; topology lay tu vars/network_model.yml."
-  default_action: "deny"
+  name: sdn-edge-policy-callcenter-bpo
+  description: "Policy ke thua policy cu, bo sung Guest/IoT/Infrastructure va WAN primary-backup."
+  default_action: deny
+  enforcement_note: "DROP inter-project tai core_hq; DROP Branch/IoT tai dist_branch; firewall chi xu ly local Internet breakout."
 
 policies:
   isolate_hq_projects: true
   isolate_telesale_backoffice: true
+  isolate_hq_users_from_telesale: true
   allow_voice: true
+  voice_flow_priority: true
   allow_zalo: true
   allow_call_app: true
   allow_general_internet: true
   allow_guest_general_internet: true
   block_social_media: true
   allow_it_support_controlled_access: true
-  it_support_allowed_services: ["h90", "hzalo", "hcall", "hinternet"]
+  intersite_via_mpls_l3vpn: true
+  mpls_primary_metric: 10
+  mpls_backup_metric: 100
   it_support_controlled_access:
     enabled: true
     source_group: it_support
     allow_icmp_to_managed_users: true
-    managed_user_groups:
-      - project_a
-      - project_b
-      - project_c
-      - telesale
-      - backoffice
-      - iot_ups
-    allowed_services:
-      - h90
-      - hzalo
-      - hcall
-      - hinternet
-    denied_services:
-      - hsocial
-    management_tcp_ports:
-      - 22
-      - 443
-      - 3389
-      - 5985
-      - 5986
-  voice_flow_priority: true
-  steer_hq_internet_to: "fw_hq"
-  steer_telesale_internet_to: "fw_telesale"
-  intersite_via_mpls_l3vpn: true
-  intersite_allow: []
+    managed_user_groups: [project_a, project_b, project_c, telesale, backoffice, iot_hq, iot_branch]
+    allowed_services: [h90, hdialer, hnvr, hmonitor, hzalo, hcall, hinternet]
+    denied_services: [hsocial]
+    management_tcp_ports: [22, 443, 3389, 5985, 5986]
   enterprise_zones:
-    iot_ups:
-      vlan: 110
-      subnet: "172.16.110.0/24"
-      access_switch: access_iot
-      addressing: dhcp
-      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
-      allow_management_from: it_support
-      deny_by_default: true
     guest:
-      vlan: 80
-      subnet: "172.16.80.0/24"
-      access_switch: access_guest
+      vlan: 120
+      subnet: 172.16.120.0/24
+      access_switch: access_floor1
       addressing: dhcp
       allow_infrastructure_services: [hdhcp, hdns, hntp]
       allow_services: [hinternet]
+      deny_internal: true
+    iot_hq:
+      vlan: 110
+      subnet: 172.16.110.0/24
+      access_switch: access_floor1
+      addressing: reservation
+      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor, hnvr]
+      deny_by_default: true
+    iot_branch:
+      vlan: 111
+      subnet: 172.16.111.0/24
+      access_switch: access_branch
+      addressing: reservation
+      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor, hnvr]
       deny_by_default: true
     infrastructure_services:
       vlan: 100
-      subnet: "172.16.100.0/24"
+      subnet: 172.16.100.0/24
       access_switch: infra_access
-      services: [hdhcp, hdns, hntp, hmonitor]
       deny_unsolicited_inbound: true
   softphone_model:
-    note: "Cfone/Gphone/softphone la ung dung tren may agent; agent van nam trong VLAN du an va chi duoc di toi PBX/SBC Voice Service, Call App va dich vu duoc phep."
-    signaling_examples: ["SIP UDP/TCP 5060", "SIP TLS 5061"]
-    media_examples: ["RTP/RTCP UDP range theo PBX/SBC thuc te"]
-    production_warning: "Lab nay mo phong SDN policy, khong thay the kiem thu SIP registration, call setup, one-way audio, NAT/SBC va QoS that."
+    note: "Cfone/Gphone/softphone chay tren VLAN Project/Telesale/BackOffice; agent chi di toi PBX/SBC va CRM theo port."
+    voice_quality_note: "UDP iperf chi la uoc luong; khong thay the SIP/RTP, NAT/SBC va QoS production."
+dhcp:
+  server: hdhcp
+  relay_gateways: [core_hq, dist_branch]
+  scopes:
+    project_a: {network: 172.16.20.0/24, range: 172.16.20.100-172.16.20.199, gateway: 172.16.20.1, dns: 172.16.100.11}
+    project_b: {network: 172.16.30.0/24, range: 172.16.30.100-172.16.30.199, gateway: 172.16.30.1, dns: 172.16.100.11}
+    project_c: {network: 172.16.40.0/24, range: 172.16.40.100-172.16.40.199, gateway: 172.16.40.1, dns: 172.16.100.11}
+    telesale: {network: 172.16.50.0/24, range: 172.16.50.100-172.16.50.199, gateway: 172.16.50.1, dns: 172.16.100.11}
+    backoffice: {network: 172.16.60.0/24, range: 172.16.60.100-172.16.60.199, gateway: 172.16.60.1, dns: 172.16.100.11}
+    it_support: {network: 172.16.70.0/24, range: 172.16.70.100-172.16.70.199, gateway: 172.16.70.1, dns: 172.16.100.11}
+    iot_hq: {network: 172.16.110.0/24, range: 172.16.110.200-172.16.110.220, gateway: 172.16.110.1, dns: 172.16.100.11}
+    iot_branch: {network: 172.16.111.0/24, range: 172.16.111.200-172.16.111.220, gateway: 172.16.111.1, dns: 172.16.100.11}
+    guest: {network: 172.16.120.0/24, range: 172.16.120.100-172.16.120.199, gateway: 172.16.120.1, dns: 172.16.100.11}
 
 runtime:
-  controller: "127.0.0.1:6653"
-  installed_flows_file: "runtime/installed_flows.json"
-  events_file: "runtime/events.jsonl"
+  controller: 127.0.0.1:6653
+  installed_flows_file: runtime/installed_flows.json
+  events_file: runtime/events.jsonl
+  wan_paths:
+    primary: [ce_hq, mpls_primary, ce_telesale]
+    backup: [ce_hq, mpls_backup, ce_telesale]

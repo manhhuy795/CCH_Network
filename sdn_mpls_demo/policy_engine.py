@@ -92,6 +92,28 @@ class PolicyEngine:
     def endpoint(self, name: str) -> dict[str, Any] | None:
         return self.hosts.get(name)
 
+    def _path_for_endpoint(self, endpoint: dict[str, Any]) -> list[str]:
+        """Return the declared path for the actual access placement.
+
+        Project B deliberately has one VLAN/subnet but two physical access
+        placements. The endpoint's placement is authoritative for animation;
+        the group path remains the floor-1 compatibility/default path.
+        """
+        group_name = str(endpoint["group"])
+        template = list(self.group_paths.get(group_name, []))
+        if not template:
+            return []
+        access = str(endpoint.get("switch") or (template[1] if len(template) > 1 else ""))
+        if access == template[1]:
+            return template
+        if access == "access_floor2" and "dist_hq_1" in template:
+            return [template[0], access, *["dist_hq_2" if node == "dist_hq_1" else node for node in template[2:]]]
+        return [template[0], access, *template[2:]]
+
+    def _path_for_name(self, name: str) -> list[str]:
+        endpoint = self.endpoint(name)
+        return self._path_for_endpoint(endpoint) if endpoint else []
+
     def _site_node(self, site: str, node_type: str) -> str:
         matches = [
             name
@@ -103,10 +125,9 @@ class PolicyEngine:
         return matches[0]
 
     def _wan_node(self) -> str:
-        matches = [name for name, node in self.infrastructure.items() if node.get("type") == "wan"]
-        if len(matches) != 1:
-            raise ValueError(f"Network model must have exactly one WAN node, found {matches}")
-        return matches[0]
+        return "mpls_primary" if "mpls_primary" in self.infrastructure else next(
+            name for name, node in self.infrastructure.items() if node.get("type") == "wan"
+        )
 
     def _internet_node(self) -> str:
         return str(self.model["service_addressing"]["gateway_node"])
@@ -170,9 +191,9 @@ class PolicyEngine:
             for spec in self.isolation_flow_specs()
         )
 
-    def _path_between_groups(self, source_group: str, destination_group: str) -> list[str]:
-        source_path = self.group_paths[source_group]
-        destination_path = self.group_paths[destination_group]
+    def _path_between_groups(self, source_group: str, destination_group: str, source: dict[str, Any] | None = None, destination: dict[str, Any] | None = None) -> list[str]:
+        source_path = self._path_for_endpoint(source) if source else self.group_paths[source_group]
+        destination_path = self._path_for_endpoint(destination) if destination else self.group_paths[destination_group]
         source_site = self.groups[source_group]["site"]
         destination_site = self.groups[destination_group]["site"]
         destination_reverse = list(reversed(destination_path))
@@ -242,9 +263,11 @@ class PolicyEngine:
         if source["kind"] in {"guest", "iot"}:
             return self._enterprise_source_decision(source, destination)
         if source["kind"] == "infrastructure_service":
-            return self._result("deny", "Mac dinh tu choi giua cac dich vu.", [], None)
+                return self._result("deny", "Mac dinh tu choi giua cac dich vu.", [], None)
 
         source_group = source["group"]
+        source_path = self._path_for_endpoint(source)
+        destination_path = self._path_for_endpoint(destination) if destination.get("kind") in {"user", "guest", "iot"} else []
         if (
             destination["kind"] == "service"
             and destination["name"] == "hsocial"
@@ -263,7 +286,7 @@ class PolicyEngine:
             return self._result(
                 "deny",
                 "User thuong khong duoc chu dong truy cap VLAN IT Support.",
-                self._path_to_core_hq(source_group),
+                self._path_to_core_hq(source_group, source),
                 "core_hq",
             )
 
@@ -274,7 +297,7 @@ class PolicyEngine:
             and source_group != destination_group
         ):
             reason = f"Bi chan boi chinh sach cach ly VLAN {source['vlan']} va VLAN {destination['vlan']}."
-            return self._result("deny", reason, self.group_paths[source_group], "core_hq")
+            return self._result("deny", reason, source_path, "core_hq")
 
         if (
             self.policies["isolate_telesale_backoffice"]
@@ -283,7 +306,7 @@ class PolicyEngine:
             return self._result(
                 "deny",
                 "Bi chan boi chinh sach cach ly VLAN 50 va VLAN 60.",
-                self.group_paths[source_group],
+                source_path,
                 self._enforcement_for_group(source_group),
             )
 
@@ -292,7 +315,7 @@ class PolicyEngine:
                 return self._result(
                     "allow",
                     "Traffic lien site di qua MPLS L3VPN Logic Cloud. SDN Controller chi dieu khien OVS o hai dau mang.",
-                    self._path_between_groups(source_group, destination_group),
+                    self._path_between_groups(source_group, destination_group, source, destination),
                     None,
                 )
 
@@ -300,13 +323,13 @@ class PolicyEngine:
             return self._result(
                 "allow",
                 "Cho phep noi bo cung nhom.",
-                [source_group, self.groups[source_group]["switch"], destination_group],
+                [*source_path, *list(reversed(destination_path))[1:]],
                 None,
             )
         return self._result(
             "deny",
             "Mac dinh tu choi theo SDN Edge Policy.",
-            self.group_paths[source_group],
+            source_path,
             self._enforcement_for_group(source_group),
         )
 
@@ -323,13 +346,13 @@ class PolicyEngine:
 
     def _service_decision(self, source: dict[str, Any], destination: dict[str, Any]) -> dict[str, Any]:
         source_group = source["group"]
-        source_path = self.group_paths[source_group]
+        source_path = self._path_for_endpoint(source)
         service_name = destination["name"]
         if service_name == "h90" and self.policies["allow_voice"]:
             result = self._result(
                 "allow",
                 "Voice duoc nhan dien va ap dung flow policy uu tien.",
-                self._voice_path(source_group),
+                self._voice_path(source_group, source),
                 None,
             )
             result["voice_flow_priority"] = bool(self.policies.get("voice_flow_priority", False))
@@ -371,8 +394,8 @@ class PolicyEngine:
                 )
         return self._result("deny", "Dich vu khong nam trong danh sach cho phep.", [*source_path, firewall], firewall)
 
-    def _voice_path(self, source_group: str) -> list[str]:
-        source_path = self.group_paths[source_group]
+    def _voice_path(self, source_group: str, source: dict[str, Any] | None = None) -> list[str]:
+        source_path = self._path_for_endpoint(source) if source else self.group_paths[source_group]
         source_site = self.groups[source_group]["site"]
         voice = self.services["h90"]
         voice_site = voice["site"]
@@ -397,7 +420,7 @@ class PolicyEngine:
             "allow_icmp_to_managed_users": configured.get("allow_icmp_to_managed_users", True),
             "managed_user_groups": configured.get(
                 "managed_user_groups",
-                ["project_a", "project_b", "project_c", "telesale", "backoffice", "iot_ups"],
+                ["project_a", "project_b", "project_c", "telesale", "backoffice", "iot_hq", "iot_branch"],
             ),
             "allowed_services": configured.get("allowed_services", fallback_services),
             "denied_services": configured.get("denied_services", ["hsocial"]),
@@ -408,7 +431,7 @@ class PolicyEngine:
         policy = self._it_support_policy()
         source_group = source["group"]
         if not policy["enabled"] or source_group != policy["source_group"]:
-            return self._result("deny", "IT Support controlled access bi tat hoac sai source group.", self.group_paths[source_group], "core_hq")
+            return self._result("deny", "IT Support controlled access bi tat hoac sai source group.", self._path_for_endpoint(source), "core_hq")
 
         if destination["kind"] == "service":
             service_name = destination["name"]
@@ -419,20 +442,20 @@ class PolicyEngine:
                 return self._result(
                     "deny",
                     "IT Support khong duoc bypass chinh sach Social Media tai nftables firewall HQ.",
-                    [*self.group_paths[source_group], firewall],
+                    [*self._path_for_endpoint(source), firewall],
                     firewall,
                 )
             if service_name in allowed_services:
                 return self._result(
                     "allow",
                     "IT Support duoc kiem tra dich vu quan tri duoc khai bao theo policy.",
-                    self._it_support_path(source_group, destination),
+                    self._it_support_path(source, destination),
                     None,
                 )
             return self._result(
                 "deny",
                 "IT Support least privilege: dich vu khong nam trong danh sach quan tri duoc phep.",
-                self.group_paths[source_group],
+                self._path_for_endpoint(source),
                 "core_hq",
             )
 
@@ -441,59 +464,73 @@ class PolicyEngine:
                 return self._result(
                     "allow",
                     "IT Support duoc quan tri infrastructure service theo management policy.",
-                    self._infrastructure_service_path(source_group, destination["name"]),
+                    self._infrastructure_service_path(source, destination["name"]),
                     None,
                 )
-            return self._result("deny", "IT Support khong co quyen toi infrastructure service nay.", self.group_paths[source_group], "core_hq")
+            return self._result("deny", "IT Support khong co quyen toi infrastructure service nay.", self._path_for_endpoint(source), "core_hq")
 
         destination_group = destination["group"]
         if policy["allow_icmp_to_managed_users"] and destination_group in set(policy["managed_user_groups"]):
             return self._result(
                 "allow",
                 "IT Support duoc chu dong remote/support user trong nhom managed.",
-                self._it_support_path(source_group, destination),
+                self._it_support_path(source, destination),
                 None,
             )
         return self._result(
             "deny",
             "IT Support least privilege: nhom dich khong nam trong managed_user_groups.",
-            self.group_paths[source_group],
+            self._path_for_endpoint(source),
             "core_hq",
         )
 
-    def _it_support_path(self, source_group: str, destination: dict[str, Any]) -> list[str]:
+    def _it_support_path(self, source: dict[str, Any], destination: dict[str, Any]) -> list[str]:
+        source_group = str(source["group"])
         if source_group == IT_SUPPORT_GROUP:
-            source_path = self.group_paths[IT_SUPPORT_GROUP]
+            source_path = self._path_for_endpoint(source)
             if destination["kind"] == "service":
                 if destination["name"] == "h90":
-                    return [*source_path, "voice_access", "h90"]
+                    return [*source_path, "infra_access", "h90"]
                 firewall = self._site_node(self.groups[source_group]["site"], "firewall")
                 return [*source_path, firewall, self._internet_node(), destination["name"]]
             destination_group = destination["group"]
-            return self._path_between_groups(source_group, destination_group)
-        return self.group_paths.get(source_group, [])
+            return self._path_between_groups(source_group, destination_group, source, destination)
+        return self._path_for_endpoint(source)
 
-    def _infrastructure_service_path(self, source_group: str, destination_name: str) -> list[str]:
-        return [*self.group_paths[source_group], "infra_access", destination_name]
+    def _infrastructure_service_path(self, source: dict[str, Any] | str, destination_name: str) -> list[str]:
+        source_path = self._path_for_name(source) if isinstance(source, str) else self._path_for_endpoint(source)
+        source_data = self.endpoint(source) if isinstance(source, str) else source
+        if source_data and source_data.get("site") == "branch_telesale":
+            source_path = [
+                *source_path,
+                "ce_telesale",
+                self._wan_node(),
+                "ce_hq",
+                "core_hq",
+            ]
+        return [*source_path, "infra_access", destination_name]
 
     def _infrastructure_service_decision(self, source: dict[str, Any], destination: dict[str, Any]) -> dict[str, Any]:
         allowed_sources = {
             "guest": {"hdhcp", "hdns", "hntp"},
-            "iot_ups": {"hdhcp", "hdns", "hntp", "hmonitor"},
+            "iot_hq": {"hdhcp", "hdns", "hntp", "hmonitor", "hnvr"},
+            "iot_branch": {"hdhcp", "hdns", "hntp", "hmonitor", "hnvr"},
             "it_support": {"hdhcp", "hdns", "hntp", "hmonitor"},
         }
         source_group = str(source.get("group"))
+        if source_group in {"project_a", "project_b", "project_c", "telesale", "backoffice"}:
+            allowed_sources[source_group] = {"hdialer"}
         if destination["name"] in allowed_sources.get(source_group, set()):
             return self._result(
                 "allow",
                 "Infrastructure service duoc cho phep theo VLAN va least-privilege policy.",
-                self._infrastructure_service_path(source_group, destination["name"]),
+                self._infrastructure_service_path(source, destination["name"]),
                 None,
             )
         return self._result(
             "deny",
             "Infrastructure service chi cho phep DHCP/DNS/NTP va monitoring theo source group.",
-            self.group_paths.get(source_group, []),
+            self._path_for_endpoint(source),
             "core_hq",
         )
 
@@ -507,22 +544,22 @@ class PolicyEngine:
             return self._result(
                 "deny",
                 "Guest chi duoc dung DHCP/DNS/NTP va General Internet; mac dinh chan tai core_hq.",
-                self.group_paths[source_group],
+                self._path_for_endpoint(source),
                 "core_hq",
             )
-        if source_group == "iot_ups":
+        if source_group in {"iot_hq", "iot_branch"}:
             if destination["kind"] == "infrastructure_service":
                 return self._infrastructure_service_decision(source, destination)
             return self._result(
                 "deny",
                 "IoT/UPS mac dinh khong duoc truy cap Corporate, Guest, Voice hoac Internet.",
-                self.group_paths[source_group],
+                self._path_for_endpoint(source),
                 "core_hq",
             )
-        return self._result("deny", "Enterprise zone khong co policy cho phep.", self.group_paths.get(source_group, []), "core_hq")
+        return self._result("deny", "Enterprise zone khong co policy cho phep.", self._path_for_endpoint(source), "core_hq")
 
-    def _path_to_core_hq(self, source_group: str) -> list[str]:
-        source_path = self.group_paths[source_group]
+    def _path_to_core_hq(self, source_group: str, source: dict[str, Any] | None = None) -> list[str]:
+        source_path = self._path_for_endpoint(source) if source else self.group_paths[source_group]
         source_site = self.groups[source_group]["site"]
         if source_site == "hq":
             return source_path

@@ -55,12 +55,14 @@ cleanup_stale_network() {
     svc-zalo svc-call svc-social svc-inet
   )
   local bridges=(
-    access_hq_a access_hq_b access_hq_c access_hq_it voice_access core_hq
-    access_telesale dist_telesale access_bo service_net
+    access_floor1 access_floor2 dist_hq_1 dist_hq_2 core_hq access_branch
+    dist_branch infra_access service_net
   )
   # Migration-only cleanup for bridges created by pre-Phase-42 runtimes.
   local legacy_bridges=(
-    access_branch dist_branch mpls_cloud internet
+    access_hq_a access_hq_b access_hq_c access_hq_it voice_access
+    access_telesale dist_telesale access_bo access_backoffice access_iot access_guest
+    mpls_cloud internet
   )
 
   for interface in "${interfaces[@]}"; do
