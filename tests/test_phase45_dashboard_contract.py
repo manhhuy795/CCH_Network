@@ -32,9 +32,9 @@ def test_phase45_exposes_exact_two_public_sites_and_runtime_bridge_map(monkeypat
     assert payload["site_ids"] == ["hq", "telesale"]
     assert {site["id"] for site in payload["sites"]} == {"hq", "telesale"}
     assert next(site for site in payload["sites"] if site["id"] == "telesale")["source_id"] == "branch_telesale"
-    assert len(payload["logical_switches"]) == 12
-    assert payload["runtime_bridge_map"]["access_backoffice"] == "access_bo"
-    assert "access_bo" not in {item["logical_name"] for item in payload["logical_switches"]}
+    assert len(payload["logical_switches"]) == 8
+    assert payload["runtime_bridge_map"]["access_floor2"] == "access_floor2"
+    assert "access_backoffice" not in {item["logical_name"] for item in payload["logical_switches"]}
     assert {item["logical_name"] for item in payload["ce_nodes"]} == {"ce_hq", "ce_telesale"}
     assert {item["name"] for item in payload["firewalls"]} == {"fw_hq", "fw_telesale"}
     assert payload["phase44_runtime"]["status"] == "pending"
@@ -61,6 +61,19 @@ def test_phase45_policy_payload_separates_openflow_and_nftables(monkeypatch):
     assert {item["name"] for item in payload["firewalls"]} == {"fw_hq", "fw_telesale"}
 
 
+def test_phase45_policy_payload_uses_current_enforcement_inventory(monkeypatch):
+    live_mininet = _offline_agent(monkeypatch)
+    from app import policy
+
+    payload = policy.get_policy_payload()
+    serialized = str(payload)
+
+    assert set(payload["enforcement_layers"]["openflow"]["devices"]) == set(live_mininet.CONTROLLED_SWITCHES)
+    assert "dist_telesale" not in serialized
+    assert "allow_guest_general_internet" in {item["key"] for item in payload["inventory"]}
+    assert "isolate_hq_users_from_telesale" in {item["key"] for item in payload["inventory"]}
+
+
 def test_phase45_packet_path_keeps_site_enforcement_authoritative():
     from app.live_mininet import policy_decision
 
@@ -71,10 +84,10 @@ def test_phase45_packet_path_keeps_site_enforcement_authoritative():
     project_deny = policy_decision("h20_01", "h30_01")
 
     assert backoffice_voice["action"] == "allow"
-    assert backoffice_voice["path"] == ["backoffice", "access_backoffice", "core_hq", "voice_access", "h90"]
+    assert backoffice_voice["path"] == ["backoffice", "access_floor2", "dist_hq_2", "core_hq", "infra_access", "h90"]
     assert telesale_voice["action"] == "allow"
     assert "ce_telesale" in telesale_voice["path"]
-    assert "mpls_cloud" in telesale_voice["path"]
+    assert "mpls_primary" in telesale_voice["path"]
     assert "fw_hq" in hq_call["path"] and hq_call["path"][-1] == "hcall"
     assert "fw_telesale" in telesale_call["path"] and telesale_call["path"][-1] == "hcall"
     assert project_deny["action"] == "deny"

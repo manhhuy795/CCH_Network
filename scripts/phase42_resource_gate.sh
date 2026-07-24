@@ -130,10 +130,10 @@ if [[ -S "$SOCKET_PATH" ]]; then
   LIVE_EXIT=$?
   echo "$LIVE_STATUS"
   echo "EXIT_CODE=$LIVE_EXIT"
-  if [[ "$LIVE_EXIT" -eq 0 ]] && python3 -c 'import json,sys; p=json.loads(sys.stdin.read()); enterprise={"iot_cam_01","iot_cam_02","iot_door_01","ups_core_01","ups_core_02","guest_01","guest_02","guest_03","guest_04"}; hosts=p.get("hosts",{}); raise SystemExit(0 if p.get("user_hosts_online") == 110 and len(p.get("bridges", {})) == 12 and all(p.get("bridges", {}).values()) and all(hosts.get(name) for name in enterprise) else 1)' <<<"$LIVE_STATUS"; then
-    pass "Agent bao 110 user, 9 enterprise endpoint va 12 controlled OVS online"
+  if [[ "$LIVE_EXIT" -eq 0 ]] && python3 -c 'import json,sys; p=json.loads(sys.stdin.read()); enterprise={"iot_cam_01","iot_cam_02","ups_floor1","ups_core_1","ups_core_2","iot_branch_cam_01","ups_branch_1","guest_01","guest_02"}; hosts=p.get("hosts",{}); raise SystemExit(0 if p.get("user_hosts_online") == 110 and len(p.get("bridges", {})) == 8 and all(p.get("bridges", {}).values()) and all(hosts.get(name) for name in enterprise) else 1)' <<<"$LIVE_STATUS"; then
+    pass "Agent bao 110 user, 9 enterprise endpoint va 8 controlled OVS online"
   else
-    fail "LIVE_STATUS khong bao dung 110 user, 9 enterprise endpoint va 12 controlled OVS"
+    fail "LIVE_STATUS khong bao dung 110 user, 9 enterprise endpoint va 8 controlled OVS"
   fi
 else
   fail "Control Agent socket khong ton tai"
@@ -154,16 +154,16 @@ echo "EXIT_CODE=$OVS_SHOW_EXIT"
 [[ "$OVS_SHOW_EXIT" -eq 0 ]] && pass "ovs-vsctl show" || fail "ovs-vsctl show loi"
 
 EXPECTED_OVS=(
-  access_bo access_hq_a access_hq_b access_hq_c access_hq_it
-  access_telesale core_hq dist_telesale voice_access
+  access_floor1 access_floor2 access_branch core_hq dist_branch
+  dist_hq_1 dist_hq_2 infra_access
 )
 mapfile -t ACTUAL_OVS < <(sudo ovs-vsctl list-br | sort)
 printf 'ACTUAL_OVS=%s\n' "${ACTUAL_OVS[*]}"
 printf 'EXPECTED_OVS=%s\n' "${EXPECTED_OVS[*]}"
 if [[ "${ACTUAL_OVS[*]}" == "${EXPECTED_OVS[*]}" ]]; then
-  pass "ovs-vsctl co dung 9 OVS, khong co OVS ngoai danh sach"
+  pass "ovs-vsctl co dung 8 OVS, khong co OVS ngoai danh sach"
 else
-  fail "OVS inventory khong khop danh sach 9 bridge"
+  fail "OVS inventory khong khop danh sach 8 bridge"
 fi
 
 for bridge in "${EXPECTED_OVS[@]}"; do
@@ -176,7 +176,7 @@ for bridge in "${EXPECTED_OVS[@]}"; do
   [[ "$connected" == "true" ]] && pass "$bridge ket noi controller" || fail "$bridge chua ket noi controller"
 done
 
-for bridge in core_hq dist_telesale; do
+for bridge in core_hq dist_branch; do
   echo "--- ovs-ofctl dump-flows $bridge ---"
   sudo ovs-ofctl -O OpenFlow13 dump-flows "$bridge"
   FLOW_EXIT=$?

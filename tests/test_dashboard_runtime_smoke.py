@@ -62,7 +62,7 @@ def test_smoke_suite_uses_real_commands_without_shell_true():
     module = load_smoke_module()
     assert "subprocess.run(command" in source
     assert "shell=True" not in source
-    assert module.ENFORCEMENT_SWITCHES == ("core_hq", "dist_telesale")
+    assert module.ENFORCEMENT_SWITCHES == ("core_hq", "dist_branch")
     assert '["ovs-vsctl", "br-exists", switch]' in source
     assert '["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch]' in source
     assert "urllib.request.urlopen" in source

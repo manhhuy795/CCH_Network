@@ -11,13 +11,13 @@ from collections.abc import Iterable
 EXPECTED_SERVICES = frozenset({"h90", "hzalo", "hcall", "hsocial", "hinternet"})
 EXPECTED_INFRA_NAMESPACES = frozenset(
     {
-        "ce_hq", "ce_telesale", "fw_hq", "fw_telesale", "mpls_cloud", "internet_zone",
-        "hdhcp", "hdns", "hntp", "hmonitor",
+        "ce_hq", "ce_telesale", "fw_hq", "fw_telesale", "mpls_primary", "mpls_backup", "internet_zone",
+        "hdhcp", "hdns", "hntp", "hmonitor", "hnvr", "hrecording", "hdialer", "hbackup", "had",
     }
 )
 EXPECTED_ENTERPRISE_ENDPOINTS = frozenset({
-    "iot_cam_01", "iot_cam_02", "iot_door_01", "ups_core_01", "ups_core_02",
-    "guest_01", "guest_02", "guest_03", "guest_04",
+    "iot_cam_01", "iot_cam_02", "ups_floor1", "ups_core_1", "ups_core_2",
+    "iot_branch_cam_01", "ups_branch_1", "guest_01", "guest_02",
 })
 KNOWN_NON_SERVICE_NODES = frozenset({"hq_l3_gateway", "telesale_l3_gateway", "service_net"})
 USER_COUNTS = {20: 20, 30: 20, 40: 20, 50: 20, 60: 20, 70: 10}
@@ -30,7 +30,7 @@ EXPECTED_USERS = frozenset(
 MININET_NAME_PATTERN = re.compile(r"mininet:([^\s]+)")
 USER_NAME_PATTERN = re.compile(r"^h(?:20|30|40|50|60|70)_\d{2}$")
 SERVICE_LIKE_PATTERN = re.compile(r"^h(?:\d+|[a-z][a-z0-9_]*)$")
-INFRA_LIKE_PATTERN = re.compile(r"^(?:ce_|fw_).+|^(?:mpls_cloud|internet_zone)$")
+INFRA_LIKE_PATTERN = re.compile(r"^(?:ce_|fw_).+|^(?:mpls_primary|mpls_backup|internet_zone)$")
 
 
 def extract_live_namespaces(process_lines: Iterable[str]) -> set[str]:

@@ -344,7 +344,7 @@ def main() -> int:
         reporter.record("Named firewall namespaces", set(FIREWALL_NAMES).issubset(names), namespaces=sorted(names))
 
         ovs = run(["ovs-vsctl", "show"], reporter, check=True)
-        reporter.record("Twelve OVS connected", ovs.stdout.count("is_connected: true") == 12, connected=ovs.stdout.count("is_connected: true"))
+        reporter.record("Eight OVS connected", ovs.stdout.count("is_connected: true") == 8, connected=ovs.stdout.count("is_connected: true"))
 
         inventory = json.loads(INVENTORY_FILE.read_text(encoding="utf-8"))
         hosts = build_host_inventory(load_network_model())
@@ -389,7 +389,7 @@ def main() -> int:
             )
 
         isolation = (
-            ("Telesale -> BackOffice OpenFlow", "dist_telesale", "172.16.50.0/24", "172.16.60.0/24", "h50_01", "h60_01"),
+            ("Telesale -> BackOffice OpenFlow", "dist_branch", "172.16.50.0/24", "172.16.60.0/24", "h50_01", "h60_01"),
             ("BackOffice -> Telesale OpenFlow", "core_hq", "172.16.60.0/24", "172.16.50.0/24", "h60_01", "h50_01"),
         )
         for name, bridge, src_net, dst_net, source, destination in isolation:

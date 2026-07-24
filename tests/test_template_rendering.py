@@ -12,8 +12,8 @@ def test_render_config_outputs_expected_files_and_logic(tmp_path: Path):
     assert "hq-ce-router.cfg" in names
     assert "br-ce-router.cfg" in names
     assert "hq-firewall.policy.txt" in names
-    assert "hq-backoffice-access.cfg" in names
-    assert "hq-access-it.cfg" in names
+    assert "hq-access-floor1.cfg" in names
+    assert "hq-access-floor2.cfg" in names
 
     hq_core = (tmp_path / "hq-core-l3.cfg").read_text(encoding="utf-8")
     assert "interface Vlan20" in hq_core
@@ -25,12 +25,12 @@ def test_render_config_outputs_expected_files_and_logic(tmp_path: Path):
     assert "ip route 172.16.50.0 255.255.255.0 10.255.0.2" in hq_ce
     assert "203.0.113.1" not in hq_ce
 
-    backoffice_access = (tmp_path / "hq-backoffice-access.cfg").read_text(encoding="utf-8")
-    assert "interface range GigabitEthernet1/0/1-48" in backoffice_access
-    assert "switchport access vlan 60" in backoffice_access
-    assert "switchport trunk allowed vlan 10,60" in backoffice_access
+    floor2_access = (tmp_path / "hq-access-floor2.cfg").read_text(encoding="utf-8")
+    assert "switchport access vlan 60" in floor2_access
+    assert "switchport access vlan 70" in floor2_access
+    assert "switchport trunk allowed vlan 30,40,60,70" in floor2_access
 
-    it_access = (tmp_path / "hq-access-it.cfg").read_text(encoding="utf-8")
-    assert "interface range GigabitEthernet1/0/1-48" in it_access
-    assert "switchport access vlan 70" in it_access
-    assert "switchport trunk allowed vlan 10,70" in it_access
+    floor1_access = (tmp_path / "hq-access-floor1.cfg").read_text(encoding="utf-8")
+    assert "switchport access vlan 110" in floor1_access
+    assert "switchport access vlan 120" in floor1_access
+    assert "switchport trunk allowed vlan 20,30,110,120" in floor1_access

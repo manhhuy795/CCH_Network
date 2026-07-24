@@ -37,12 +37,14 @@ def test_phase44_only_two_firewall_namespaces_have_exact_interfaces_and_ownershi
         "172.16.40.0/24",
         "172.16.60.0/24",
         "172.16.70.0/24",
-        "172.16.80.0/24",
+        "172.16.90.0/24",
+        "172.16.100.0/24",
         "172.16.110.0/24",
+        "172.16.120.0/24",
     }
     assert plans["fw_telesale"]["inside_interface"] == "fw_tel-eth0"
     assert plans["fw_telesale"]["outside_interface"] == "fw_tel-eth1"
-    assert plans["fw_telesale"]["owned_subnets"] == ("172.16.50.0/24",)
+    assert set(plans["fw_telesale"]["owned_subnets"]) == {"172.16.50.0/24", "172.16.111.0/24"}
     assert not {"fw_branch", "fw_backoffice"} & set(plans)
 
 
@@ -70,7 +72,7 @@ def test_phase44_service_rules_have_exact_source_destination_action_counter_and_
     }
     for firewall_name, plan in plans.items():
         by_name = {rule["name"]: rule for rule in plan["rules"]}
-        expected_names = set(expected) | ({"allow-guest-general-internet"} if firewall_name == "fw_hq" else set())
+        expected_names = set(expected) | ({"allow-guest-internet"} if firewall_name == "fw_hq" else set())
         assert set(by_name) == expected_names
         for name, (action, service, destination_ip) in expected.items():
             rule = by_name[name]
@@ -80,16 +82,19 @@ def test_phase44_service_rules_have_exact_source_destination_action_counter_and_
             assert rule["destination_ip"] == destination_ip
             assert rule["counter"] is True
             assert rule["comment"] == f"cch:{firewall_name}:{name}:{service}"
-        expected_sources = (
+        base_sources = (
             {"172.16.50.0/24"}
             if firewall_name == "fw_telesale"
             else {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24"}
         )
         for rule in plan["rules"]:
-            if firewall_name == "fw_hq" and rule["name"] == "allow-guest-general-internet":
-                assert set(rule["source_subnets"]) == {"172.16.80.0/24"}
-            else:
+            if rule["name"] == "allow-guest-internet":
+                assert set(rule["source_subnets"]) == {"172.16.120.0/24"}
+            elif rule["name"] == "deny-social-media":
+                expected_sources = base_sources | ({"172.16.111.0/24"} if firewall_name == "fw_telesale" else {"172.16.120.0/24"})
                 assert set(rule["source_subnets"]) == expected_sources
+            else:
+                assert set(rule["source_subnets"]) == base_sources
 
 
 def test_phase44_render_and_reload_identity_are_deterministic_without_duplicate_or_nat():
@@ -109,7 +114,7 @@ def test_phase44_render_and_reload_identity_are_deterministic_without_duplicate_
             "enabled": False,
             "mode": "routed_lab",
             "runtime_verification_required": True,
-            "reason": "Internet Zone va service hosts co route tra ve tung subnet noi bo qua dung firewall site.",
+            "reason": "Routed simulation; NAT production design requires separate approval.",
         }
 
 
@@ -156,23 +161,23 @@ def test_phase44_voice_bypasses_firewall_and_cross_site_isolation_remains_openfl
     engine = PolicyEngine(POLICY_PATH)
     backoffice_voice = engine.decide("h60_01", "h90")
     telesale_voice = engine.decide("h50_01", "h90")
-    assert backoffice_voice["path"] == ["backoffice", "access_backoffice", "core_hq", "voice_access", "h90"]
-    assert not {"fw_hq", "fw_telesale", "mpls_cloud"} & set(backoffice_voice["path"])
+    assert backoffice_voice["path"] == ["backoffice", "access_floor2", "dist_hq_2", "core_hq", "infra_access", "h90"]
+    assert not {"fw_hq", "fw_telesale", "mpls_primary", "mpls_backup"} & set(backoffice_voice["path"])
     assert telesale_voice["path"] == [
-        "telesale", "access_telesale", "dist_telesale", "ce_telesale",
-        "mpls_cloud", "ce_hq", "core_hq", "voice_access", "h90",
+        "telesale", "access_branch", "dist_branch", "ce_telesale",
+        "mpls_primary", "ce_hq", "core_hq", "infra_access", "h90",
     ]
     assert not {"fw_hq", "fw_telesale"} & set(telesale_voice["path"])
-    assert engine.decide("h50_01", "h60_01")["blocked_at"] == "dist_telesale"
+    assert engine.decide("h50_01", "h60_01")["blocked_at"] == "dist_branch"
     assert engine.decide("h60_01", "h50_01")["blocked_at"] == "core_hq"
 
 
 def test_phase44_social_and_inbound_paths_stop_at_the_correct_nftables_firewall():
     engine = PolicyEngine(POLICY_PATH)
     cases = {
-        ("h20_01", "hsocial"): ("fw_hq", ["project_a", "access_hq_a", "core_hq", "fw_hq"]),
-        ("h60_01", "hsocial"): ("fw_hq", ["backoffice", "access_backoffice", "core_hq", "fw_hq"]),
-        ("h50_01", "hsocial"): ("fw_telesale", ["telesale", "access_telesale", "dist_telesale", "fw_telesale"]),
+        ("h20_01", "hsocial"): ("fw_hq", ["project_a", "access_floor1", "dist_hq_1", "core_hq", "fw_hq"]),
+        ("h60_01", "hsocial"): ("fw_hq", ["backoffice", "access_floor2", "dist_hq_2", "core_hq", "fw_hq"]),
+        ("h50_01", "hsocial"): ("fw_telesale", ["telesale", "access_branch", "dist_branch", "fw_telesale"]),
         ("hinternet", "h20_01"): ("fw_hq", ["hinternet", "internet_zone", "fw_hq"]),
         ("hcall", "h50_01"): ("fw_telesale", ["hcall", "internet_zone", "fw_telesale"]),
     }
@@ -221,7 +226,7 @@ def test_phase44_runtime_checker_covers_required_live_evidence_without_shell_tru
     source = (REPO_ROOT / "scripts" / "phase44_firewall_runtime_check.py").read_text(encoding="utf-8")
     for required in (
         "Mininet Control Agent HEALTH",
-        "Twelve OVS connected",
+        "Eight OVS connected",
         "HQ Project A -> Call",
         "BackOffice -> Social",
         "Telesale -> Zalo",

@@ -279,7 +279,7 @@ class DetailedRuntimeTest:
     def check_ovs(self) -> tuple[bool, dict[str, Any]]:
         result = self.command(["ovs-vsctl", "list-br"], sudo=True)
         bridges = result.stdout.split()
-        required = {"core_hq", "dist_telesale", "access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "access_telesale", "access_bo"}
+        required = {"core_hq", "dist_branch", "access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2", "access_branch", "infra_access"}
         return result.returncode == 0 and required.issubset(bridges), {"exit_code": result.returncode, "bridge_count": len(bridges), "missing": sorted(required - set(bridges))}
 
     def check_core_flows(self) -> tuple[bool, dict[str, Any]]:

@@ -81,8 +81,8 @@ import sys
 
 topology, firewalls, health = (json.load(open(path, encoding="utf-8")) for path in sys.argv[1:])
 assert topology["site_ids"] == ["hq", "telesale"]
-assert len(topology["logical_switches"]) == 12
-assert topology["runtime_bridge_map"]["access_backoffice"] == "access_bo"
+assert len(topology["logical_switches"]) == 8
+assert set(topology["runtime_bridge_map"]) == {"access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2", "core_hq", "access_branch", "dist_branch", "infra_access"}
 assert {item["name"] for item in firewalls["firewalls"]} == {"fw_hq", "fw_telesale"}
 assert firewalls["phase44_runtime"]["status"] in {"pending", "verified"}
 required = ("backend", "controller", "mininet_topology", "mininet_control_agent", "openvswitch")
@@ -185,8 +185,8 @@ PY
 link_fail_recover_case() {
   local fail_file="$REPORT_DIR/link_fail.json"
   local recover_file="$REPORT_DIR/link_recover.json"
-  api_post /api/link/fail '{"link_id":"access_hq_a-core_hq"}' "$fail_file" || return 1
-  api_post /api/link/recover '{"link_id":"access_hq_a-core_hq"}' "$recover_file" || return 1
+  api_post /api/link/fail '{"link_id":"access_floor1-dist_hq_1"}' "$fail_file" || return 1
+  api_post /api/link/recover '{"link_id":"access_floor1-dist_hq_1"}' "$recover_file" || return 1
   validate_link_recovery
 }
 
@@ -203,10 +203,9 @@ run_case frontend_port bash -c 'ss -ltn | grep -Eq ":5173[[:space:]]"'
 run_case mininet_topology_process pgrep -f '[t]opology_hybrid_sdn.py'
 run_case named_firewall_namespaces bash -c 'names="$(ip netns list)"; grep -q "^fw_hq" <<< "$names" && grep -q "^fw_telesale" <<< "$names"'
 run_case ovs_inventory ovs-vsctl show
-for switch in access_hq_a access_hq_b access_hq_c access_hq_it voice_access core_hq access_telesale dist_telesale; do
+for switch in access_floor1 access_floor2 dist_hq_1 dist_hq_2 core_hq access_branch dist_branch infra_access; do
   run_case "ovs_${switch}" flow_case "$switch"
 done
-run_case ovs_access_backoffice flow_case access_bo
 run_case firewall_fw_hq firewall_case fw_hq
 run_case firewall_fw_telesale firewall_case fw_telesale
 

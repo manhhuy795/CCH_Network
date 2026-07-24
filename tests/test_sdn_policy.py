@@ -34,7 +34,7 @@ def test_real_sdn_policy_required_allow_deny_paths():
     assert engine.decide("h50_01", "hsocial")["blocked_at"] == "fw_telesale"
     intersite_user = engine.decide("h50_01", "h20_01")
     assert intersite_user["action"] == "deny"
-    assert intersite_user["blocked_at"] == "dist_telesale"
+    assert intersite_user["blocked_at"] == "dist_branch"
 
 
 def test_it_support_controlled_access_schema_is_explicit():
@@ -44,8 +44,8 @@ def test_it_support_controlled_access_schema_is_explicit():
 
     assert policy["enabled"] is True
     assert policy["source_group"] == "it_support"
-    assert set(policy["managed_user_groups"]) == {"project_a", "project_b", "project_c", "telesale", "backoffice", "iot_ups"}
-    assert set(policy["allowed_services"]) == {"h90", "hzalo", "hcall", "hinternet"}
+    assert set(policy["managed_user_groups"]) == {"project_a", "project_b", "project_c", "telesale", "backoffice", "iot_hq", "iot_branch"}
+    assert set(policy["allowed_services"]) == {"h90", "hdialer", "hnvr", "hmonitor", "hzalo", "hcall", "hinternet"}
     assert "hsocial" in policy["denied_services"]
     assert "hsocial" not in policy["allowed_services"]
     assert {22, 443, 3389, 5985, 5986}.issubset(set(policy["management_tcp_ports"]))
@@ -60,7 +60,7 @@ def test_all_user_groups_can_reach_voice_service():
         assert decision["action"] == "allow"
         if source != "h70_01":
             assert decision["voice_flow_priority"] is True
-        assert decision["path"][-2:] == ["voice_access", "h90"]
+        assert decision["path"][-2:] == ["infra_access", "h90"]
 
 
 def test_it_support_is_least_privilege_not_full_access():
@@ -84,7 +84,7 @@ def test_it_support_is_least_privilege_not_full_access():
 
     return_to_it = engine.decide_packet("h20_01", "h70_01", icmp_type=ICMP_ECHO_REPLY)
     assert return_to_it["action"] == "allow"
-    assert return_to_it["path"] == ["project_a", "access_hq_a", "core_hq", "access_hq_it", "it_support"]
+    assert return_to_it["path"] == ["project_a", "access_floor1", "dist_hq_1", "core_hq", "dist_hq_2", "access_floor2", "it_support"]
 
 
 def test_phase28_runtime_regressions_for_it_least_privilege():

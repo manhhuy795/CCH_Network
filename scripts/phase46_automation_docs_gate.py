@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-EXPECTED_BRIDGES = ("access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq", "access_telesale", "dist_telesale", "access_bo")
+EXPECTED_BRIDGES = ("access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2", "core_hq", "access_branch", "dist_branch", "infra_access")
 REQUIRED_DOCS = ("docs/architecture.md", "docs/installation_ubuntu.md", "docs/runtime_operations.md", "docs/troubleshooting.md", "docs/testing_and_acceptance.md", "docs/security_notes.md")
 REQUIRED_SCRIPTS = ("scripts/start_demo.sh", "scripts/stop_demo.sh", "scripts/check_demo_health.sh", "scripts/phase46_automation_docs_gate.sh")
 SECRET_PATTERNS = (re.compile(r"-----BEGIN [A-Z ]+PRIVATE KEY-----"), re.compile(r"(?i)\\bpassword\\s*[:=]\\s*[A-Za-z0-9+/=_-]{16,}"), re.compile(r"CCH_DASHBOARD_OPERATOR_TOKEN\\s*=\\s*[A-Za-z0-9_-]{20,}"))

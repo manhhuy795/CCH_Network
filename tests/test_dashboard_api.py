@@ -20,14 +20,15 @@ def test_dashboard_api_topology_and_policy_endpoints():
 
     assert topology["nodes"]
     assert topology["links"]
-    assert len(topology["hosts"]) == 128
+    assert len(topology["hosts"]) == 133
     assert topology["summary"]["user_count"] == 110
-    assert topology["summary"]["controlled_ovs_count"] == 12
-    assert topology["summary"]["iot_ups_count"] == 5
-    assert topology["summary"]["guest_count"] == 4
-    assert topology["summary"]["infrastructure_service_count"] == 4
-    mpls_node = next(node for node in topology["nodes"] if node["id"] == "mpls_cloud")
-    assert mpls_node["label"] == "MPLS L3VPN Logic Cloud"
+    assert topology["summary"]["controlled_ovs_count"] == 8
+    assert topology["summary"]["iot_hq_count"] == 5
+    assert topology["summary"]["iot_branch_count"] == 2
+    assert topology["summary"]["guest_count"] == 2
+    assert topology["summary"]["infrastructure_service_count"] == 9
+    mpls_node = next(node for node in topology["nodes"] if node["id"] == "mpls_primary")
+    assert mpls_node["label"] == "MPLS Primary"
     assert "WAN transport" in mpls_node["subtitle"]
     assert policies["policies"]["block_social_media"] is True
 
@@ -71,17 +72,17 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
     denied = policy_decision("h20_01", "h30_01")
     assert denied["action"] == "deny"
     assert "cach ly" in denied["reason"]
-    assert denied["path"] == ["project_a", "access_hq_a", "core_hq"]
+    assert denied["path"] == ["project_a", "access_floor1", "dist_hq_1", "core_hq"]
     assert denied["blocked_at"] == "core_hq"
 
     social = policy_decision("h50_01", "hsocial")
-    assert social["path"] == ["telesale", "access_telesale", "dist_telesale", "fw_telesale"]
+    assert social["path"] == ["telesale", "access_branch", "dist_branch", "fw_telesale"]
     assert social["blocked_at"] == "fw_telesale"
     assert social["enforcement_point"] == "fw_telesale"
 
     intersite = policy_decision("h50_01", "h20_01")
     assert intersite["action"] == "deny"
-    assert intersite["blocked_at"] == "dist_telesale"
+    assert intersite["blocked_at"] == "dist_branch"
 
     reverse_intersite = policy_decision("h60_01", "h50_01")
     assert reverse_intersite["action"] == "deny"
@@ -89,12 +90,12 @@ def test_dashboard_policy_decision_explains_allow_and_deny():
 
     support = policy_decision("h70_01", "h20_01")
     assert support["action"] == "allow"
-    assert support["path"] == ["it_support", "access_hq_it", "core_hq", "access_hq_a", "project_a"]
+    assert support["path"] == ["it_support", "access_floor2", "dist_hq_2", "core_hq", "dist_hq_1", "access_floor1", "project_a"]
     assert "IT" in support["reason"]
 
     support_branch = policy_decision("h70_01", "h50_01")
     assert support_branch["action"] == "allow"
-    assert "mpls_cloud" in support_branch["path"]
+    assert "mpls_primary" in support_branch["path"]
 
     support_social = policy_decision("h70_01", "hsocial")
     assert support_social["action"] == "deny"
@@ -173,7 +174,7 @@ def test_manual_block_uses_cookie_and_single_enforcement_switch():
     from app.live_mininet import manual_block_cookie, manual_enforcement_switch, parse_flow_line
 
     assert manual_enforcement_switch("h20_01", "h30_01") == "core_hq"
-    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_telesale"
+    assert manual_enforcement_switch("h50_01", "h60_01") == "dist_branch"
     assert manual_enforcement_switch("h60_01", "h50_01") == "core_hq"
     assert manual_enforcement_switch("h70_01", "h50_01") == "core_hq"
     assert manual_block_cookie("h20_01", "h30_01") == manual_block_cookie("h30_01", "h20_01")
@@ -289,7 +290,7 @@ def test_backend_decision_schema_is_authoritative_for_animation_metadata():
     denied = enrich_decision("h20_01", "h30_01", policy_decision("h20_01", "h30_01"))
 
     assert denied["action"] == "deny"
-    assert denied["path"] == ["project_a", "access_hq_a", "core_hq"]
+    assert denied["path"] == ["project_a", "access_floor1", "dist_hq_1", "core_hq"]
     assert denied["blocked_at"] == "core_hq"
     assert denied["enforcement_switch"] == "core_hq"
     assert denied["policy"] == "hq_project_isolation"
