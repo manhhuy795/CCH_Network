@@ -16,32 +16,13 @@ firewall_policy:
       enabled: false
       mode: routed_lab
       runtime_verification_required: true
-      reason: "Internet Zone va service hosts co route tra ve tung subnet noi bo qua dung firewall site."
-
+      reason: "Routed simulation; NAT production design requires separate approval."
   shared_objects:
     applications:
-      zalo:
-        type: placeholder
-        runtime_service: hzalo
-        fqdn: ["*.zalo.me", "*.zaloapp.com"]
-        app_id: "ZALO_APP_ID_TBD"
-        notes: "Update with vendor-supported App-ID/FQDN object before production."
-      call_app:
-        type: placeholder
-        runtime_service: hcall
-        fqdn: ["call-app.example.com"]
-        ip: [203.0.113.200/32]
-        ports: [tcp/443, udp/10000-20000]
-        notes: "Replace with actual customer calling application FQDN/IP/ports."
-      social_media:
-        type: category
-        runtime_service: hsocial
-        categories: [social-networking, streaming-media, gaming]
-      general_internet:
-        type: simulation
-        runtime_service: hinternet
-        notes: "Dich vu Internet tong quat chi dung trong Mininet lab."
-
+      zalo: {runtime_service: hzalo, type: placeholder, ports: [tcp/443]}
+      call_app: {runtime_service: hcall, type: placeholder, ports: [tcp/443, udp/10000-20000]}
+      social_media: {runtime_service: hsocial, type: category}
+      general_internet: {runtime_service: hinternet, type: simulation}
   sites:
     hq:
       firewall_name: fw_hq
@@ -50,91 +31,25 @@ firewall_policy:
       outside_node: internet_zone
       inside_interface: inside
       outside_interface: outside
-      runtime_interfaces:
-        inside: fw_hq-eth0
-        outside: fw_hq-eth1
-      owned_subnets:
-        - 172.16.20.0/24
-        - 172.16.30.0/24
-        - 172.16.40.0/24
-        - 172.16.60.0/24
-        - 172.16.70.0/24
-        - 172.16.80.0/24
-        - 172.16.110.0/24
+      runtime_interfaces: {inside: fw_hq-eth0, outside: fw_hq-eth1}
+      owned_subnets: [172.16.20.0/24, 172.16.30.0/24, 172.16.40.0/24, 172.16.60.0/24, 172.16.70.0/24, 172.16.90.0/24, 172.16.100.0/24, 172.16.110.0/24, 172.16.120.0/24]
       policies:
-        - name: allow-zalo
-          action: allow
-          sources: [20, 30, 40, 60, 70]
-          destinations: [internet]
-          applications: [zalo]
-          enable_flag: allow_zalo
-          log: true
-        - name: allow-call-app
-          action: allow
-          sources: [20, 30, 40, 60, 70]
-          destinations: [internet]
-          applications: [call_app]
-          enable_flag: allow_call_app
-          log: true
-        - name: deny-social-media
-          action: deny
-          sources: [20, 30, 40, 60, 70]
-          destinations: [internet]
-          applications: [social_media]
-          enable_flag: block_social_media
-          log: true
-        - name: allow-general-internet
-          action: allow
-          sources: [20, 30, 40, 60, 70]
-          destinations: [internet]
-          applications: [general_internet]
-          enable_flag: allow_general_internet
-          log: true
-        - name: allow-guest-general-internet
-          action: allow
-          sources: [80]
-          destinations: [internet]
-          applications: [general_internet]
-          enable_flag: allow_guest_general_internet
-          log: true
-
+        - {name: allow-zalo, action: allow, sources: [20, 30, 40, 60, 70], destinations: [internet], applications: [zalo], enable_flag: allow_zalo, log: true}
+        - {name: allow-call-app, action: allow, sources: [20, 30, 40, 60, 70], destinations: [internet], applications: [call_app], enable_flag: allow_call_app, log: true}
+        - {name: deny-social-media, action: deny, sources: [20, 30, 40, 60, 70, 120], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
+        - {name: allow-general-internet, action: allow, sources: [20, 30, 40, 60, 70], destinations: [internet], applications: [general_internet], enable_flag: allow_general_internet, log: true}
+        - {name: allow-guest-internet, action: allow, sources: [120], destinations: [internet], applications: [general_internet], enable_flag: allow_guest_general_internet, log: true}
     branch_telesale:
       firewall_name: fw_telesale
       site: branch_telesale
-      inside_node: dist_telesale
+      inside_node: dist_branch
       outside_node: internet_zone
       inside_interface: inside
       outside_interface: outside
-      runtime_interfaces:
-        inside: fw_tel-eth0
-        outside: fw_tel-eth1
-      owned_subnets: [172.16.50.0/24]
+      runtime_interfaces: {inside: fw_tel-eth0, outside: fw_tel-eth1}
+      owned_subnets: [172.16.50.0/24, 172.16.111.0/24]
       policies:
-        - name: allow-zalo
-          action: allow
-          sources: [50]
-          destinations: [internet]
-          applications: [zalo]
-          enable_flag: allow_zalo
-          log: true
-        - name: allow-call-app
-          action: allow
-          sources: [50]
-          destinations: [internet]
-          applications: [call_app]
-          enable_flag: allow_call_app
-          log: true
-        - name: deny-social-media
-          action: deny
-          sources: [50]
-          destinations: [internet]
-          applications: [social_media]
-          enable_flag: block_social_media
-          log: true
-        - name: allow-general-internet
-          action: allow
-          sources: [50]
-          destinations: [internet]
-          applications: [general_internet]
-          enable_flag: allow_general_internet
-          log: true
+        - {name: allow-zalo, action: allow, sources: [50], destinations: [internet], applications: [zalo], enable_flag: allow_zalo, log: true}
+        - {name: allow-call-app, action: allow, sources: [50], destinations: [internet], applications: [call_app], enable_flag: allow_call_app, log: true}
+        - {name: deny-social-media, action: deny, sources: [50, 111], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
+        - {name: allow-general-internet, action: allow, sources: [50], destinations: [internet], applications: [general_internet], enable_flag: allow_general_internet, log: true}

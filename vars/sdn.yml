@@ -8,10 +8,11 @@ sdn:
     api_path: /api/v1/network-intents
   fabric_scope:
     - hq-core-l3
-    - hq-access-a
-    - hq-access-b
-    - hq-access-c
-    - hq-voice-access
+    - hq-access-floor1
+    - hq-access-floor2
+    - hq-dist-1
+    - hq-dist-2
+    - hq-infra-access
     - br-dist-l3
     - br-access
   protected_boundaries:

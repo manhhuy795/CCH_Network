@@ -155,15 +155,24 @@ def jinja_env() -> Environment:
 
 def render_device_config(config: dict[str, Any], device: dict[str, Any]) -> str:
     template = jinja_env().get_template(device["template"])
+    model_node = device.get("model_node", "")
+    # Routing YAML contains runtime route ownership and a small compatibility
+    # view for generated device templates. Merge both views so CE templates
+    # receive internal routes and MPLS routes without duplicating source data.
+    routes: dict[str, Any] = {}
+    for candidate in (
+        config.get(model_node, {}),
+        config.get("routes", {}).get(model_node, {}),
+        config.get("routes", {}).get(device["name"], {}),
+    ):
+        if isinstance(candidate, dict):
+            routes = deep_merge(routes, candidate)
     return template.render(
         config=config,
         device=device,
         vlans_by_id=vlans_by_id(config),
         site_vlans=vlans_for_site(config, device["site"]),
         interfaces=config.get("interfaces", {}).get(device["name"], {}),
-        routes=(
-            config.get("routes", {}).get(device["name"])
-            or config.get("routes", {}).get(device.get("model_node", ""), {})
-        ),
+        routes=routes,
         firewall_site=config.get("firewall_policy", {}).get("sites", {}).get(device["site"], {}),
     )

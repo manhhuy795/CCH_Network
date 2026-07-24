@@ -12,26 +12,23 @@ interfaces:
 nat:
   enabled: False
   mode: routed_lab
-  reason: "Internet Zone va service hosts co route tra ve tung subnet noi bo qua dung firewall site."
+  reason: "Routed simulation; NAT production design requires separate approval."
 
 objects:
   zalo:
     type: placeholder
-    fqdn: ['*.zalo.me', '*.zaloapp.com']
-    notes: "Update with vendor-supported App-ID/FQDN object before production."
+    ports: ['tcp/443']
+    notes: ""
   call_app:
     type: placeholder
-    fqdn: ['call-app.example.com']
-    ip: ['203.0.113.200/32']
     ports: ['tcp/443', 'udp/10000-20000']
-    notes: "Replace with actual customer calling application FQDN/IP/ports."
+    notes: ""
   social_media:
     type: category
-    categories: ['social-networking', 'streaming-media', 'gaming']
     notes: ""
   general_internet:
     type: simulation
-    notes: "Dich vu Internet tong quat chi dung trong Mininet lab."
+    notes: ""
 
 policies:
   - name: allow-zalo
@@ -52,7 +49,7 @@ policies:
     log: True
   - name: deny-social-media
     action: deny
-    source_vlans: [20, 30, 40, 60, 70]
+    source_vlans: [20, 30, 40, 60, 70, 120]
     destination: ['internet']
     applications: ['social_media']
     enable_flag: block_social_media
@@ -64,5 +61,13 @@ policies:
     destination: ['internet']
     applications: ['general_internet']
     enable_flag: allow_general_internet
+    counter: True
+    log: True
+  - name: allow-guest-internet
+    action: allow
+    source_vlans: [120]
+    destination: ['internet']
+    applications: ['general_internet']
+    enable_flag: allow_guest_general_internet
     counter: True
     log: True
