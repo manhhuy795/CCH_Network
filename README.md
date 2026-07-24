@@ -118,19 +118,15 @@ Internet Branch:
 Telesale Distribution SDN → Firewall Telesale → Internet Zone → Service
 ```
 
-Controller chỉ điều khiển 12 Open vSwitch:
+Controller chi dieu khien 8 Open vSwitch:
 
-- `access_hq_a`
-- `access_hq_b`
-- `access_hq_c`
-- `access_hq_it`
-- `voice_access`
+- `access_floor1`
+- `access_floor2`
+- `dist_hq_1`
+- `dist_hq_2`
 - `core_hq`
-- `access_telesale`
-- `dist_telesale`
-- `access_backoffice` (logical ID; Linux runtime bridge: `access_bo`)
-- `access_iot`
-- `access_guest`
+- `access_branch`
+- `dist_branch`
 - `infra_access`
 
 Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cloud.
@@ -138,9 +134,9 @@ Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cl
 ## Policy
 
 - Project A/B/C bị cách ly tại `core_hq`.
-- Telesale VLAN 50 → BackOffice VLAN 60 bị chặn tại `dist_telesale`.
-- BackOffice VLAN 60 → Telesale VLAN 50 bị chặn tại `core_hq`.
-- Social Media bị drop tại SDN Edge: HQ drop ở `core_hq`, Telesale drop ở `dist_telesale`.
+- Telesale VLAN 50 ↔ BackOffice VLAN 60 bị chặn tại `dist_branch`/`core_hq` theo chiều vào.
+- BackOffice nằm tại HQ Floor 2; không còn BackOffice tại Branch.
+- Social Media bị drop tại firewall local `fw_hq` hoặc `fw_telesale`.
 - User thường được truy cập Voice, Zalo, Call App và General Internet nếu policy cho phép.
 - IT Support có quyền remote/support có kiểm soát theo policy.
 - Internet/service bên ngoài không được chủ động ping vào user nội bộ.
@@ -372,14 +368,38 @@ sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1 bash scripts/phase46_automa
 
 Report tao tai runtime_reports/phase46_automation_docs_<UTC>/; xem summary.json va NEXT_ACTION.md neu FAIL/BLOCKED. Tai lieu chi tiet nam trong docs/architecture.md, docs/installation_ubuntu.md, docs/runtime_operations.md, docs/troubleshooting.md, docs/testing_and_acceptance.md va docs/security_notes.md.
 
+## Topology redesign va data flow
+
+Mo hinh hien tai dung 3 lop Access -> Distribution -> Core tai HQ va Access ->
+Distribution -> CE tai Branch. BackOffice nam tai HQ Floor 2; Branch chi co
+Telesale va IoT Branch. Voice/PBX nam tai `infra_access` VLAN 90. IoT HQ VLAN
+110 va IoT Branch VLAN 111 la hai subnet routed rieng, khong stretch L2 qua MPLS.
+
+MPLS Primary metric 10 duoc uu tien; MPLS Backup metric 100 chi active khi
+Primary down. Internet HQ/Branch breakout tai firewall local, khong hairpin qua
+MPLS. UPS la endpoint monitoring, khong nam tren user packet path.
+
+Static gate va runtime test:
+
+```bash
+python scripts/validate_redesigned_topology.py
+pytest -q tests/test_three_layer_topology.py tests/test_data_flow_contract.py
+sudo -E .venv/bin/python scripts/test_redesigned_topology_runtime.py
+sudo -E .venv/bin/python scripts/test_data_flows_runtime.py
+```
+
+Chi tiet xem `docs/topology_three_layer_dataflows_vi.md` va
+`docs/redesigned_topology_test_commands_vi.md`.
+
 ## Enterprise VLAN Zones
 
 Enterprise extension dùng các VLAN chưa có trong mô hình cũ để tránh xung đột với VLAN 10 Management:
 
 | VLAN | Zone | Subnet | Chính sách chính |
 |---:|---|---|---|
-| 80 | Guest | 172.16.80.0/24 | DHCP/DNS/NTP và General Internet; chặn mạng nội bộ |
+| 120 | Guest HQ Floor 1 | 172.16.120.0/24 | DHCP/DNS/NTP và General Internet; chặn mạng nội bộ |
 | 100 | Infrastructure Services | 172.16.100.0/24 | DHCP, DNS, NTP, Monitoring |
-| 110 | IoT/UPS | 172.16.110.0/24 | Chỉ hạ tầng cần thiết; IT Support quản trị theo least privilege |
+| 110 | IoT HQ | 172.16.110.0/24 | Camera và UPS HQ; chỉ monitoring/bootstrap |
+| 111 | IoT Branch | 172.16.111.0/24 | Camera và UPS Branch; monitoring qua MPLS |
 
-VLAN 10 vẫn dành cho Management. Mô hình runtime có 110 user doanh nghiệp, 5 service hiện hữu, 9 endpoint Guest/IoT/UPS, 4 infrastructure service và 12 OVS. Chi tiết xem `docs/enterprise_vlan_plan_vi.md`.
+VLAN 10 vẫn dành cho Management. Mô hình runtime có 110 user doanh nghiệp, 5 service, 9 endpoint Guest/IoT/UPS, 9 infrastructure service và 8 OVS. Chi tiết xem `docs/topology_three_layer_dataflows_vi.md`.

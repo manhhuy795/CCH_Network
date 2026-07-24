@@ -41,7 +41,7 @@ stdout, stderr, exit code, thoi gian va summary trong `runtime_reports/`.
 - Controller `6653`, backend `8000`, frontend `5173`.
 - Mininet topology process, hai firewall namespace, OVS `core_hq` va `dist_telesale`.
 - Hai table nftables `inet cch_filter`, forwarding va counter that.
-- API hai site `hq`/`telesale`, 9 logical OVS, mapping `access_backoffice -> access_bo`, 2 CE va 2 firewall.
+- API hai site `hq`/`telesale`, 8 logical OVS, 2 CE va 2 firewall. BackOffice nam tai HQ Floor 2.
 - Ping ALLOW `h30_01 -> h90`.
 - Ping DENY `h20_01 -> h30_01` va Social DENY/counter.
 - Policy reload bang ruleset source-of-truth hien tai.
@@ -55,7 +55,7 @@ stdout, stderr, exit code, thoi gian va summary trong `runtime_reports/`.
 
 ```bash
 sudo ovs-ofctl -O OpenFlow13 dump-flows core_hq
-sudo ovs-ofctl -O OpenFlow13 dump-flows dist_telesale
+sudo ovs-ofctl -O OpenFlow13 dump-flows dist_branch
 sudo ip netns exec fw_hq nft -a list table inet cch_filter
 sudo ip netns exec fw_telesale nft -a list table inet cch_filter
 tail -n 120 logs/backend.log

@@ -1,55 +1,37 @@
-# Kế hoạch VLAN Enterprise
+# Ke hoach VLAN Enterprise
 
-## Quyết định VLAN
+VLAN 10 danh cho Management va khong duoc tai su dung cho zone enterprise.
 
-VLAN 10 đang được dùng cho Management nên không tái sử dụng cho IoT/UPS.
-Enterprise extension dùng các VLAN chưa có trong mô hình cũ:
-
-| VLAN | Zone | Subnet | Gateway | Switch runtime |
+| VLAN | Zone | Subnet | Gateway | Switch |
 |---:|---|---|---|---|
-| 80 | Guest | `172.16.80.0/24` | `172.16.80.1` | `access_guest` |
 | 100 | Infrastructure Services | `172.16.100.0/24` | `172.16.100.1` | `infra_access` |
-| 110 | IoT/UPS | `172.16.110.0/24` | `172.16.110.1` | `access_iot` |
+| 110 | IoT HQ / UPS HQ | `172.16.110.0/24` | `172.16.110.1` | `access_floor1` |
+| 111 | IoT Branch / UPS Branch | `172.16.111.0/24` | `172.16.111.1` | `access_branch` |
+| 120 | Guest HQ Floor 1 | `172.16.120.0/24` | `172.16.120.1` | `access_floor1` |
 
-Các subnet không overlap với VLAN hiện hữu 10, 20, 30, 40, 50, 60, 70 và 90.
-Mỗi zone có access switch riêng, uplink trunk riêng và được route qua `core_hq`.
+VLAN 110 va 111 cung role `iot` nhung la hai subnet routed rieng. Khong co
+L2 VLAN stretching IoT qua MPLS. Guest chi o HQ Floor 1.
 
 ## Endpoint
 
-- Guest: `guest_01` đến `guest_04`.
-- IoT/UPS: `iot_cam_01`, `iot_cam_02`, `iot_door_01`, `ups_core_01`, `ups_core_02`.
-- Infrastructure: `hdhcp`, `hdns`, `hntp`, `hmonitor` trên VLAN 100.
+- Guest: `guest_01`, `guest_02`.
+- IoT HQ: `iot_cam_01`, `iot_cam_02`, `ups_floor1`, `ups_core_1`, `ups_core_2`.
+- IoT Branch: `iot_branch_cam_01`, `ups_branch_1`.
+- Infrastructure: `hdhcp`, `hdns`, `hntp`, `hmonitor`, `hnvr`, `hrecording`,
+  `hdialer`, `hbackup`, `had` tren VLAN 100.
 
-Tổng inventory được giữ nhất quán: 110 user doanh nghiệp + 5 service hiện hữu
-+ 9 Guest/IoT/UPS endpoint + 4 infrastructure service = 128 endpoint.
+Tong inventory: 110 user + 5 public/service endpoint + 9 Guest/IoT/UPS + 9
+infrastructure endpoint.
 
-## Policy least privilege
+## Least privilege
 
-- Guest chỉ được dùng DHCP/DNS/NTP và `hinternet`; không truy cập corporate,
-  IT, Voice, IoT/UPS hoặc service inbound.
-- IoT/UPS chỉ được dùng DHCP/DNS/NTP/Monitoring; không truy cập corporate,
-  Guest, Voice hoặc Internet.
-- IT Support có quyền quản trị IoT/UPS theo policy, không được bypass chặn
-  Social Media.
-- Kết nối mới từ Internet/service vào endpoint nội bộ bị firewall stateful chặn.
+- Guest duoc DHCP/DNS/NTP va General Internet; internal access bi deny.
+- IoT/UPS chi duoc bootstrap va monitoring/NVR da khai bao; khong truy cap
+  user, Guest, Voice hoac Internet.
+- IT Support remote user theo policy, khong bypass Social Media.
+- Internet/service inbound unsolicited bi firewall stateful chan.
 
-## Giới hạn lab
-
-Các tiến trình DHCP/DNS/NTP/Monitoring trong Mininet là simulator để quan sát
-namespace, reachability và policy. Đây chưa phải triển khai appliance hoặc
-dịch vụ production. Khi chạy Ubuntu, xác minh VLAN thật bằng:
-
-```bash
-sudo ovs-vsctl list-ports access_iot
-sudo ovs-vsctl list port iot-u01
-sudo ovs-vsctl list port core-eth08
-ip -d link show hq_l3-eth0.110
-```
-
-Test policy source-of-truth và topology:
-
-```bash
-python3 scripts/validate_vars.py
-python3 scripts/verify_network.py
-python3 -m pytest -q tests/test_enterprise_vlan_extension.py
-```
+Runtime Mininet hien giu IP reservation/static cho endpoint de test deterministic.
+DHCP relay contract duoc khai bao tai `sdn_mpls_demo/policy.yml`; lease live chi
+duoc ket luan khi `scripts/test_dhcp_runtime.py` tim thay DHCP daemon va lease
+evidence that.

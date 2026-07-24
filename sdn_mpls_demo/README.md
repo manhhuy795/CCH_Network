@@ -1,258 +1,103 @@
 # SDN MPLS Demo - Call Center BPO
 
-## Simulation Honesty
+Day la lab mo phong **Hybrid MPLS L3VPN Logic + SDN Edge Policy** cho hai
+site vat ly: HQ va Branch Telesale. Lab khong thay the MPLS provider-grade,
+MP-BGP, PE/P core hay firewall appliance production.
 
-### Enterprise VLAN extension
+## Mo hinh dieu khien
 
-VLAN 10 được giữ cho Management. Các zone mới dùng VLAN 80 (Guest), VLAN 100
-(Infrastructure Services) và VLAN 110 (IoT/UPS). Runtime OVS cấu hình access
-tag/trunk và router subinterface cho các VLAN này; policy mặc định deny giữa
-enterprise zone và corporate/voice. Lab vẫn dùng simulator cho DHCP/DNS/NTP/
-Monitoring, không tuyên bố đó là appliance production.
-
-- `fw_hq` va `fw_telesale` la **stateful nftables firewall** trong Linux router namespace.
-- Chung ap dung `inet cch_filter`, conntrack, default-deny va counter that; day van la firewall lab, khong phai appliance production.
-- SDN Controller chi dieu khien OVS; CE, Internet Edge Boundary va MPLS Logic Cloud khong nam trong OpenFlow control domain.
-- Phase 42 co dung 12 OVS duoc OS-Ken dieu khien. `service_net` la Linux
-  bridge cho Service LAN, khong phai OVS va khong co OpenFlow control link.
-- `SERVICE_NET_MININET_DPID=00000000000000fe` chi la bookkeeping DPID de
-  Mininet khoi tao lop `Switch`. Gia tri nay khong thuoc controller inventory,
-  khong ket noi OS-Ken va khong duoc tinh thanh OVS thu 10.
-
-Module này là lab **Hybrid MPLS L3VPN + SDN Edge Policy** chạy trên Ubuntu
-24.04 LTS. Lab tạo 110 user thật trong Mininet, 5 service, 9 endpoint Guest/IoT-UPS và 12 Open vSwitch
-được OS-Ken Controller điều khiển bằng OpenFlow 1.3.
-
-## Phạm vi đúng
-
-- SDN điều khiển OVS tại access, core, distribution và service edge.
-- MPLS L3VPN Logic Cloud đóng vai trò WAN transport logic giữa HQ và Branch.
-- CE Router, Firewall và MPLS L3VPN Logic Cloud là namespace/bridge mô phỏng, không chịu
-  sự điều khiển của SDN Controller.
-- Không triển khai MPLS provider-grade, MP-BGP, PE/P core hoặc IPSec CE-to-CE.
-
-## Thành phần lab
-
-| Thành phần | Số lượng |
-|---|---:|
-| User Dự án A/B/C | 60 |
-| User Telesale/BackOffice | 40 |
-| User Phòng IT Support | 10 |
-| Voice/Zalo/Call App/Social/Internet | 5 |
-| OVS được OS-Ken điều khiển | 12 |
-
-Đường liên site:
+OS-Ken dieu khien dung 8 OVS bang OpenFlow 1.3:
 
 ```text
-Telesale Distribution → CE Router Telesale → MPLS L3VPN Logic Cloud
-→ CE Router HQ → HQ Core SDN
+access_floor1  access_floor2  dist_hq_1  dist_hq_2
+core_hq       infra_access   access_branch  dist_branch
 ```
 
-Internet breakout:
+CE, firewall va MPLS logic cloud khong phai OpenFlow switch:
 
 ```text
-HQ user       → HQ Core → Firewall HQ → Internet Zone
-Telesale user → Telesale Distribution → Firewall Telesale → Internet Zone
+ce_hq  ce_telesale  fw_hq  fw_telesale  mpls_primary  mpls_backup
 ```
 
-## Lưu ý cho Cfono/Gphone/softphone
+`service_net` chi la Linux bridge noi cac service namespace; no khong duoc
+tinh vao inventory OVS.
 
-Trong thực tế agent thường cài Cfono, Gphone hoặc softphone trực tiếp trên máy.
-Vì vậy lab không hiểu "Voice" là mở ping ngang giữa các máy agent. Mô hình đúng là:
+## VLAN va endpoint
 
-- Máy user được đi tới cụm `h90` mô phỏng Voice/PBX/SIP-RTP service.
-- Máy user được đi tới Call App/CRM nếu policy cho phép.
-- Project A/B/C vẫn bị cách ly với nhau.
-- Telesale/BackOffice vẫn bị cách ly.
-- Internet/service bên ngoài không được chủ động ping vào máy nội bộ.
+- VLAN 20/30/40: Project A/B/C.
+- VLAN 50: Telesale tai Branch.
+- VLAN 60/70: BackOffice va IT Support tai HQ Floor 2.
+- VLAN 90: Voice service.
+- VLAN 100: Infrastructure Services.
+- VLAN 110: IoT HQ; VLAN 111: IoT Branch.
+- VLAN 120: Guest.
 
-Nếu triển khai thật, cần thay `h90` bằng IP/FQDN PBX/SIP proxy/SBC và port thật của
-Cfono/Gphone, ví dụ SIP TLS, RTP media range, HTTPS API của Call App. Không nên mở
-quyền truy cập ngang giữa các VLAN user chỉ vì máy có cài softphone.
+Topology co 110 user, 5 service nghiep vu va 9 service ha tang.
+Guest/IoT dung reservation hoac DHCP relay theo policy. DHCP runtime trong
+lab hien la phan can xac nhan rieng; khong coi IP tinh la DHCP lease.
 
-## Ubuntu VM mới - copy/paste từ đầu
+## Data path
 
-Dùng Ubuntu 24.04 LTS. Nếu vừa tạo máy ảo mới, mở Terminal 1 và chạy nguyên
-block này:
+- Traffic noi HQ: access -> distribution -> `core_hq` -> dich vu HQ.
+- Traffic Telesale toi HQ: access -> `dist_branch` -> `ce_telesale` ->
+  `mpls_primary` (metric 10) hoac `mpls_backup` (metric 100) -> `ce_hq` ->
+  `core_hq`.
+- Internet local breakout: user -> firewall cua site -> Internet zone.
+- Traffic lien site khong di qua firewall Internet.
+- Controller chi la control path, khong nam tren duong di packet.
 
-```bash
-cd ~/Downloads
+## Policy chinh
 
-sudo apt update
-sudo apt install -y \
-  git mininet openvswitch-switch iperf3 nftables tcpdump \
-  python3 python3-venv python3-pip python3-dev \
-  build-essential curl jq iproute2 procps util-linux \
-  nodejs npm
-sudo systemctl enable --now openvswitch-switch
+- Co lap Project A/B/C tai `core_hq`.
+- Co lap Telesale va BackOffice theo chieu nguon tai `dist_branch` va
+  `core_hq`.
+- Cho phep Voice, Zalo, Call App/CRM va Internet theo policy.
+- Chan Social Media, ke ca IT Support.
+- Guest chi ra Internet va toi dich vu ha tang duoc cap.
+- IoT chi toi DHCP/DNS/NTP va monitoring/NVR duoc cap.
+- Default deny cho traffic khong match.
 
-if [ ! -d CCH_Network ]; then
-  git clone https://github.com/manhhuy795/CCH_Network.git
-fi
-
-cd ~/Downloads/CCH_Network
-git pull
-chmod +x sdn_mpls_demo/*.sh
-./sdn_mpls_demo/setup_ubuntu_24_04.sh
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Giữ Terminal 1 ở màn hình `mininet>`. Không chạy `run_topology.sh` lần thứ hai
-ở terminal khác.
-
-## Terminal 1 - cài thư viện và chạy topology
-
-Nếu repo đã có sẵn trên máy, chạy block ngắn này:
+## Chay lab tren Ubuntu
 
 ```bash
 cd ~/Downloads/CCH_Network
-git pull
-
-# Các thư viện/package cần cho SDN lab, Mininet, Open vSwitch và dashboard.
-sudo apt update
-sudo apt install -y \
-  git mininet openvswitch-switch iperf3 nftables tcpdump \
-  python3 python3-venv python3-pip python3-dev \
-  build-essential curl jq iproute2 procps util-linux \
-  nodejs npm
-sudo systemctl enable --now openvswitch-switch
-
-chmod +x sdn_mpls_demo/*.sh
-./sdn_mpls_demo/setup_ubuntu_24_04.sh
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Script chỉ cài package và tạo virtualenv riêng tại
-`sdn_mpls_demo/.venv`; không thay đổi Python hệ thống.
-
-Khi thấy dấu nhắc `mininet>`, topology đã chạy. Kiểm tra nhanh:
-
-```text
-testpolicy       # chạy ma trận ALLOW/DENY chi tiết bằng ping thật
-isolationflows   # xem DROP flow priority 400 trên 12 OVS
-firewallrules    # xem nftables rule/counter tren fw_hq va fw_telesale
-reloadfirewall   # reload hai ruleset idempotent
-```
-
-## Chạy lab lại sau khi đã cài xong
-
-Cách đơn giản nhất, chỉ cần một lệnh:
-
-```bash
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Chỉ chạy topology ở **một terminal duy nhất**. Không chạy lại lệnh trên ở
-terminal thứ hai vì một VM không thể tạo hai bộ interface Mininet trùng tên.
-
-Script sẽ:
-
-1. Kiểm tra virtualenv và module OS-Ken.
-2. Kiểm tra cổng OpenFlow `6653`.
-3. Tự chạy controller nếu cổng chưa có listener.
-4. Chờ controller sẵn sàng rồi mới tạo topology.
-5. Tự chạy ma trận ping policy chi tiết sau khi topology lên.
-6. In `runtime/controller.log` nếu controller không khởi động được.
-
-Auto-test có thể tắt khi cần khởi động nhanh:
-
-```bash
-sudo CCH_AUTO_TEST_POLICY=0 ./sdn_mpls_demo/run_topology.sh
-```
-
-Nếu muốn chạy controller thủ công để xem log trực tiếp thì dùng cách nâng cao:
-
-```bash
-# Terminal 1
-./sdn_mpls_demo/run_controller.sh
-
-# Terminal 2
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Sau khi topology hiện dấu nhắc `mininet>`, mở terminal mới để chạy dashboard:
-
-```bash
-# Terminal 2: backend
-./dashboard/run_live_dashboard.sh
-
-# Terminal 3: frontend
-cd dashboard/frontend
-npm install
-npm run dev -- --host 0.0.0.0
-```
-
-Khi thấy `mininet>`, dùng các lệnh trong
-`sdn_mpls_demo/test_commands.txt`.
-
-Kiểm tra nhanh segmentation bằng traffic thật:
-
-```text
-testpolicy       # chạy ma trận ALLOW/DENY chi tiết
-isolationflows   # xem DROP flow priority 400 trên 12 OVS
-```
-
-`testpolicy` sẽ kiểm tra các nhóm chính:
-
-- Project A/B/C không ping chéo nhau.
-- VLAN 50 và VLAN 60 không ping nhau.
-- Project/Telesale/BackOffice/IT ping được Voice `h90`.
-- User thường dùng được Zalo, Call App, Internet test.
-- User thường bị chặn Social Media.
-- Luồng liên site user-to-user mặc định bị chặn; IT Support là ngoại lệ quản trị.
-- IT Support được remote/support user và kiểm tra dịch vụ.
-- Internet/service bên ngoài không được chủ động ping vào user nội bộ.
-
-Terminal 3, chạy backend:
-
-```bash
-cd dashboard/backend
-python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-sudo -E .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python3 scripts/validate_redesigned_topology.py
+sudo bash sdn_mpls_demo/run_topology.sh
 ```
 
-Terminal 4, chạy frontend:
+Trong terminal khac:
 
 ```bash
-cd dashboard/frontend
-npm install
-npm run dev -- --host 0.0.0.0
+cd ~/Downloads/CCH_Network
+sudo bash scripts/test_data_flows_runtime.py
+sudo bash scripts/test_redesigned_topology_runtime.py
+sudo bash scripts/test_mpls_failover_runtime.py
 ```
 
-Mở `http://<IP-Ubuntu-VM>:5173`.
-
-## Dọn lab
-
-Thoát Mininet bằng `exit`, sau đó:
+## Kiem tra policy va flow
 
 ```bash
-./sdn_mpls_demo/cleanup.sh
+sudo ovs-ofctl -O OpenFlow13 dump-flows core_hq
+sudo ovs-ofctl -O OpenFlow13 dump-flows dist_branch
+sudo ovs-ofctl -O OpenFlow13 dump-flows access_floor1
+sudo ovs-ofctl -O OpenFlow13 dump-flows access_floor2
 ```
 
-## Dữ liệu runtime
-
-- `runtime/installed_flows.json`: flow do controller đã cài.
-- `runtime/events.jsonl`: nhật ký quyết định allow/drop.
-- Hai file này được sinh khi chạy và không phải source-of-truth.
-
-Source-of-truth nằm tại `sdn_mpls_demo/policy.yml`.
-
-## Phiên bản Ubuntu
-
-Không cần hạ xuống Ubuntu cũ hơn. Module này dành cho Ubuntu 24.04 LTS và
-Python 3.12. Module `sdn_demo/` cũ mới là lựa chọn tương thích Ubuntu 22.04.
-
-Project pin `os-ken==3.1.1`. Không nâng lên OS-Ken 4.x vì upstream đã xóa
-`osken-manager` và module `os_ken.cmd`; hai thành phần này cần để chạy
-OpenFlow Controller độc lập trong lab.
-
-Nếu controller không lên:
+Xem ma tran ping:
 
 ```bash
-tail -n 80 sdn_mpls_demo/runtime/controller.log
-sudo ss -ltnp | grep :6653
-sdn_mpls_demo/.venv/bin/python -c "import os_ken.cmd.manager; print('OS-Ken CLI OK')"
-sdn_mpls_demo/.venv/bin/pip show os-ken | grep Version
+sudo python3 scripts/test_data_flows_runtime.py
 ```
+
+Xem bao cao trong `runtime_reports/`. Bao cao runtime chi duoc tao khi
+Mininet, OVS va control agent thuc su dang chay.
+
+## Don dep
+
+```bash
+sudo mn -c
+```
+
+Chi ket luan runtime PASS sau khi chay tren Ubuntu co Mininet, Open vSwitch
+va OS-Ken. Kiem tra static tren Windows khong phai runtime validation.

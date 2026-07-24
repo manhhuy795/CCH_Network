@@ -29,7 +29,7 @@
 ## Runtime inventory
 - [ ] Controller 6653, backend 8000, frontend 5173.
 - [ ] 110 user và 5 service.
-- [ ] 12 OVS và 2 firewall namespace.
+- [ ] 8 OVS và 2 firewall namespace.
 - [ ] Control Agent HEALTH thật.
 - [ ] flow inventory đọc từ OVS sống.
 

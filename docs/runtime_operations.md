@@ -27,7 +27,7 @@ sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1   bash scripts/phase46_auto
 - static: py_compile, bash -n, pytest, frontend npm ci/build, secret scan v? docs link.
 - automation: validation network model, script permissions v? clean clone.
 - docs: ki?m tra t?i li?u v? link n?i b?.
-- runtime: controller 6653, backend 8000, frontend 5173, 12 OVS, flow, agent, 110 user, 2 firewall namespace v? Phase 44/45 regression.
+- runtime: controller 6653, backend 8000, frontend 5173, 8 OVS, flow, agent, 110 user, 2 firewall namespace va Phase 44/45 regression.
 - all: ch?y theo th? t?; mode sau b? BLOCKED n?u mode tr??c l?i.
 
 ~~~bash
