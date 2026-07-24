@@ -1139,9 +1139,13 @@ def add_group_hosts(net, policy, switches):
                 ip=f"{address}/{network.prefixlen}",
                 defaultRoute=f"via {gateway}",
             )
+            # Linux giới hạn ifname ở 15 ký tự; host endpoint như iot_branch_cam_01
+            # cần tên interface ngắn và ổn định để Mininet tạo được veth pair.
+            host_interface = f"h{int(group['vlan'])}u{index:02d}-eth0"
             net.addLink(
                 host,
                 switches[endpoint_switch],
+                intfName1=host_interface,
                 intfName2=f"{group.get('interface_prefix', group['prefix'])}-u{index:02d}",
                 cls=TCLink,
                 bw=100,
