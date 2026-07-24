@@ -35,6 +35,79 @@ export type Link = {
   loss_percent?: number;
 };
 
+export type DesignNode = {
+  id: string;
+  logical_name: string;
+  label: string;
+  type: string;
+  role: string;
+  site: string;
+  runtime_node?: string | null;
+  runtime_state: string;
+  representation: "design_only";
+  controller_managed: false;
+  status: "design_only";
+  status_source: string;
+  runtime_bridge?: string | null;
+};
+
+export type ProviderCircuit = {
+  id: string;
+  label: string;
+  state: string;
+  color: string;
+  sites: string[];
+};
+
+export type ProviderHandoff = {
+  provider_id: string;
+  handoff_id: string;
+  label: string;
+  state: string;
+  color: string;
+  site_firewalls: Record<string, { firewall: string; runtime_link: string }>;
+};
+
+export type FirewallRedundancy = {
+  runtime_node: string;
+  design_role: string;
+  inside_node: string;
+  outside_circuits: string[];
+  runtime_state: string;
+  representation: string;
+  policy_site: string;
+  design_members?: string[] | null;
+  runtime_interfaces: Record<string, string>;
+  runtime_note?: string;
+};
+
+export type ServerZoneComponent = {
+  runtime_node?: string | null;
+  runtime_kind?: string;
+  design_role?: string;
+  runtime_state?: string;
+};
+
+export type TopologyContract = {
+  source_of_truth: string[];
+  runtime_authority: string;
+  design_only_is_runtime: false;
+  provider_domain: {
+    label: string;
+    handoff_layer: string;
+    mode: string;
+    circuits: Record<string, ProviderCircuit>;
+  };
+  provider_handoff_paths: Record<string, ProviderHandoff>;
+  firewall_redundancy: Record<string, FirewallRedundancy>;
+  server_zone: {
+    runtime_switch: string;
+    components: Record<string, ServerZoneComponent>;
+    notes?: Record<string, string>;
+  };
+  design_nodes: DesignNode[];
+};
+
 export type Topology = {
   nodes: Array<Record<string, unknown>>;
   groups: Group[];
@@ -50,6 +123,8 @@ export type Topology = {
   mpls?: Record<string, unknown>;
   internet_zone?: Record<string, unknown>;
   phase44_runtime?: PhaseRuntimeStatus;
+  topology_contract?: TopologyContract;
+  design_nodes?: DesignNode[];
   policy_map: Record<string, { title: string; allow: string[]; deny: string[]; notes: Record<string, string> }>;
   summary: {
     user_count: number;

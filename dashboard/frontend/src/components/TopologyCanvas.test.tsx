@@ -12,6 +12,37 @@ const topology: Topology = {
   groups: [{ id: "project_a", label: "Dự án A", type: "user_group", site: "HQ", vlan: 20, count: 1, subnet: "172.16.20.0/24", switch: "access_floor1", hosts: [{ name: "h20_01", label: "User 1", ip: "172.16.20.11", kind: "user", group: "project_a", group_label: "Dự án A", vlan: 20, site: "HQ" }] }],
   hosts: [],
   links: [{ id: "project_a-access_floor1", source: "project_a", target: "access_floor1", type: "access", status: "up" }],
+  topology_contract: {
+    source_of_truth: ["vars/network_model.yml", "vars/routing.yml", "vars/firewall_policies.yml"],
+    runtime_authority: "Mininet Control Agent and live OVS/nftables evidence",
+    design_only_is_runtime: false,
+    provider_domain: {
+      label: "ISP / Carrier Cloud",
+      handoff_layer: "WAN Handoff Layer",
+      mode: "logical_provider_demarcation",
+      circuits: {
+        primary: { id: "isp_circuit_a", label: "ISP Circuit A - Primary", state: "active", color: "blue", sites: ["hq", "branch_telesale"] },
+        backup: { id: "isp_circuit_b", label: "ISP Circuit B - Backup", state: "standby", color: "purple", sites: ["hq", "branch_telesale"] },
+      },
+    },
+    provider_handoff_paths: {
+      primary: { provider_id: "isp_circuit_a", handoff_id: "wan_handoff_primary", label: "Carrier A - HQ + Branch", state: "active", color: "blue", site_firewalls: { hq: { firewall: "fw_hq", runtime_link: "fw_hq_to_internet_zone" } } },
+      backup: { provider_id: "isp_circuit_b", handoff_id: "wan_handoff_backup", label: "Carrier B - HQ + Branch", state: "standby", color: "purple", site_firewalls: { hq: { firewall: "fw_hq", runtime_link: "fw_hq_to_internet_zone" } } },
+    },
+    firewall_redundancy: {
+      hq: { runtime_node: "fw_hq", design_role: "ha_pair", inside_node: "core_hq", outside_circuits: ["primary", "backup"], runtime_state: "runtime_namespace", representation: "design_metadata", policy_site: "hq", design_members: ["fw_hq_primary", "fw_hq_backup"], runtime_interfaces: { inside: "fw_hq-eth0", outside: "fw_hq-eth1" } },
+    },
+    server_zone: {
+      runtime_switch: "infra_access",
+      components: {
+        sbc_voice_edge: { runtime_node: "h90", design_role: "dmz_sbc", runtime_state: "collapsed_voice_placeholder" },
+        database_server: { runtime_node: null, runtime_state: "design_only_not_simulated" },
+      },
+      notes: {},
+    },
+    design_nodes: [{ id: "isp_circuit_a", logical_name: "isp_circuit_a", label: "ISP Circuit A - Primary", type: "provider_circuit", role: "primary", site: "wan", runtime_node: null, runtime_state: "design_only", representation: "design_only", controller_managed: false, status: "design_only", status_source: "source_of_truth", runtime_bridge: null }],
+  },
+  design_nodes: [{ id: "isp_circuit_a", logical_name: "isp_circuit_a", label: "ISP Circuit A - Primary", type: "provider_circuit", role: "primary", site: "wan", runtime_node: null, runtime_state: "design_only", representation: "design_only", controller_managed: false, status: "design_only", status_source: "source_of_truth", runtime_bridge: null }],
   policy_map: {},
   summary: { user_count: 1, service_count: 0, controlled_ovs_count: 8 },
 };
@@ -62,5 +93,16 @@ describe("TopologyCanvas", () => {
     render(<TopologyCanvas {...props} />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Link project_a đến access_floor1" }), { key: "Enter" });
     expect(screen.getByLabelText(/Link · project_a/)).toBeInTheDocument();
+  });
+  it("renders source-truth design metadata separately from runtime topology", () => {
+    render(<TopologyCanvas {...props} />);
+    const contract = screen.getByTestId("topology-design-contract");
+    expect(contract).toHaveTextContent("Design-only");
+    expect(contract).toHaveTextContent("ISP Circuit A - Primary");
+    expect(contract).toHaveTextContent("ISP Circuit B - Backup");
+    expect(contract).toHaveTextContent("fw_hq_primary");
+    expect(screen.getByTestId("design-server-zone-list")).toHaveTextContent("Database Server");
+    expect(screen.queryByRole("button", { name: "Node ISP Circuit A - Primary" })).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("control-path")).toHaveLength(0);
   });
 });

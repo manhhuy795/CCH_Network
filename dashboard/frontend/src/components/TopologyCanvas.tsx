@@ -125,6 +125,105 @@ function nodeClass(type: string, id: string) {
   return "service";
 }
 
+function formatDesignValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Chưa khai báo";
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDesignState(value: unknown) {
+  const state = String(value || "").toLowerCase();
+  if (state === "active") return "Đang hoạt động";
+  if (state === "standby") return "Dự phòng";
+  if (state === "design_only" || state === "design_only_not_simulated") return "Chỉ có trong thiết kế";
+  if (state === "runtime_namespace") return "Namespace runtime";
+  if (state === "collapsed_voice_placeholder") return "Placeholder voice trong lab";
+  return formatDesignValue(value);
+}
+
+function DesignOnlyBadge() {
+  return <StatusBadge status="unknown" label="Design-only · không phải runtime" />;
+}
+
+function TopologyDesignContract({ topology }: { topology: Topology }) {
+  const contract = topology.topology_contract;
+  if (!contract) return null;
+
+  const circuits = Object.entries(contract.provider_domain.circuits);
+  const handoffs = Object.entries(contract.provider_handoff_paths);
+  const firewalls = Object.entries(contract.firewall_redundancy);
+  const serverComponents = Object.entries(contract.server_zone.components);
+  const designNodes = topology.design_nodes || contract.design_nodes;
+
+  return (
+    <section className="topology-contract" data-testid="topology-design-contract" aria-label="Thiết kế logic từ Source of Truth">
+      <div className="topology-contract-heading">
+        <div>
+          <h3>Thiết kế logic từ Source of Truth</h3>
+          <p>{contract.runtime_authority}. Các đối tượng dưới đây chỉ mô tả thiết kế doanh nghiệp.</p>
+        </div>
+        <DesignOnlyBadge />
+      </div>
+      <div className="topology-contract-grid">
+        <article className="topology-contract-card">
+          <h4>{contract.provider_domain.label}</h4>
+          <p className="topology-contract-muted">{contract.provider_domain.handoff_layer}</p>
+          <div className="topology-contract-list">
+            {circuits.map(([key, circuit]) => (
+              <div className="topology-contract-row" key={circuit.id || key}>
+                <span className={`circuit-dot ${circuit.color}`} aria-hidden="true" />
+                <div><strong>{circuit.label}</strong><small>{formatDesignState(circuit.state)} · {circuit.sites.join(" + ")}</small></div>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="topology-contract-card">
+          <h4>WAN handoff</h4>
+          <p className="topology-contract-muted">Ánh xạ từ carrier tới firewall từng site</p>
+          <div className="topology-contract-list">
+            {handoffs.map(([key, handoff]) => (
+              <div className="topology-contract-row" key={handoff.handoff_id || key}>
+                <span className={`circuit-dot ${handoff.color}`} aria-hidden="true" />
+                <div><strong>{handoff.label}</strong><small>{formatDesignState(handoff.state)} · {Object.entries(handoff.site_firewalls).map(([site, mapping]) => `${site}: ${mapping.firewall}`).join(" · ")}</small></div>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="topology-contract-card">
+          <h4>Firewall redundancy</h4>
+          <p className="topology-contract-muted">Peer HA là design metadata; firewall màu xanh trong SVG là namespace runtime.</p>
+          <div className="topology-contract-list">
+            {firewalls.map(([site, firewall]) => (
+              <div className="topology-contract-row" key={site}>
+                <div><strong>{formatDesignValue(site)} · {firewall.runtime_node}</strong><small>{formatDesignValue(firewall.design_role)} · inside {firewall.inside_node} · {firewall.outside_circuits.join(" + ")}</small></div>
+                {firewall.design_members?.length ? <small>HA members: {firewall.design_members.join(", ")}</small> : <small>Simulation: single namespace</small>}
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="topology-contract-card">
+          <h4>Server-zone roles</h4>
+          <p className="topology-contract-muted">Switch runtime: {contract.server_zone.runtime_switch}</p>
+          <div className="topology-contract-list" data-testid="design-server-zone-list">
+            {serverComponents.map(([name, component]) => (
+              <div className="topology-contract-row" key={name}>
+                <div><strong>{formatDesignValue(name)}</strong><small>runtime: {component.runtime_node || "Không mô phỏng"} · {formatDesignValue(component.design_role || component.runtime_kind || "server zone")}</small></div>
+                <small>{formatDesignState(component.runtime_state || (component.runtime_node ? "design_only" : "design_only_not_simulated"))}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+      <div className="topology-contract-footer" data-testid="design-node-list">
+        <DesignOnlyBadge />
+        <span>{designNodes.length} đối tượng thiết kế không được đưa vào runtime node, packet path hoặc OpenFlow control path.</span>
+        <span>Nguồn: {contract.source_of_truth.join(" · ")}</span>
+      </div>
+    </section>
+  );
+}
+
 export default function TopologyCanvas(props: Props) {
   const sectionRef = useRef<HTMLElement>(null);
   const labels = useMemo(() => labelMap(props.topology), [props.topology]);
@@ -297,6 +396,7 @@ export default function TopologyCanvas(props: Props) {
           <span><i className="mpls" />MPLS transport</span>
         </div>
       )}
+      {props.topology && <TopologyDesignContract topology={props.topology} />}
       <div className="topology-explanation">
         <p><strong>Luồng liên chi nhánh:</strong> User → Access/Distribution → CE → MPLS L3VPN Logic Cloud → CE → Distribution/Access → User. Luồng này không đi qua firewall.</p>
         <p><strong>Luồng Internet:</strong> User → Firewall nftables tại site → Internet/Service. Firewall chỉ xử lý local Internet breakout, không nằm trên data path MPLS.</p>

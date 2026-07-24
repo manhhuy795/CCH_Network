@@ -147,6 +147,23 @@ pre { background: #111827; border-radius: 7px; color: #dce6f2; font-size: 11px; 
 .legend i.data { background: #aebdcc; }.legend i.allow { background: #0d9b68; }
 .legend i.deny { background: #dc2626; }.legend i.control { background: #8b5cf6; }
 .legend i.mpls { background: #7765a8; }
+.topology-contract { border-top: 1px solid var(--border); display: grid; gap: 10px; padding: 12px; }
+.topology-contract-heading { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; }
+.topology-contract-heading h3 { color: var(--text); font-size: 14px; margin: 0; }
+.topology-contract-heading p, .topology-contract-muted { color: var(--text-muted); font-size: 11px; line-height: 1.45; margin: 3px 0 0; }
+.topology-contract-heading .status-badge { flex: 0 0 auto; }
+.topology-contract-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.topology-contract-card { background: #fbfcfe; border: 1px solid #dfe6ed; border-radius: 6px; min-width: 0; padding: 10px; }
+.topology-contract-card h4 { color: #26364a; font-size: 12px; margin: 0; overflow-wrap: anywhere; }
+.topology-contract-list { display: grid; gap: 7px; margin-top: 8px; }
+.topology-contract-row { align-items: flex-start; display: flex; gap: 7px; min-width: 0; }
+.topology-contract-row > div { display: grid; gap: 2px; min-width: 0; }
+.topology-contract-row strong { color: var(--text); font-size: 11px; overflow-wrap: anywhere; }
+.topology-contract-row small { color: var(--text-muted); font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; }
+.circuit-dot { border-radius: 50%; flex: 0 0 auto; height: 8px; margin-top: 3px; width: 8px; }
+.circuit-dot.blue { background: #2563eb; }.circuit-dot.purple { background: #7c3aed; }
+.topology-contract-footer { align-items: center; border-top: 1px solid #e7edf2; color: var(--text-muted); display: flex; flex-wrap: wrap; font-size: 10px; gap: 8px; padding-top: 9px; }
+.topology-contract-footer .status-badge { font-size: 10px; }
 .link-controls { display: flex; gap: 6px; }
 .link-controls select { max-width: 220px; }
 .runtime-hint { color: #68788a; font-size: 12px; }
@@ -387,6 +404,7 @@ th { background: #f7f9fb; color: #536477; position: sticky; top: 0; }
   .firewall-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 820px) {
+  .topology-contract-grid { grid-template-columns: 1fr; }
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 1fr; }
   .app-sidebar { min-height: auto; position: static; }.app-sidebar nav { grid-template-columns: repeat(3, 1fr); }
   .app-header { grid-template-columns: 1fr; position: static; }.header-status, .header-tools { flex-wrap: wrap; }
