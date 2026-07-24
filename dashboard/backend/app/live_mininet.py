@@ -9,12 +9,14 @@ import threading
 import time
 import uuid
 import hashlib
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from . import repo  # Đảm bảo repository root có trong sys.path.
 from . import mininet_control
+from scripts.common import load_vars
 from scripts.network_model import architecture_links, controlled_switches, load_network_model, runtime_switch_map, runtime_switch_name
 from sdn_mpls_demo.firewall_nftables import FIREWALL_NAMES, build_firewall_plans
 from sdn_mpls_demo.policy_engine import GROUP_PATHS, POLICY_FLOW_PROFILES, PolicyEngine
@@ -24,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 POLICY_FILE = REPO_ROOT / "sdn_mpls_demo" / "policy.yml"
 RUNTIME_FLOWS_FILE = REPO_ROOT / "sdn_mpls_demo" / "runtime" / "installed_flows.json"
 NETWORK_MODEL = load_network_model()
+SOURCE_TRUTH = load_vars()
 ENGINE = PolicyEngine(POLICY_FILE)
 CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
 MANUAL_BLOCK_COOKIE_BASE = 0x9000
@@ -160,6 +163,8 @@ def firewall_inventory() -> list[dict[str, Any]]:
         inventory.append({
             "name": firewall_name,
             "logical_name": firewall_name,
+            "runtime_node": firewall_name,
+            "representation": "runtime",
             "site": dashboard_site_id(plan.get("site")),
             "inside_interface": plan.get("inside_interface"),
             "outside_interface": plan.get("outside_interface"),
@@ -190,6 +195,120 @@ def now_iso() -> str:
 
 def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
+
+
+def _design_node(
+    node_id: str,
+    node_type: str,
+    label: str,
+    *,
+    runtime_node: str | None = None,
+    runtime_state: str = "design_only",
+    site: str = "logical",
+    role: str | None = None,
+) -> dict[str, Any]:
+    """Create an explicit design-only object without adding it to runtime nodes."""
+    return {
+        "id": node_id,
+        "logical_name": node_id,
+        "label": label,
+        "type": node_type,
+        "role": role or node_type,
+        "site": dashboard_site_id(site),
+        "runtime_node": runtime_node,
+        "runtime_state": runtime_state,
+        "representation": "design_only",
+        "controller_managed": False,
+        "status": "design_only",
+        "status_source": "source_of_truth",
+        "runtime_bridge": None,
+    }
+
+
+def topology_design_payload() -> dict[str, Any]:
+    """Expose the diagram's enterprise design layer separately from live Mininet."""
+    edge = deepcopy(NETWORK_MODEL.get("edge_design", {}))
+    provider = edge.get("provider_domain", {})
+    circuits = provider.get("circuits", {})
+    handoffs = deepcopy(SOURCE_TRUTH.get("provider_handoff_paths", {}))
+    firewall_design = deepcopy(edge.get("firewalls", {}))
+    firewall_policy = SOURCE_TRUTH.get("firewall_policy", {}).get("sites", {})
+    server_zone = deepcopy(NETWORK_MODEL.get("server_zone_design", {}))
+    design_nodes: list[dict[str, Any]] = []
+
+    for circuit_name, circuit in circuits.items():
+        design_nodes.append(_design_node(
+            str(circuit.get("id")),
+            "provider_circuit",
+            str(circuit.get("label", circuit_name)),
+            runtime_state="design_only",
+            site="wan",
+            role=circuit_name,
+        ))
+    for circuit_name, handoff in handoffs.items():
+        design_nodes.append(_design_node(
+            str(handoff.get("handoff_id")),
+            "wan_handoff",
+            str(handoff.get("label", circuit_name)),
+            runtime_state="design_only",
+            site="wan",
+            role=circuit_name,
+        ))
+
+    for site_name, firewall in firewall_design.items():
+        members = []
+        for member_key in ("primary_member", "backup_member"):
+            member = firewall.get(member_key)
+            if member:
+                members.append(str(member))
+                design_nodes.append(_design_node(
+                    str(member),
+                    "firewall_peer",
+                    str(member),
+                    runtime_node=str(firewall.get("runtime_node")),
+                    runtime_state="design_only",
+                    site=site_name,
+                    role=member_key.removesuffix("_member"),
+                ))
+        policy = firewall_policy.get(site_name, {})
+        firewall["runtime_state"] = "runtime_namespace"
+        firewall["representation"] = "design_metadata"
+        firewall["policy_site"] = site_name
+        firewall["outside_circuits"] = list(firewall.get("outside_circuits", []))
+        firewall["design_members"] = members or None
+        firewall["runtime_interfaces"] = deepcopy(policy.get("runtime_interfaces", {}))
+
+    for component_name, component in server_zone.get("components", {}).items():
+        runtime_node = component.get("runtime_node")
+        design_nodes.append(_design_node(
+            component_name,
+            "server_zone_component",
+            component_name.replace("_", " ").title(),
+            runtime_node=str(runtime_node) if runtime_node is not None else None,
+            runtime_state=str(component.get("runtime_state", "design_only")),
+            site="hq",
+            role=str(component.get("design_role") or component.get("runtime_kind") or "server_zone"),
+        ))
+
+    return {
+        "source_of_truth": [
+            "vars/network_model.yml",
+            "vars/routing.yml",
+            "vars/firewall_policies.yml",
+        ],
+        "runtime_authority": "Mininet Control Agent and live OVS/nftables evidence",
+        "design_only_is_runtime": False,
+        "provider_domain": {
+            "label": provider.get("label"),
+            "handoff_layer": provider.get("handoff_layer"),
+            "mode": provider.get("mode"),
+            "circuits": circuits,
+        },
+        "provider_handoff_paths": handoffs,
+        "firewall_redundancy": firewall_design,
+        "server_zone": server_zone,
+        "design_nodes": design_nodes,
+    }
 
 
 
@@ -236,6 +355,8 @@ def topology_payload() -> dict[str, Any]:
             "dpid": source.get("dpid"),
             "runtime_bridge": runtime_switch_name(NETWORK_MODEL, node_id) if switch else None,
             "controller_managed": is_controlled,
+            "representation": "runtime",
+            "runtime_state": "unknown",
             "status": "unknown",
             "status_source": "live_mininet",
         }
@@ -300,6 +421,7 @@ def topology_payload() -> dict[str, Any]:
         for site_id in ("hq", "telesale")
     ]
     firewalls = firewall_inventory()
+    design_contract = topology_design_payload()
     return {
         "nodes": nodes,
         "groups": groups,
@@ -313,6 +435,8 @@ def topology_payload() -> dict[str, Any]:
         "runtime_bridge_map": dict(RUNTIME_BRIDGE_MAP),
         "ce_nodes": [device for device in devices if device["type"] == "router"],
         "firewalls": firewalls,
+        "topology_contract": design_contract,
+        "design_nodes": deepcopy(design_contract["design_nodes"]),
         "mpls": {
             "primary": {"id": "mpls_primary", "status": "active", "metric": 10, "path_between": ["ce_hq", "mpls_primary", "ce_telesale"]},
             "backup": {"id": "mpls_backup", "status": "standby", "metric": 100, "path_between": ["ce_hq", "mpls_backup", "ce_telesale"]},
