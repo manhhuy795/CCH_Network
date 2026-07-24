@@ -50,14 +50,14 @@ describe("TestPanel", () => {
       decision: {
         action: "allow",
         reason: "Voice được cho phép",
-        path: ["project_a", "access_hq_a", "core_hq", "voice_access", "h90"],
+        path: ["project_a", "access_floor1", "dist_hq_1", "core_hq", "infra_access", "h90"],
         enforcement_switch: "core_hq",
       },
     };
     render(<TestPanel {...baseProps({ result })} />);
     expect(screen.getByText("Ping thành công")).toBeInTheDocument();
     expect(screen.getByText("12.4 ms")).toBeInTheDocument();
-    expect(screen.getByText(/project_a → access_hq_a → core_hq/)).toBeInTheDocument();
+    expect(screen.getByText(/project_a → access_floor1 → dist_hq_1 → core_hq/)).toBeInTheDocument();
     expect(screen.getByText("core_hq")).toBeInTheDocument();
   });
 

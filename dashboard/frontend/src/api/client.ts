@@ -55,7 +55,8 @@ export type Topology = {
     user_count: number;
     service_count: number;
     endpoint_count?: number;
-    iot_ups_count?: number;
+    iot_hq_count?: number;
+    iot_branch_count?: number;
     guest_count?: number;
     infrastructure_service_count?: number;
     controlled_ovs_count: number;

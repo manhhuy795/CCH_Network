@@ -86,7 +86,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
       </div>
       <div className="explanation">
         <h3>Ranh giới thực thi</h3>
-        <p>Segmentation SDN thực thi tại core_hq và dist_telesale. Internet Edge Boundary thực thi policy Internet bằng stateful nftables tại fw_hq hoặc fw_telesale; firewall không phải OpenFlow device.</p>
+        <p>Segmentation SDN thực thi tại core_hq, dist_hq_1/dist_hq_2 và dist_branch theo policy. Internet Edge Boundary thực thi policy Internet bằng stateful nftables tại fw_hq hoặc fw_telesale; firewall không phải OpenFlow device.</p>
         <p>Ghi policy.yml chỉ là thay đổi cấu hình. Trạng thái Applied chỉ xuất hiện sau khi OS-Ken và nftables liên quan reload, xác nhận thành công.</p>
       </div>
       <ConfirmDialog

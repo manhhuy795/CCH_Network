@@ -33,7 +33,7 @@ test("5. Ping ALLOW", async ({ page }) => {
   await page.getByRole("button", { name: "Kiểm tra kết nối" }).first().click();
   await page.getByRole("button", { name: /Chạy Ping/ }).click();
   await expect(page.locator(".test-result .result-heading strong")).toContainText("PING THÀNH CÔNG");
-  await expect(page.getByText(/project_b → access_hq_b → core_hq/)).toBeVisible();
+  await expect(page.getByText(/project_b → access_floor1 → dist_hq_1 → core_hq/)).toBeVisible();
 });
 
 test("6. Ping DENY", async ({ page }) => {
@@ -106,7 +106,7 @@ test("12. policy applying, applied và failed", async ({ page }) => {
 test("13. link fail và recover", async ({ page }) => {
   await openAuthenticated(page);
   await page.getByRole("button", { name: "Topology", exact: true }).click();
-  await page.getByLabel("Link project_a đến access_hq_a").click();
+  await page.getByLabel("Link project_a đến access_floor1").click();
   await page.getByRole("button", { name: "Fail link" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Fail link" }).click();
   await expect(page.getByText("Thành công")).toBeVisible();

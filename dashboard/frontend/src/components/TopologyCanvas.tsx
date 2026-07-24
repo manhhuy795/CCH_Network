@@ -6,33 +6,32 @@ import Drawer from "./ui/Drawer";
 import StatusBadge from "./ui/StatusBadge";
 
 const positions: Record<string, [number, number]> = {
-  project_a: [90, 135], project_b: [90, 215], project_c: [90, 295], it_support: [90, 375], backoffice: [90, 455], h90: [90, 535],
-  access_hq_a: [270, 135], access_hq_b: [270, 215], access_hq_c: [270, 295], access_hq_it: [270, 375], access_backoffice: [270, 455], voice_access: [270, 535],
-  iot_ups: [90, 595], guest: [270, 595], access_iot: [410, 595], access_guest: [550, 595],
-  infra_access: [470, 245], hdhcp: [650, 125], hdns: [650, 185], hntp: [650, 245], hmonitor: [650, 305],
-  core_hq: [470, 335], fw_hq: [665, 455], ce_hq: [790, 300],
-  c0: [775, 55], mpls_cloud: [900, 475],
-  telesale: [90, 690], access_telesale: [270, 690], dist_telesale: [470, 690],
-  fw_telesale: [665, 745], ce_telesale: [790, 650],
-  internet_zone: [1085, 620],
-  hzalo: [1260, 165], hcall: [1260, 315], hsocial: [1260, 555], hinternet: [1260, 725],
+  project_a: [90, 135], project_b: [90, 215], iot_hq: [90, 295], guest: [90, 375],
+  project_c: [90, 475], backoffice: [90, 555], it_support: [90, 635], iot_branch: [90, 755], telesale: [90, 835],
+  access_floor1: [290, 250], access_floor2: [290, 560], access_branch: [290, 800],
+  dist_hq_1: [490, 250], dist_hq_2: [490, 560], dist_branch: [490, 800],
+  core_hq: [690, 405], infra_access: [690, 175], h90: [875, 125],
+  hdhcp: [875, 185], hdns: [875, 245], hntp: [875, 305], hmonitor: [875, 365], hnvr: [875, 425],
+  hrecording: [875, 485], hdialer: [875, 545], hbackup: [875, 605], had: [875, 665],
+  fw_hq: [850, 760], ce_hq: [1020, 340], ce_telesale: [1020, 800],
+  c0: [720, 50], mpls_primary: [1160, 340], mpls_backup: [1160, 470],
+  fw_telesale: [700, 835], internet_zone: [1270, 650],
+  hzalo: [1420, 135], hcall: [1420, 285], hsocial: [1420, 435], hinternet: [1420, 585],
 };
 
 const routedLinks: Record<string, [number, number][]> = {
-  "core_hq-fw_hq": [[470, 335], [565, 335], [565, 455], [665, 455]],
-  "fw_hq-internet_zone": [[665, 455], [1010, 455], [1010, 620], [1085, 620]],
-  "dist_telesale-fw_telesale": [[470, 690], [565, 690], [565, 745], [665, 745]],
-  "fw_telesale-internet_zone": [[665, 745], [930, 745], [930, 620], [1085, 620]],
+  "core_hq-fw_hq": [[690, 405], [770, 405], [770, 760], [850, 760]],
+  "fw_hq-internet_zone": [[850, 760], [1060, 760], [1060, 650], [1270, 650]],
+  "dist_branch-fw_telesale": [[490, 800], [610, 800], [610, 835], [700, 835]],
+  "fw_telesale-internet_zone": [[700, 835], [1080, 835], [1080, 650], [1270, 650]],
 };
 
 const regions: Record<string, string> = {
-  project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", h90: "hq",
-  access_hq_a: "hq", access_hq_b: "hq", access_hq_c: "hq", access_hq_it: "hq", voice_access: "hq",
-  backoffice: "hq", access_backoffice: "hq", iot_ups: "hq", guest: "hq", access_iot: "hq", access_guest: "hq",
-  infra_access: "hq", hdhcp: "hq", hdns: "hq", hntp: "hq", hmonitor: "hq",
-  core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
-  mpls_cloud: "wan",
-  telesale: "telesale", access_telesale: "telesale", dist_telesale: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
+  project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", backoffice: "hq", iot_hq: "hq", guest: "hq", h90: "hq",
+  access_floor1: "hq", access_floor2: "hq", dist_hq_1: "hq", dist_hq_2: "hq", infra_access: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
+  hdhcp: "hq", hdns: "hq", hntp: "hq", hmonitor: "hq", hnvr: "hq", hrecording: "hq", hdialer: "hq", hbackup: "hq", had: "hq",
+  iot_branch: "telesale", telesale: "telesale", access_branch: "telesale", dist_branch: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
+  mpls_primary: "wan", mpls_backup: "wan",
   internet_zone: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
 };
 
@@ -202,11 +201,11 @@ export default function TopologyCanvas(props: Props) {
         </div>
       </div>
       <div className="topology-scroll">
-        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
-          <rect className="zone" x="20" y="85" width="780" height="540" /><text className="zone-label" x="35" y="107">HQ</text>
-          <rect className="zone" x="20" y="645" width="780" height="150" /><text className="zone-label" x="35" y="667">TELESALE</text>
-          <rect className="zone" x="815" y="185" width="220" height="610" /><text className="zone-label" x="830" y="207">MPLS L3VPN LOGIC</text>
-          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">INTERNET / SERVICES</text>
+        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1510 900" aria-label="Sơ đồ mạng ba lớp Call Center BPO">
+          <rect className="zone" x="20" y="85" width="820" height="700" /><text className="zone-label" x="35" y="107">HQ · CORE / DISTRIBUTION / ACCESS</text>
+          <rect className="zone" x="20" y="785" width="820" height="100" /><text className="zone-label" x="35" y="807">BRANCH TELESALE · ACCESS / DISTRIBUTION</text>
+          <rect className="zone" x="1030" y="85" width="180" height="500" /><text className="zone-label" x="1045" y="107">WAN MPLS</text>
+          <rect className="zone" x="1230" y="85" width="260" height="720" /><text className="zone-label" x="1245" y="107">INTERNET / SERVICES</text>
 
           {mode === "technical" && controlledNodes.map((node) => {
             const target = positions[String(node.id)];
