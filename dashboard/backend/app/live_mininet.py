@@ -211,6 +211,9 @@ def topology_payload() -> dict[str, Any]:
             "count": int(group["count"]),
             "subnet": group["subnet"],
             "switch": group["switch"],
+            "floor": group.get("floor"),
+            "placements": group.get("placements", []),
+            "addressing": group.get("addressing", "static"),
             "hosts": group_hosts,
         }
         nodes.append(item)
@@ -311,15 +314,16 @@ def topology_payload() -> dict[str, Any]:
         "ce_nodes": [device for device in devices if device["type"] == "router"],
         "firewalls": firewalls,
         "mpls": {
-            "id": "mpls_cloud",
-            "status": "logical_only",
+            "primary": {"id": "mpls_primary", "status": "active", "metric": 10, "path_between": ["ce_hq", "mpls_primary", "ce_telesale"]},
+            "backup": {"id": "mpls_backup", "status": "standby", "metric": 100, "path_between": ["ce_hq", "mpls_backup", "ce_telesale"]},
+            "failover_policy": "Primary DOWN -> Backup active; Primary RECOVER -> failback; both DOWN -> intersite unavailable.",
             "controller_managed": False,
-            "path_between": ["ce_hq", "mpls_cloud", "ce_telesale"],
         },
         "enterprise_zones": {
-            "iot_ups": {"vlan": 110, "subnet": "172.16.110.0/24", "endpoint_count": 5, "addressing": "dhcp"},
-            "guest": {"vlan": 80, "subnet": "172.16.80.0/24", "endpoint_count": 4, "addressing": "dhcp"},
-            "infrastructure_services": {"vlan": 100, "subnet": "172.16.100.0/24", "service_count": 4},
+            "iot_hq": {"vlan": 110, "subnet": "172.16.110.0/24", "endpoint_count": 5, "addressing": "reservation", "site": "hq"},
+            "iot_branch": {"vlan": 111, "subnet": "172.16.111.0/24", "endpoint_count": 2, "addressing": "reservation", "site": "branch_telesale"},
+            "guest": {"vlan": 120, "subnet": "172.16.120.0/24", "endpoint_count": 2, "addressing": "dhcp", "site": "hq", "internal_access": "deny"},
+            "infrastructure_services": {"vlan": 100, "subnet": "172.16.100.0/24", "service_count": len(ENGINE.infrastructure_services), "dhcp_relay": ["core_hq", "dist_branch"]},
         },
         "internet_zone": {"id": "internet_zone", "status": "logical_only", "controller_managed": False},
         "phase44_runtime": phase44_runtime_status(),
@@ -331,7 +335,8 @@ def topology_payload() -> dict[str, Any]:
                 if group.get("host_kind", "user") == "user"
             ),
             "service_count": len(ENGINE.services),
-            "iot_ups_count": sum(1 for host in hosts if host.get("kind") == "iot"),
+            "iot_hq_count": sum(1 for host in hosts if host.get("kind") == "iot" and host.get("group") == "iot_hq"),
+            "iot_branch_count": sum(1 for host in hosts if host.get("kind") == "iot" and host.get("group") == "iot_branch"),
             "guest_count": sum(1 for host in hosts if host.get("kind") == "guest"),
             "infrastructure_service_count": len(ENGINE.infrastructure_services),
             "endpoint_count": len(hosts),
