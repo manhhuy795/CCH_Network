@@ -35,6 +35,148 @@ EXPECTED_CE_NODES = {"ce_hq", "ce_telesale"}
 EXPECTED_FIREWALL_NODES = {"fw_hq", "fw_telesale"}
 EXPECTED_WAN_NODES = {"mpls_primary", "mpls_backup"}
 FORBIDDEN_TOPOLOGY_NODES = {"access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "access_backoffice", "access_iot", "access_guest", "access_branch_old", "dist_branch_old", "ce_branch", "fw_branch", "branch_backoffice", "dist_backoffice", "ce_backoffice", "fw_backoffice"}
+EXPECTED_PROVIDER_CIRCUITS = {
+    "primary": {"id": "isp_circuit_a", "state": "active", "color": "blue"},
+    "backup": {"id": "isp_circuit_b", "state": "standby", "color": "purple"},
+}
+EXPECTED_EDGE_FIREWALLS = {
+    "hq": {"runtime_node": "fw_hq", "design_role": "ha_pair", "inside_node": "core_hq"},
+    "branch_telesale": {"runtime_node": "fw_telesale", "design_role": "single_firewall_simulation", "inside_node": "dist_branch"},
+}
+EXPECTED_SERVER_ZONE_COMPONENTS = {
+    "sdn_controller": {"runtime_node": "c0"},
+    "dhcp_server": {"runtime_node": "hdhcp"},
+    "sbc_voice_edge": {"runtime_node": "h90", "design_role": "dmz_sbc", "runtime_state": "collapsed_voice_placeholder"},
+    "pbx_voice_inside": {"runtime_node": "h90", "design_role": "inside_pbx", "runtime_state": "collapsed_voice_placeholder"},
+    "monitoring_nms": {"runtime_node": "hmonitor"},
+    "database_server": {"runtime_node": None, "runtime_state": "design_only_not_simulated"},
+    "it_jump_host_aaa": {"runtime_node": "had", "design_role": "privileged_management"},
+}
+ALLOWED_LINK_TYPES = {"data", "routed", "mpls", "control"}
+
+
+def _model_records(model: dict[str, Any]):
+    for category in ("host_groups", "services", "infrastructure_services", "switches", "infrastructure"):
+        for name, item in model.get(category, {}).items():
+            yield category, str(name), item
+
+
+def _validate_model_identity_fields(model: dict[str, Any], hosts: dict[str, dict[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    logical_names: list[str] = []
+    runtime_names: list[str] = []
+    dpids: list[str] = []
+    for category, name, item in _model_records(model):
+        logical_names.append(str(item.get("logical_name", name)))
+        runtime_name = item.get("runtime_name")
+        if runtime_name:
+            runtime_names.append(str(runtime_name))
+        if category == "switches" and item.get("dpid"):
+            dpids.append(str(item["dpid"]).lower())
+    runtime_names.extend(runtime_switch_name(model, name) for name in controlled_switches(model))
+    if len(logical_names) != len(set(logical_names)):
+        errors.append("Duplicate logical names found")
+    if len(runtime_names) != len(set(runtime_names)):
+        errors.append("Duplicate runtime names found")
+    if len(dpids) != len(set(dpids)):
+        errors.append("Duplicate DPIDs found across model switches")
+
+    vlan_entries = [(name, int(item["vlan"])) for name, item in model.get("host_groups", {}).items() if item.get("vlan") is not None]
+    vlan_values = [value for _, value in vlan_entries]
+    if len(vlan_values) != len(set(vlan_values)):
+        errors.append("Duplicate host-group VLANs found")
+
+    declared_networks: list[tuple[str, str, ipaddress.IPv4Network]] = []
+    for category in ("host_groups", "services", "infrastructure_services"):
+        for name, item in model.get(category, {}).items():
+            if not item.get("subnet"):
+                continue
+            try:
+                declared_networks.append((category, str(name), ipaddress.ip_network(str(item["subnet"]), strict=False)))
+            except ValueError as exc:
+                errors.append(f"{category} {name} has invalid subnet: {exc}")
+    for index, (left_category, left_name, left) in enumerate(declared_networks):
+        for right_category, right_name, right in declared_networks[index + 1:]:
+            if not left.overlaps(right):
+                continue
+            if left_category == right_category == "infrastructure_services" and left == right:
+                continue
+            errors.append(f"Declared subnet overlap: {left_name} and {right_name}")
+    if len(hosts) != len({host["name"] for host in hosts.values()}):
+        errors.append("Duplicate runtime endpoint names found")
+    return errors
+
+
+def _validate_edge_design(model: dict[str, Any], node_ids: set[str]) -> list[str]:
+    errors: list[str] = []
+    edge_design = model.get("edge_design", {})
+    provider = edge_design.get("provider_domain", {})
+    circuits = provider.get("circuits", {})
+    if provider.get("mode") != "logical_provider_demarcation":
+        errors.append("edge_design.provider_domain must be logical_provider_demarcation")
+    if set(circuits) != set(EXPECTED_PROVIDER_CIRCUITS):
+        errors.append(f"Provider circuits must be {sorted(EXPECTED_PROVIDER_CIRCUITS)}")
+    circuit_ids: list[str] = []
+    for name, expected in EXPECTED_PROVIDER_CIRCUITS.items():
+        item = circuits.get(name, {})
+        for key, value in expected.items():
+            if item.get(key) != value:
+                errors.append(f"Provider circuit {name} {key} must be {value!r}")
+        if set(item.get("sites", [])) != set(EXPECTED_PHYSICAL_SITES):
+            errors.append(f"Provider circuit {name} must serve HQ and Branch Telesale")
+        if item.get("representation") != "design_only" or item.get("runtime_node") is not None or item.get("runtime_state") != "design_only" or item.get("controller_managed") is not False:
+            errors.append(f"Provider circuit {name} must be explicitly design-only")
+        circuit_ids.append(str(item.get("id", "")))
+    if len(circuit_ids) != len(set(circuit_ids)):
+        errors.append("Provider circuit IDs must be unique")
+
+    firewalls = edge_design.get("firewalls", {})
+    if set(firewalls) != set(EXPECTED_EDGE_FIREWALLS):
+        errors.append(f"Edge firewall design must cover {sorted(EXPECTED_EDGE_FIREWALLS)}")
+    design_only_ids = set(circuit_ids)
+    for site, expected in EXPECTED_EDGE_FIREWALLS.items():
+        item = firewalls.get(site, {})
+        for key, value in expected.items():
+            if item.get(key) != value:
+                errors.append(f"Edge firewall {site} {key} must be {value!r}")
+        if item.get("outside_circuits") != ["primary", "backup"]:
+            errors.append(f"Edge firewall {site} must reference primary and backup circuits")
+        runtime_node = str(item.get("runtime_node", ""))
+        if runtime_node not in EXPECTED_FIREWALL_NODES or runtime_node not in node_ids:
+            errors.append(f"Edge firewall {site} must reference an active firewall runtime node")
+        for key in ("primary_member", "backup_member"):
+            member = item.get(key)
+            if member:
+                design_only_ids.add(str(member))
+        if item.get("representation") != "design_metadata" or item.get("controller_managed") is not False:
+            errors.append(f"Edge firewall {site} must be design metadata, not an OpenFlow node")
+    if design_only_ids & node_ids:
+        errors.append(f"Design-only edge IDs must not become topology nodes: {sorted(design_only_ids & node_ids)}")
+    return errors
+
+
+def _validate_server_zone_design(model: dict[str, Any], node_ids: set[str]) -> list[str]:
+    errors: list[str] = []
+    design = model.get("server_zone_design", {})
+    if design.get("runtime_switch") != "infra_access":
+        errors.append("server_zone_design must use infra_access as its runtime switch")
+    components = design.get("components", {})
+    if set(components) != set(EXPECTED_SERVER_ZONE_COMPONENTS):
+        errors.append(f"Server zone design components must be {sorted(EXPECTED_SERVER_ZONE_COMPONENTS)}")
+    for name, expected in EXPECTED_SERVER_ZONE_COMPONENTS.items():
+        item = components.get(name, {})
+        for key, value in expected.items():
+            if item.get(key) != value:
+                errors.append(f"Server zone component {name} {key} must be {value!r}")
+        runtime_node = item.get("runtime_node")
+        if runtime_node is not None and runtime_node not in node_ids:
+            errors.append(f"Server zone component {name} references missing runtime node {runtime_node}")
+        expected_representation = "design_only" if runtime_node is None else "design_metadata"
+        if item.get("representation") != expected_representation or item.get("controller_managed") is not False:
+            errors.append(f"Server zone component {name} has invalid runtime/design-only annotation")
+    if components.get("sbc_voice_edge", {}).get("runtime_node") != components.get("pbx_voice_inside", {}).get("runtime_node"):
+        errors.append("SBC and PBX runtime placeholders must be explicitly mapped to the same h90 service")
+    return errors
 
 
 def load_network_model(path: Path | None = None) -> dict[str, Any]:
@@ -93,6 +235,7 @@ def _all_node_categories(model: dict[str, Any]) -> dict[str, set[str]]:
 def validate_network_model(model: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     hosts = build_host_inventory(model)
+    errors.extend(_validate_model_identity_fields(model, hosts))
     users = [host for host in hosts.values() if host["kind"] == "user"]
     services = [host for host in hosts.values() if host["kind"] == "service"]
     if len(users) != 110:
@@ -163,6 +306,8 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
     if duplicate_nodes:
         errors.append(f"Duplicate topology node IDs across categories: {duplicate_nodes}")
     node_ids = set().union(*categories.values())
+    errors.extend(_validate_edge_design(model, node_ids))
+    errors.extend(_validate_server_zone_design(model, node_ids))
     forbidden = sorted(node_ids & FORBIDDEN_TOPOLOGY_NODES)
     if forbidden:
         errors.append(f"Legacy or retired topology nodes are forbidden: {forbidden}")
@@ -182,9 +327,11 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         if len(link) != 3:
             errors.append(f"Topology link #{index} must be [source, target, type]")
             continue
-        source, target, _kind = link
+        source, target, kind = link
         if source not in node_ids or target not in node_ids:
             errors.append(f"Topology link #{index} references missing endpoint")
+        if kind not in ALLOWED_LINK_TYPES:
+            errors.append(f"Topology link #{index} has invalid type {kind!r}")
         edge = frozenset((source, target))
         if edge in edges:
             errors.append(f"Duplicate topology link between {source} and {target}")

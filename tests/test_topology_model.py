@@ -80,6 +80,48 @@ def test_firewall_and_mpls_nodes_are_not_openflow_devices():
     assert model["infrastructure"]["fw_telesale"]["label"] == "Firewall Branch Internet Edge"
 
 
+def test_new_diagram_edge_design_is_logical_and_maps_both_provider_circuits():
+    model = load_network_model(MODEL_PATH)
+    edge = model["edge_design"]
+    assert edge["provider_domain"]["mode"] == "logical_provider_demarcation"
+    assert edge["provider_domain"]["circuits"]["primary"]["id"] == "isp_circuit_a"
+    assert edge["provider_domain"]["circuits"]["backup"]["id"] == "isp_circuit_b"
+    assert edge["firewalls"]["hq"]["design_role"] == "ha_pair"
+    assert edge["firewalls"]["hq"]["outside_circuits"] == ["primary", "backup"]
+    assert edge["firewalls"]["branch_telesale"]["runtime_node"] == "fw_telesale"
+    assert validate_network_model(model) == []
+
+
+def test_server_zone_design_does_not_fake_sbc_pbx_or_database_runtime_nodes():
+    model = load_network_model(MODEL_PATH)
+    components = model["server_zone_design"]["components"]
+    assert components["sbc_voice_edge"]["runtime_node"] == "h90"
+    assert components["pbx_voice_inside"]["runtime_node"] == "h90"
+    assert components["database_server"]["runtime_node"] is None
+    assert validate_network_model(model) == []
+
+
+def test_design_only_source_truth_annotations_are_explicit():
+    model = load_network_model(MODEL_PATH)
+    circuits = model["edge_design"]["provider_domain"]["circuits"]
+    assert all(item["representation"] == "design_only" for item in circuits.values())
+    assert all(item["runtime_node"] is None for item in circuits.values())
+    assert all(item["controller_managed"] is False for item in circuits.values())
+    components = model["server_zone_design"]["components"]
+    assert components["database_server"]["representation"] == "design_only"
+    assert components["database_server"]["runtime_node"] is None
+    assert all(item["representation"] == "design_metadata" for name, item in components.items() if name != "database_server")
+
+
+def test_network_model_validation_rejects_design_only_runtime_node_and_invalid_link_type():
+    model = load_network_model(MODEL_PATH)
+    model["edge_design"]["provider_domain"]["circuits"]["primary"]["runtime_node"] = "core_hq"
+    model["links"].append(["core_hq", "ce_hq", "unknown"])
+    errors = validate_network_model(model)
+    assert any("Provider circuit primary must be explicitly design-only" in error for error in errors)
+    assert any("invalid type 'unknown'" in error for error in errors)
+
+
 def test_controller_is_real_openflow_13_and_drops_are_at_core_or_branch_distribution():
     controller = CONTROLLER_PATH.read_text(encoding="utf-8")
     engine = PolicyEngine(POLICY_PATH)

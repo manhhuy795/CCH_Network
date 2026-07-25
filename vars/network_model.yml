@@ -1,11 +1,11 @@
 metadata:
   name: "Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy for Call Center BPO"
-  description: "Mo hinh doanh nghiep ba lop: Core, Distribution, Access; HQ hai tang va chi nhanh Telesale."
+  description: "Mo hinh doanh nghiep ba lop: Core, Distribution, Access; HQ hai tang va chi nhanh Telesale, co WAN handoff Primary/Backup."
   architecture: "Core Layer / Distribution Layer / Access Layer"
   openflow_version: "1.3"
   controller: "127.0.0.1:6653"
   migration_note: "BackOffice da o HQ Floor 2. Cac ten access_hq_a/access_hq_b/access_hq_c/access_hq_it/voice_access/access_backoffice/access_iot/access_guest/branch_backoffice/dist_backoffice/ce_backoffice/fw_backoffice la ten legacy, khong phai active topology."
-  limitations: "core_hq la node runtime dai dien cho Core HQ Logical HA Pair; dist_hq_1 va dist_hq_2 la hai distribution runtime, khong fake HSRP/VRRP/MLAG. MPLS chi la logic transport simulation."
+  limitations: "core_hq la node runtime dai dien cho Core HQ Logical HA Pair; dist_hq_1 va dist_hq_2 la hai distribution runtime, khong fake HSRP/VRRP/MLAG. MPLS va WAN handoff chi la logic transport simulation."
 
 sites:
   hq:
@@ -232,6 +232,73 @@ infrastructure:
   fw_hq: {label: "Firewall HQ Internet Edge", subtitle: "Local breakout HQ", type: firewall, site: hq}
   fw_telesale: {label: "Firewall Branch Internet Edge", subtitle: "Local breakout Branch", type: firewall, site: branch_telesale}
   internet_zone: {label: "Internet / Service Zone", type: service_edge, site: internet}
+
+# Design-only edge objects are intentionally separate from topology nodes. They
+# describe the enterprise drawing without pretending that ISP handoffs or a
+# firewall HA peer are OpenFlow/Mininet runtime devices.
+edge_design:
+  provider_domain:
+    label: "ISP / Carrier Cloud"
+    handoff_layer: "WAN Handoff Layer"
+    mode: logical_provider_demarcation
+    circuits:
+      primary:
+        id: isp_circuit_a
+        label: "ISP Circuit A - Primary"
+        state: active
+        color: blue
+        sites: [hq, branch_telesale]
+        representation: design_only
+        runtime_node: null
+        runtime_state: design_only
+        controller_managed: false
+      backup:
+        id: isp_circuit_b
+        label: "ISP Circuit B - Backup"
+        state: standby
+        color: purple
+        sites: [hq, branch_telesale]
+        representation: design_only
+        runtime_node: null
+        runtime_state: design_only
+        controller_managed: false
+  firewalls:
+    hq:
+      runtime_node: fw_hq
+      design_role: ha_pair
+      primary_member: fw_hq_primary
+      backup_member: fw_hq_backup
+      inside_node: core_hq
+      outside_circuits: [primary, backup]
+      representation: design_metadata
+      controller_managed: false
+      runtime_note: "Mininet dung mot firewall namespace logic; HA peer chi la design representation."
+    branch_telesale:
+      runtime_node: fw_telesale
+      design_role: single_firewall_simulation
+      inside_node: dist_branch
+      outside_circuits: [primary, backup]
+      representation: design_metadata
+      controller_managed: false
+      runtime_note: "Mininet dung mot firewall namespace logic; production can HA pair."
+
+# The SVG separates the enterprise server zone into security roles. The
+# current runtime intentionally keeps a small service inventory, so these
+# mappings document what is represented and what still needs a later runtime
+# implementation instead of inventing hosts or VLANs.
+server_zone_design:
+  runtime_switch: infra_access
+  components:
+    sdn_controller: {runtime_node: c0, runtime_kind: controller, representation: design_metadata, controller_managed: false}
+    dhcp_server: {runtime_node: hdhcp, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
+    sbc_voice_edge: {runtime_node: h90, design_role: dmz_sbc, runtime_state: collapsed_voice_placeholder, representation: design_metadata, controller_managed: false}
+    pbx_voice_inside: {runtime_node: h90, design_role: inside_pbx, runtime_state: collapsed_voice_placeholder, representation: design_metadata, controller_managed: false}
+    monitoring_nms: {runtime_node: hmonitor, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
+    database_server: {runtime_node: null, runtime_state: design_only_not_simulated, representation: design_only, controller_managed: false}
+    it_jump_host_aaa: {runtime_node: had, design_role: privileged_management, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
+  notes:
+    voice: "Production should separate SBC DMZ and PBX inside with distinct security zones; h90 is one lab placeholder."
+    database: "Database placement is shown in the design but no database runtime host is created by Mininet."
 
 links:
   - [project_a, access_floor1, data]

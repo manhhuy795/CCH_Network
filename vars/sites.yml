@@ -1,7 +1,7 @@
 sites:
   hq:
     name: "HQ - Tru so chinh"
-    description: "Hai tang: Access Floor 1/2, Distribution, Core, Infrastructure Access"
+    description: "Hai tang: Access Floor 1/2, Distribution, Core, Infrastructure Access, Firewall HQ HA logical pair"
     kind: physical
     devices:
       - {name: hq-access-floor1, model_node: access_floor1, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.11, access_vlans: [20, 30, 110, 120]}
@@ -11,17 +11,17 @@ sites:
       - {name: hq-core-l3, model_node: core_hq, role: core_hq_logical_ha_pair, site: hq, platform: cisco_ios, template: cisco_ios/core_hq.j2, management_ip: 192.0.2.10, svi_vlans: [20, 30, 40, 50, 60, 70, 90, 100, 110, 111, 120]}
       - {name: hq-infra-access, model_node: infra_access, role: infrastructure_access, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.15, access_vlans: [90, 100]}
       - {name: hq-ce-router, model_node: ce_hq, role: ce_router, site: hq, platform: cisco_ios, template: cisco_ios/ce_router.j2, management_ip: 192.0.2.16}
-      - {name: hq-firewall, model_node: fw_hq, role: firewall, site: hq, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.17}
+      - {name: hq-firewall, model_node: fw_hq, role: firewall, site: hq, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.17, design_role: firewall_ha_logical_pair, redundancy: active_standby, design_members: [fw_hq_primary, fw_hq_backup], outside_circuits: [primary, backup]}
 
   branch_telesale:
     name: "Branch Telesale"
-    description: "Chi nhanh chi co Telesale va IoT Branch; khong co BackOffice"
+    description: "Chi nhanh chi co Telesale va IoT Branch; local Internet breakout qua Firewall Branch"
     kind: physical
     devices:
       - {name: br-access, model_node: access_branch, role: access_switch, site: branch_telesale, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.50, access_vlans: [50, 111]}
       - {name: br-dist-l3, model_node: dist_branch, role: distribution_branch, site: branch_telesale, platform: cisco_ios, template: cisco_ios/distribution_branch.j2, management_ip: 192.0.2.51, svi_vlans: [50, 111]}
       - {name: br-ce-router, model_node: ce_telesale, role: ce_router, site: branch_telesale, platform: cisco_ios, template: cisco_ios/ce_router.j2, management_ip: 192.0.2.52}
-      - {name: br-firewall, model_node: fw_telesale, role: firewall, site: branch_telesale, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.53}
+      - {name: br-firewall, model_node: fw_telesale, role: firewall, site: branch_telesale, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.53, redundancy: single_node_simulation, outside_circuits: [primary, backup]}
 
   wan:
     name: "MPLS Primary va Backup Logic Clouds"
@@ -30,7 +30,7 @@ sites:
     devices: []
   internet:
     name: "Internet va service simulators"
-    description: "Service zone khong phai OpenFlow device"
+    description: "ISP handoff va service zone logic; khong phai OpenFlow device"
     kind: logical
     devices: []
 

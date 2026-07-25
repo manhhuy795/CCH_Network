@@ -2,6 +2,37 @@ transit_addressing:
   prefix_length: 30
   rationale: "Dung /30 cho tung point-to-point link vi Mininet/L3 namespace de debug de; moi link co subnet rieng, khong tai su dung transit."
 
+# Enterprise WAN edge drawing. These are logical provider paths, not additional
+# Mininet links. The runtime model keeps one routed outside interface per
+# firewall namespace; the two circuits are validated as design intent here.
+provider_handoff_paths:
+  primary:
+    provider_id: isp_circuit_a
+    handoff_id: wan_handoff_primary
+    label: "Carrier A - HQ + Branch"
+    state: active
+    color: blue
+    representation: design_only
+    runtime_node: null
+    runtime_state: design_only
+    controller_managed: false
+    site_firewalls:
+      hq: {firewall: fw_hq, runtime_link: fw_hq_to_internet_zone}
+      branch_telesale: {firewall: fw_telesale, runtime_link: fw_telesale_to_internet_zone}
+  backup:
+    provider_id: isp_circuit_b
+    handoff_id: wan_handoff_backup
+    label: "Carrier B - HQ + Branch"
+    state: standby
+    color: purple
+    representation: design_only
+    runtime_node: null
+    runtime_state: design_only
+    controller_managed: false
+    site_firewalls:
+      hq: {firewall: fw_hq, runtime_link: fw_hq_to_internet_zone}
+      branch_telesale: {firewall: fw_telesale, runtime_link: fw_telesale_to_internet_zone}
+
 links:
   core_hq_to_ce_hq: {site: hq, role: routed, cidr: 10.10.255.0/30, endpoint_a: {node: core_hq, interface: core-ce, ip: 10.10.255.1}, endpoint_b: {node: ce_hq, interface: ce-core, ip: 10.10.255.2}}
   ce_hq_to_mpls_primary: {site: wan, role: mpls_transport_primary, cidr: 10.255.0.0/30, endpoint_a: {node: ce_hq, interface: ce-primary, ip: 10.255.0.1}, endpoint_b: {node: mpls_primary, interface: primary-hq, ip: 10.255.0.2}}

@@ -29,6 +29,10 @@ firewall_policy:
       site: hq
       inside_node: core_hq
       outside_node: internet_zone
+      design_redundancy: active_standby
+      design_members: [fw_hq_primary, fw_hq_backup]
+      outside_circuits: [primary, backup]
+      runtime_note: "One firewall namespace in Mininet; Primary/Backup are logical design members."
       inside_interface: inside
       outside_interface: outside
       runtime_interfaces: {inside: fw_hq-eth0, outside: fw_hq-eth1}
@@ -44,6 +48,9 @@ firewall_policy:
       site: branch_telesale
       inside_node: dist_branch
       outside_node: internet_zone
+      design_redundancy: single_firewall_simulation
+      outside_circuits: [primary, backup]
+      runtime_note: "One firewall namespace in Mininet; production should deploy an HA pair."
       inside_interface: inside
       outside_interface: outside
       runtime_interfaces: {inside: fw_tel-eth0, outside: fw_tel-eth1}

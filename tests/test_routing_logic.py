@@ -25,6 +25,15 @@ def test_two_physical_sites_have_independent_local_internet_breakout():
     assert "fw_backoffice" not in routes
 
 
+def test_provider_handoff_design_maps_primary_and_backup_to_both_site_firewalls():
+    handoffs = load_vars()["provider_handoff_paths"]
+    assert set(handoffs) == {"primary", "backup"}
+    assert handoffs["primary"]["provider_id"] == "isp_circuit_a"
+    assert handoffs["backup"]["provider_id"] == "isp_circuit_b"
+    assert handoffs["primary"]["site_firewalls"]["hq"]["firewall"] == "fw_hq"
+    assert handoffs["backup"]["site_firewalls"]["branch_telesale"]["firewall"] == "fw_telesale"
+
+
 def test_vlan60_is_local_to_hq_and_remote_from_telesale():
     routes = load_vars()["routes"]
     assert {route["prefix"] for route in routes["ce_hq"]["internal_routes"]} == {"172.16.0.0/16"}

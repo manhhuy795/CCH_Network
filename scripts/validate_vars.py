@@ -38,6 +38,10 @@ EXPECTED_SITE_MODEL_NODES = {
     "hq": {"access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2", "core_hq", "infra_access", "ce_hq", "fw_hq"},
     "branch_telesale": {"access_branch", "dist_branch", "ce_telesale", "fw_telesale"},
 }
+EXPECTED_PROVIDER_HANDOFFS = {
+    "primary": {"provider_id": "isp_circuit_a", "handoff_id": "wan_handoff_primary", "state": "active", "color": "blue"},
+    "backup": {"provider_id": "isp_circuit_b", "handoff_id": "wan_handoff_backup", "state": "standby", "color": "purple"},
+}
 
 
 def _network(value: str) -> ipaddress.IPv4Network:
@@ -92,6 +96,17 @@ def validate_all(config: dict[str, Any]) -> list[str]:
         errors.append("Duplicate management IPs")
     if not device_nodes.issubset(node_ids):
         errors.append("Automation inventory references a missing source-of-truth node")
+    expected_edge_inventory = {
+        "fw_hq": {"design_role": "firewall_ha_logical_pair", "redundancy": "active_standby"},
+        "fw_telesale": {"redundancy": "single_node_simulation"},
+    }
+    for model_node, expected in expected_edge_inventory.items():
+        device = next((item for item in devices if item.get("model_node") == model_node), {})
+        if device.get("outside_circuits") != ["primary", "backup"]:
+            errors.append(f"Automation inventory {model_node} must declare primary and backup outside circuits")
+        for key, value in expected.items():
+            if device.get(key) != value:
+                errors.append(f"Automation inventory {model_node} {key} must be {value!r}")
 
     routing = config.get("links", {})
     if set(routing) != set(REQUIRED_TRANSIT_LINKS):
@@ -129,10 +144,60 @@ def validate_all(config: dict[str, Any]) -> list[str]:
             transit_ips.add(ip_text)
         if set(endpoints) != expected_endpoints:
             errors.append(f"Transit link {name} endpoints must be {sorted(expected_endpoints)}")
+    for name, link in routing.items():
+        for endpoint_key in ("endpoint_a", "endpoint_b"):
+            node = str(link.get(endpoint_key, {}).get("node", ""))
+            if node and node not in node_ids:
+                errors.append(f"Routing link {name} references missing node {node}")
     for index, (left_name, left) in enumerate(transit_networks):
         for right_name, right in transit_networks[index + 1:]:
             if left.overlaps(right):
                 errors.append(f"Transit CIDR overlap: {left_name} and {right_name}")
+
+    declared_networks: list[tuple[str, ipaddress.IPv4Network]] = []
+    for vlan in config.get("vlans", []):
+        try:
+            declared_networks.append((f"vlan_{vlan['id']}", _network(str(vlan["subnet"]))))
+        except (KeyError, ValueError):
+            continue
+    for category in ("host_groups", "services", "infrastructure_services"):
+        for name, item in model.get(category, {}).items():
+            if item.get("subnet"):
+                try:
+                    declared_networks.append((f"{category}.{name}", ipaddress.ip_network(str(item["subnet"]), strict=False)))
+                except ValueError:
+                    continue
+    service_zone_cidr = config.get("service_zone", {}).get("cidr")
+    if service_zone_cidr:
+        declared_networks.append(("service_zone", _network(str(service_zone_cidr))))
+    for transit_name, transit in transit_networks:
+        for declared_name, declared in declared_networks:
+            if transit.overlaps(declared):
+                errors.append(f"Transit CIDR overlaps declared subnet: {transit_name} and {declared_name}")
+
+    provider_handoffs = config.get("provider_handoff_paths", {})
+    if set(provider_handoffs) != set(EXPECTED_PROVIDER_HANDOFFS):
+        errors.append(f"Provider handoff paths must be {sorted(EXPECTED_PROVIDER_HANDOFFS)}")
+    for name, expected in EXPECTED_PROVIDER_HANDOFFS.items():
+        item = provider_handoffs.get(name, {})
+        for key, value in expected.items():
+            if item.get(key) != value:
+                errors.append(f"Provider handoff {name} {key} must be {value!r}")
+        if item.get("representation") != "design_only" or item.get("runtime_node") is not None or item.get("runtime_state") != "design_only" or item.get("controller_managed") is not False:
+            errors.append(f"Provider handoff {name} must be explicitly design-only")
+        handoff_sites = item.get("site_firewalls", {})
+        if set(handoff_sites) != set(EXPECTED_PHYSICAL_SITES):
+            errors.append(f"Provider handoff {name} must terminate at HQ and Branch Telesale")
+        for site, firewall in (("hq", "fw_hq"), ("branch_telesale", "fw_telesale")):
+            endpoint = handoff_sites.get(site, {})
+            if endpoint.get("firewall") != firewall:
+                errors.append(f"Provider handoff {name} {site} firewall must be {firewall}")
+            expected_runtime_link = {
+                "hq": "fw_hq_to_internet_zone",
+                "branch_telesale": "fw_telesale_to_internet_zone",
+            }[site]
+            if endpoint.get("runtime_link") != expected_runtime_link or endpoint.get("runtime_link") not in routing:
+                errors.append(f"Provider handoff {name} {site} must reference {expected_runtime_link}")
 
     firewall_sites = config.get("firewall_policy", {}).get("sites", {})
     expected_ownership = {
@@ -155,6 +220,19 @@ def validate_all(config: dict[str, Any]) -> list[str]:
     for site, expected_interfaces in expected_runtime_interfaces.items():
         if firewall_sites.get(site, {}).get("runtime_interfaces") != expected_interfaces:
             errors.append(f"Firewall policy {site} has incorrect runtime interfaces")
+
+    expected_firewall_design = {
+        "hq": ("active_standby", ["fw_hq_primary", "fw_hq_backup"]),
+        "branch_telesale": ("single_firewall_simulation", None),
+    }
+    for site, (redundancy, members) in expected_firewall_design.items():
+        item = firewall_sites.get(site, {})
+        if item.get("design_redundancy") != redundancy:
+            errors.append(f"Firewall policy {site} design_redundancy must be {redundancy}")
+        if members is not None and item.get("design_members") != members:
+            errors.append(f"Firewall policy {site} design_members must be {members}")
+        if item.get("outside_circuits") != ["primary", "backup"]:
+            errors.append(f"Firewall policy {site} must declare primary and backup outside circuits")
 
     defaults = config.get("firewall_policy", {}).get("runtime_defaults", {})
     expected_defaults = {
