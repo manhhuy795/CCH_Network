@@ -38,6 +38,10 @@ def test_dashboard_topology_exposes_source_truth_design_contract_without_runtime
     assert contract["design_only_is_runtime"] is False
     assert contract["provider_domain"]["circuits"]["primary"]["id"] == "isp_circuit_a"
     assert contract["provider_domain"]["circuits"]["backup"]["id"] == "isp_circuit_b"
+    assert contract["provider_domain"]["circuits"]["primary"]["representation"] == "design_only"
+    assert contract["provider_domain"]["circuits"]["primary"]["runtime_node"] is None
+    assert contract["provider_handoff_paths"]["primary"]["representation"] == "design_only"
+    assert contract["provider_handoff_paths"]["backup"]["runtime_state"] == "design_only"
     assert contract["provider_handoff_paths"]["primary"]["site_firewalls"]["hq"]["firewall"] == "fw_hq"
     assert contract["provider_handoff_paths"]["backup"]["site_firewalls"]["branch_telesale"]["firewall"] == "fw_telesale"
     assert contract["firewall_redundancy"]["hq"]["design_role"] == "ha_pair"
@@ -46,6 +50,8 @@ def test_dashboard_topology_exposes_source_truth_design_contract_without_runtime
     assert contract["server_zone"]["components"]["sbc_voice_edge"]["runtime_node"] == "h90"
     assert contract["server_zone"]["components"]["pbx_voice_inside"]["runtime_node"] == "h90"
     assert contract["server_zone"]["components"]["database_server"]["runtime_node"] is None
+    assert contract["server_zone"]["components"]["database_server"]["representation"] == "design_only"
+    assert contract["server_zone"]["components"]["sdn_controller"]["representation"] == "design_metadata"
     assert design_ids.isdisjoint(runtime_ids)
     assert all(node["representation"] == "runtime" for node in payload["devices"])
     assert all(item["representation"] == "runtime" for item in payload["firewalls"])
