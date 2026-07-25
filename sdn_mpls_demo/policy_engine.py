@@ -37,6 +37,8 @@ POLICY_FLOW_PROFILES: dict[str, dict[str, Any]] = {
     "it_support": {"cookie": 0x1301, "priority": 450, "action": "ALLOW"},
     "it_support_return": {"cookie": 0x1302, "priority": 450, "action": "ALLOW"},
     "it_inbound_block": {"cookie": 0x1303, "priority": 460, "action": "DROP"},
+    # Must outrank IT service ALLOW rules so Social Media cannot be bypassed.
+    "it_social_block": {"cookie": 0x1304, "priority": 480, "action": "DROP"},
     "reactive_policy_drop": {"cookie": 0x1000, "priority": 300, "action": "DROP"},
     "transit_to_enforcement": {"cookie": 0x1100, "priority": 180, "action": "ALLOW"},
     "runtime": {"cookie": 0x0000, "priority": 0, "action": "PACKET_IN"},

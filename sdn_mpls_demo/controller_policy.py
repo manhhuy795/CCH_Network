@@ -471,7 +471,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
             )
             self.add_flow(
                 datapath,
-                470,
+                POLICY_FLOW_PROFILES["it_social_block"]["priority"],
                 social_match,
                 [],
                 {
@@ -479,6 +479,7 @@ class CallCenterPolicyController(app_manager.OSKenApp):
                     "source": "it_support",
                     "destination": "hsocial",
                     "policy": "it_social_block",
+                    "cookie": POLICY_FLOW_PROFILES["it_social_block"]["cookie"],
                     "enforcement_switch": switch_name,
                     "reason": "IT Support khong duoc bypass chinh sach Social Media.",
                 },
@@ -603,7 +604,11 @@ class CallCenterPolicyController(app_manager.OSKenApp):
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})[eth.src] = in_port
         out_port = self.mac_to_port[dpid].get(eth.dst, ofproto.OFPP_FLOOD)
-        actions = [parser.OFPActionOutput(out_port)]
+        # Direct output ports bypass OVS VLAN learning/tag handling on trunks.
+        # OFPP_NORMAL keeps the frame in OVS's normal switching pipeline while
+        # the policy flow still decides whether this packet may be forwarded.
+        normal_port = getattr(ofproto, "OFPP_NORMAL", 0xFFFFFFFA)
+        actions = [parser.OFPActionOutput(normal_port)]
         ip_packet = pkt.get_protocol(ipv4.ipv4)
         icmp_packet = pkt.get_protocol(icmp.icmp)
         icmp_type = icmp_packet.type if icmp_packet else None
