@@ -81,6 +81,12 @@ describe("TopologyCanvas", () => {
     expect(screen.getByLabelText("Node OS-Ken").getAttribute("class")).not.toContain("current");
   });
 
+  it("stops the rendered packet at backend blocked_at", () => {
+    render(<TopologyCanvas {...props} activeIndex={99} decision={{ action: "deny", reason: "policy", path: ["project_a", "access_floor1", "core_hq", "infra_access"], blocked_at: "core_hq" }} />);
+    expect(screen.getByRole("button", { name: "Node core_hq" }).getAttribute("class")).toContain("current");
+    expect(screen.getByRole("button", { name: "Node infra_access" }).getAttribute("class")).not.toContain("current");
+  });
+
   it("shows link operation lifecycle and impact confirmation", () => {
     const fail = vi.fn();
     render(<TopologyCanvas {...props} onFail={fail} linkOperation={{ linkId: "project_a-access_floor1", action: "fail", status: "running", message: "Đang ngắt link thật." }} />);

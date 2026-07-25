@@ -11,6 +11,7 @@ import PolicyPanel from "./components/PolicyPanel";
 import RealtimePanel, { type RealtimeConnectionState } from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
+import { animationPath } from "./components/packetPath";
 import { ensureTestResult, type NetworkTestType } from "./components/testWorkflow";
 import Drawer from "./components/ui/Drawer";
 import FeedbackState from "./components/ui/FeedbackState";
@@ -64,6 +65,24 @@ export default function App() {
     const id = `${Date.now()}-${toastSequence.current}`;
     setToasts((current) => [...current.slice(-3), { id, message, tone }]);
   }, []);
+
+  const clearTestSelection = useCallback(() => {
+    window.clearInterval(timer.current);
+    setDecision(undefined);
+    setResult(undefined);
+    setMetrics({});
+    setActiveIndex(0);
+  }, []);
+
+  const selectSource = useCallback((value: string) => {
+    setSource(value);
+    clearTestSelection();
+  }, [clearTestSelection]);
+
+  const selectDestination = useCallback((value: string) => {
+    setDestination(value);
+    clearTestSelection();
+  }, [clearTestSelection]);
 
   const addEvent = useCallback((message: string, kind: "info" | "allow" | "deny" = "info") => {
     const localEvent: ActivityEvent = {
@@ -166,6 +185,10 @@ export default function App() {
 
   const animate = (path: string[]) => {
     window.clearInterval(timer.current);
+    if (path.length <= 1) {
+      setActiveIndex(0);
+      return;
+    }
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       setActiveIndex(Math.max(0, path.length - 1));
       return;
@@ -203,7 +226,7 @@ export default function App() {
       setResult(payload);
       if (payload.decision) {
         setDecision(payload.decision);
-        animate(payload.decision.path);
+        animate(animationPath(payload.decision));
       }
       if (payload.result) setMetrics(payload.result);
       addEvent(payload.message, payload.ok ? "allow" : "deny");
@@ -277,8 +300,8 @@ export default function App() {
     source,
     onFail: (id: string) => void changeLink(id, true),
     onRecover: (id: string) => void changeLink(id, false),
-    onSource: setSource,
-    onDestination: setDestination,
+    onSource: selectSource,
+    onDestination: selectDestination,
   };
 
   const pageContent = () => {
@@ -306,7 +329,7 @@ export default function App() {
     );
     if (page === "performance") return (
       <div className="performance-grid">
-        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={setSource} onDestination={setDestination} onStatus={setWebsocketState} />
+        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={selectSource} onDestination={selectDestination} onStatus={setWebsocketState} />
         <MetricsPanel metrics={metrics} />
       </div>
     );

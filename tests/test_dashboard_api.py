@@ -658,7 +658,7 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     for measurement_item in ("Ping", "TCP Throughput", "UDP Jitter", "Voice Quality"):
         assert measurement_item in test_workflow
     assert "testLabels" in test_panel
-    assert "animate(payload.decision.path)" in app_source
+    assert "animate(animationPath(payload.decision))" in app_source
     assert "TopologyCanvas" in app_source
     assert "controller acknowledgement" in policy_panel
     assert "Ghi policy.yml chỉ là thay đổi cấu hình" in policy_panel

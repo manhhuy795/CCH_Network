@@ -4,6 +4,7 @@ import type { Decision, Host, Link, Topology } from "../api/client";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Drawer from "./ui/Drawer";
 import StatusBadge from "./ui/StatusBadge";
+import { animationPath } from "./packetPath";
 
 const positions: Record<string, [number, number]> = {
   project_a: [90, 135], project_b: [90, 215], iot_hq: [90, 295], guest: [90, 375],
@@ -235,7 +236,8 @@ export default function TopologyCanvas(props: Props) {
   const [inspector, setInspector] = useState<Inspector>(null);
   const [confirmLink, setConfirmLink] = useState<{ id: string; action: "fail" | "recover" } | null>(null);
 
-  const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];
+  const packetPath = animationPath(props.decision);
+  const currentNode = packetPath[Math.min(props.activeIndex, Math.max(0, packetPath.length - 1))];
   const controlledNodes = useMemo(
     () => (props.topology?.nodes || []).filter((node) => node.type === "switch" && positions[String(node.id)]),
     [props.topology],
@@ -316,11 +318,14 @@ export default function TopologyCanvas(props: Props) {
             const from = positions[link.source];
             const to = positions[link.target];
             if (!from || !to) return null;
-            const active = props.decision ? isPathLink(props.decision.path, link.source, link.target) : false;
+            const active = props.decision ? isPathLink(packetPath, link.source, link.target) : false;
             const failed = link.status === "down" || props.failedLinks.includes(link.id);
             const route = routedLinks[link.id];
             const visible = nodeVisible(link.source) && nodeVisible(link.target);
-            const className = `topology-link data-link ${link.type} ${active ? props.decision?.action : ""} ${failed ? "failed" : ""} ${visible ? "" : "region-hidden"}`;
+            const blockedEdge = active && props.decision?.action === "deny" && Boolean(props.decision.blocked_at)
+              && (link.source === props.decision?.blocked_at || link.target === props.decision?.blocked_at);
+            const activeClass = active ? (blockedEdge ? "deny" : "allow") : "";
+            const className = `topology-link data-link ${link.type} ${activeClass} ${failed ? "failed" : ""} ${visible ? "" : "region-hidden"}`;
             const openLink = () => setInspector({ kind: "link", id: link.id });
             const keyboardOpen = (event: React.KeyboardEvent) => {
               if (event.key === "Enter" || event.key === " ") {
