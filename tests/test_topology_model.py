@@ -5,6 +5,7 @@ import yaml
 
 from scripts.network_model import build_host_inventory, controlled_switches, load_network_model, validate_network_model
 from sdn_mpls_demo.policy_engine import POLICY_FLOW_PROFILES, PolicyEngine
+from sdn_mpls_demo.runtime_contract import RUNTIME_BACKBONE_LINK_MAP, source_truth_runtime_links
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,13 +41,15 @@ def test_network_model_validation_catches_inventory_drift():
 
 def test_topology_uses_three_layers_two_mpls_clouds_and_no_old_shared_nodes():
     source = TOPOLOGY_PATH.read_text(encoding="utf-8")
-    for required in (
-        'switches["access_floor1"]', 'switches["access_floor2"]',
-        'switches["dist_hq_1"]', 'switches["dist_hq_2"]',
-        'switches["core_hq"]', 'switches["access_branch"]',
-        'switches["dist_branch"]', 'mpls_primary', 'mpls_backup',
-    ):
-        assert required in source
+    model = load_network_model(MODEL_PATH)
+    assert set(RUNTIME_BACKBONE_LINK_MAP) == {
+        frozenset((source_name, target_name))
+        for source_name, target_name, _kind in model["links"]
+        if {source_name, target_name}.issubset(set(model["switches"]) | set(model["infrastructure"]))
+    }
+    assert source_truth_runtime_links(model)
+    assert "runtime_nodes = {" in source
+    assert "source_truth_runtime_links(NETWORK_MODEL)" in source
     assert 'net.addHost("mpls_cloud"' not in source.split("def build_topology():")[-1]
     explicit_interfaces = re.findall(r'intfName[12]="([^"\\]+)"', source.split("def build_topology():")[-1])
     assert explicit_interfaces

@@ -33,6 +33,11 @@ try:
         remove_named_firewall_namespaces,
     )
     from sdn_mpls_demo.policy_engine import PolicyEngine
+    from sdn_mpls_demo.runtime_contract import (
+        RUNTIME_BACKBONE_LINK_MAP as CONTRACT_RUNTIME_BACKBONE_LINK_MAP,
+        RUNTIME_COLLAPSED_GATEWAYS as CONTRACT_RUNTIME_COLLAPSED_GATEWAYS,
+        source_truth_runtime_links as contract_source_truth_runtime_links,
+    )
 except ImportError:
     import sys
 
@@ -45,6 +50,11 @@ except ImportError:
         remove_named_firewall_namespaces,
     )
     from policy_engine import PolicyEngine
+    from runtime_contract import (
+        RUNTIME_BACKBONE_LINK_MAP as CONTRACT_RUNTIME_BACKBONE_LINK_MAP,
+        RUNTIME_COLLAPSED_GATEWAYS as CONTRACT_RUNTIME_COLLAPSED_GATEWAYS,
+        source_truth_runtime_links as contract_source_truth_runtime_links,
+    )
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -88,6 +98,72 @@ SERVICE_NET_MININET_DPID = "00000000000000fe"
 # Linux interface names are limited to 15 bytes. Keep the source-of-truth ID
 # and DPID authoritative while using a short bridge name in the Linux runtime.
 RUNTIME_NODE_NAMES = runtime_switch_map(NETWORK_MODEL)
+
+# Keep the names imported by the runtime code stable while making the pure
+# contract module the single implementation used by build_topology().
+RUNTIME_COLLAPSED_GATEWAYS = CONTRACT_RUNTIME_COLLAPSED_GATEWAYS
+RUNTIME_BACKBONE_LINK_MAP = CONTRACT_RUNTIME_BACKBONE_LINK_MAP
+source_truth_runtime_links = contract_source_truth_runtime_links
+
+
+MPLS_PRIMARY_LINK_IDS = {
+    "ce_hq-mpls_primary",
+    "mpls_primary-ce_hq",
+    "mpls_primary-ce_telesale",
+    "ce_telesale-mpls_primary",
+}
+MPLS_HQ_PREFIXES = (
+    "172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24",
+    "172.16.60.0/24", "172.16.70.0/24", "172.16.90.0/24",
+    "172.16.100.0/24", "172.16.110.0/24", "172.16.120.0/24",
+)
+
+
+class ReliableOVSKernelSwitch(OVSKernelSwitch):
+    """Create large OVS switches in bounded transactions."""
+
+    def vsctl(self, *args, **kwargs):
+        if self.batch:
+            command = " ".join(str(arg).strip() for arg in args)
+            self.commands.append(command)
+            return None
+        return self.cmd("ovs-vsctl", "--timeout=30", *args, **kwargs)
+
+    def start(self, controllers):
+        """Avoid one timeout-prone ovs-vsctl transaction for 60+ access ports."""
+        if self.inNamespace:
+            raise Exception("OVS kernel switch does not work in a namespace")
+        int(self.dpid, 16)
+
+        controller_args = []
+        for controller in controllers:
+            controller_args.append(
+                f'-- --id=@{self.name}{controller.name} create Controller '
+                f'target=\\"{controller.protocol}:{controller.IP()}:{controller.port}\\"'
+            )
+        if self.listenPort:
+            controller_args.append(
+                f'-- --id=@{self.name}-listen create Controller target="ptcp:{self.listenPort}"'
+            )
+        controller_ids = ",".join(f"@{self.name}{controller.name}" for controller in controllers)
+        if self.listenPort:
+            controller_ids += f",@{self.name}-listen"
+        delete_existing = f" -- --if-exists del-br {self}" if not self.isOldOVS() else ""
+        create_command = (
+            " ".join(controller_args)
+            + delete_existing
+            + f" -- add-br {self}"
+            + f" -- set bridge {self} controller=[{controller_ids}]"
+            + self.bridgeOpts()
+        )
+        self.vsctl(create_command)
+
+        for intf in self.intfList():
+            if self.ports[intf] and not intf.IP():
+                self.vsctl(
+                    f"-- add-port {self} {intf}"
+                    + self.intfOpts(intf)
+                )
 
 
 def runtime_node_name(logical_name: str) -> str:
@@ -893,7 +969,9 @@ class MininetControlAgent:
                     "link_id": link_id,
                     "changed": changed,
                 }
-        if state == "up":
+        if state == "down" and link_id in MPLS_PRIMARY_LINK_IDS:
+            disable_mpls_primary_routes(self.net)
+        elif state == "up":
             # Linux can remove routes whose next hop was on a link that went
             # down. Reapply the declared routing after recovery so an UP
             # link also restores the real MPLS data path.
@@ -1160,6 +1238,26 @@ def add_route(node, prefix, next_hop, metric: int | None = None):
     node.cmd(f"ip route replace {prefix} via {next_hop}{suffix}")
 
 
+def remove_route(node, prefix, next_hop, metric: int | None = None):
+    suffix = f" metric {metric}" if metric is not None else ""
+    node.cmd(f"ip route del {prefix} via {next_hop}{suffix} 2>/dev/null || true")
+
+
+def disable_mpls_primary_routes(net):
+    """Withdraw primary-path routes on peers when one primary segment fails."""
+    ce_hq = net.get("ce_hq")
+    ce_telesale = net.get("ce_telesale")
+    mpls_primary = net.get("mpls_primary")
+    for prefix in ("172.16.50.0/24", "172.16.111.0/24"):
+        remove_route(ce_hq, prefix, "10.255.0.2", metric=10)
+    for prefix in MPLS_HQ_PREFIXES:
+        remove_route(ce_telesale, prefix, "10.255.0.5", metric=10)
+    for prefix in MPLS_HQ_PREFIXES:
+        remove_route(mpls_primary, prefix, "10.255.0.1")
+    for prefix in ("172.16.50.0/24", "172.16.111.0/24"):
+        remove_route(mpls_primary, prefix, "10.255.0.6")
+
+
 def configure_router_interface(node, interface, addresses):
     node.cmd(f"ip addr flush dev {interface}")
     node.cmd(f"ip link set {interface} up")
@@ -1272,22 +1370,22 @@ def configure_routing(net, policy):
     )
     configure_router_interface(
         mpls_primary,
-        "mpls_p-eth0",
+        "mpls-p-eth0",
         [transit_cidr("ce_hq_to_mpls_primary", "endpoint_b")],
     )
     configure_router_interface(
         mpls_primary,
-        "mpls_p-eth1",
+        "mpls-p-eth1",
         [transit_cidr("mpls_primary_to_ce_telesale", "endpoint_a")],
     )
     configure_router_interface(
         mpls_backup,
-        "mpls_b-eth0",
+        "mpls-b-eth0",
         [transit_cidr("ce_hq_to_mpls_backup", "endpoint_b")],
     )
     configure_router_interface(
         mpls_backup,
-        "mpls_b-eth1",
+        "mpls-b-eth1",
         [transit_cidr("mpls_backup_to_ce_telesale", "endpoint_a")],
     )
 
@@ -1318,6 +1416,35 @@ def configure_routing(net, policy):
         "inet-eth2",
         [f"{NETWORK_MODEL['service_addressing']['gateway_ip']}/24"],
     )
+
+    # Return routes make the firewall/service segment a real routed path.
+    # They do not grant unsolicited inbound access: nftables remains the
+    # enforcement point for Internet-originated traffic.
+    hq_internal_prefixes = (
+        "172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24",
+        "172.16.60.0/24", "172.16.70.0/24", "172.16.90.0/24",
+        "172.16.100.0/24", "172.16.110.0/24", "172.16.120.0/24",
+    )
+    branch_prefixes = ("172.16.50.0/24", "172.16.111.0/24")
+    add_route(fw_hq, "10.255.30.0/24", "10.255.10.2")
+    for prefix in hq_internal_prefixes:
+        add_route(fw_hq, prefix, "10.10.254.1")
+    add_route(fw_telesale, "10.255.30.0/24", "10.255.10.6")
+    for prefix in branch_prefixes:
+        add_route(fw_telesale, prefix, "10.20.254.1")
+    for prefix in hq_internal_prefixes:
+        add_route(internet_zone, prefix, "10.255.10.1")
+    for prefix in branch_prefixes:
+        add_route(internet_zone, prefix, "10.255.10.5")
+    service_vips = tuple(
+        f"{service['ip']}/32"
+        for service in policy.get("services", {}).values()
+        if service.get("ip")
+    )
+    for vip in service_vips:
+        add_route(fw_hq, vip, "10.255.10.2")
+        add_route(fw_telesale, vip, "10.255.10.6")
+        internet_zone.cmd(f"ip route replace {vip} dev inet-eth2")
 
     configure_declared_routes(net)
 
@@ -1415,6 +1542,10 @@ def configure_vlan_router_interface(node, parent_interface, vlan_addresses):
     node.cmd(f"ip link set {parent_interface} up")
     for vlan, address in vlan_addresses:
         interface = f"{parent_interface}.{vlan}"
+        if len(interface) > 15:
+            # Linux limits interface names to 15 characters; keep the VLAN
+            # ID visible while avoiding a silent failure on tele_l3-eth0.111.
+            interface = f"vlan{int(vlan)}"
         node.cmd(f"ip link del {interface} 2>/dev/null || true")
         node.cmd(f"ip link add link {parent_interface} name {interface} type vlan id {int(vlan)}")
         node.cmd(f"ip link set {interface} up")
@@ -1490,7 +1621,7 @@ def build_topology_legacy_reference():
     policy = load_policy()
     net = Mininet(
         controller=None,
-        switch=OVSKernelSwitch,
+        switch=ReliableOVSKernelSwitch,
         link=TCLink,
         autoSetMacs=True,
         build=False,
@@ -1784,7 +1915,7 @@ def build_topology():
     """Build the enterprise three-layer topology from network_model.yml."""
     build_started = time.monotonic()
     policy = load_policy()
-    net = Mininet(controller=None, switch=OVSKernelSwitch, link=TCLink, autoSetMacs=True, build=False, waitConnected=True)
+    net = Mininet(controller=None, switch=ReliableOVSKernelSwitch, link=TCLink, autoSetMacs=True, build=False, waitConnected=True)
     controller = net.addController("c0", controller=RemoteController, ip="127.0.0.1", port=6653)
     switches = {
         name: net.addSwitch(runtime_node_name(name), dpid=dpid, protocols="OpenFlow13", failMode="secure")
@@ -1813,29 +1944,38 @@ def build_topology():
     fw_hq = net.addHost("fw_hq", cls=LinuxRouter, ip=None)
     fw_telesale = net.addHost("fw_telesale", cls=LinuxRouter, ip=None)
 
-    links = [
-        (switches["access_floor1"], switches["dist_hq_1"], "f1-eth99", "d1-eth01", 1000, "1ms"),
-        (switches["access_floor2"], switches["dist_hq_2"], "f2-eth99", "d2-eth01", 1000, "1ms"),
-        (switches["infra_access"], switches["dist_hq_1"], "inf-eth99", "d1-eth03", 1000, "1ms"),
-        (switches["dist_hq_1"], switches["core_hq"], "d1-eth02", "core-eth01", 1000, "1ms"),
-        (switches["dist_hq_2"], switches["core_hq"], "d2-eth02", "core-eth02", 1000, "1ms"),
-        (switches["access_branch"], switches["dist_branch"], "br-eth99", "bd-eth01", 1000, "1ms"),
-        (switches["core_hq"], hq_l3, "core-eth03", "hq_l3-eth0", 1000, "1ms"),
-        (hq_l3, ce_hq, "hq_l3-eth1", "ce_hq-eth0", 200, "2ms"),
-        (ce_hq, mpls_primary, "ce_hq-eth1", "mpls-p-eth0", 100, "10ms"),
-        (mpls_primary, ce_telesale, "mpls-p-eth1", "ce_tel-eth1", 100, "10ms"),
-        (ce_hq, mpls_backup, "ce_hq-eth2", "mpls-b-eth0", 100, "10ms"),
-        (mpls_backup, ce_telesale, "mpls-b-eth1", "ce_tel-eth2", 100, "10ms"),
-        (switches["dist_branch"], telesale_l3, "bd-eth02", "tele_l3-eth0", 1000, "1ms"),
-        (telesale_l3, ce_telesale, "tele_l3-eth1", "ce_tel-eth0", 200, "2ms"),
-        (hq_l3, fw_hq, "hq_l3-eth2", "fw_hq-eth0", 200, "2ms"),
-        (fw_hq, internet_zone, "fw_hq-eth1", "inet-eth0", 100, "5ms"),
-        (telesale_l3, fw_telesale, "tele_l3-eth2", "fw_tel-eth0", 200, "2ms"),
-        (fw_telesale, internet_zone, "fw_tel-eth1", "inet-eth1", 100, "5ms"),
-        (internet_zone, service_net, "inet-eth2", "svc-zone", 1000, "1ms"),
-    ]
-    for left, right, intf_left, intf_right, bw, delay in links:
-        net.addLink(left, right, intfName1=intf_left, intfName2=intf_right, cls=TCLink, bw=bw, delay=delay)
+    runtime_links = source_truth_runtime_links(NETWORK_MODEL)
+    runtime_nodes = {
+        **switches,
+        "hq_l3_gateway": hq_l3,
+        "telesale_l3_gateway": telesale_l3,
+        "ce_hq": ce_hq,
+        "ce_telesale": ce_telesale,
+        "mpls_primary": mpls_primary,
+        "mpls_backup": mpls_backup,
+        "fw_hq": fw_hq,
+        "fw_telesale": fw_telesale,
+        "internet_zone": internet_zone,
+    }
+    for left_name, right_name, intf_left, intf_right, bw, delay in runtime_links:
+        net.addLink(
+            runtime_nodes[left_name],
+            runtime_nodes[right_name],
+            intfName1=intf_left,
+            intfName2=intf_right,
+            cls=TCLink,
+            bw=bw,
+            delay=delay,
+        )
+    net.addLink(
+        internet_zone,
+        service_net,
+        intfName1="inet-eth2",
+        intfName2="svc-zone",
+        cls=TCLink,
+        bw=1000,
+        delay="1ms",
+    )
 
     info("*** Starting enterprise three-layer Call Center topology\n")
     net.build()

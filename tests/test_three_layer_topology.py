@@ -8,6 +8,7 @@ from scripts.network_model import (
     load_network_model,
     validate_network_model,
 )
+from sdn_mpls_demo.runtime_contract import source_truth_runtime_links
 
 
 def test_three_layer_inventory_is_complete_and_valid():
@@ -23,7 +24,7 @@ def test_executable_builder_uses_redesigned_entry_point():
     source = ("sdn_mpls_demo/topology_hybrid_sdn.py")
     text = open(source, encoding="utf-8").read()
     active = text.rsplit("def build_topology():", 1)[-1]
-    assert '"access_floor1"' in active
-    assert '"dist_hq_1"' in active
-    assert '"infra_access"' in active
+    assert source_truth_runtime_links(load_network_model())
+    assert "runtime_nodes = {" in active
+    assert "source_truth_runtime_links(NETWORK_MODEL)" in active
     assert 'net.addHost("mpls_cloud"' not in active
