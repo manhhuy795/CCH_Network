@@ -338,8 +338,8 @@ class PolicyEngine:
             if source_group == "project_c" and source.get("site") != destination.get("site"):
                 same_group_reason = "Cho phep cung VLAN 40 qua MPLS L2VPN VPWS logic; gateway tap trung tai HQ."
                 l2_path = [
-                    "project_c", "access_branch", "dist_branch", "l2vpn_vpws40",
-                    "dist_hq_2", "access_floor2", "project_c",
+                    "project_c", "access_branch", "dist_branch", "ce_telesale",
+                    "l2vpn_vpws40", "ce_hq", "dist_hq_2", "access_floor2", "project_c",
                 ]
                 if source.get("site") == "hq":
                     l2_path.reverse()

@@ -189,6 +189,17 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
+for dashboard_port in 8000 5173; do
+  if port_open "$dashboard_port"; then
+    echo "FAIL Cong $dashboard_port dang do mot process ngoai $PID_FILE su dung."
+    echo "Khong tai su dung process nay vi no co the dang phuc vu backend/frontend cu."
+    echo "Kiem tra va dung process cu truoc khi chay lai:"
+    echo "  sudo fuser -v ${dashboard_port}/tcp"
+    echo "  sudo fuser -k ${dashboard_port}/tcp"
+    exit 1
+  fi
+done
+
 if [[ "$INSTALL_DEPS" -eq 1 ]]; then
   echo "Cai/cap nhat dependency dashboard theo yeu cau --install..."
   python3 -m venv "$BACKEND_VENV"
@@ -231,34 +242,39 @@ else
   echo "controller:$CONTROLLER_PID" >> "$PID_FILE"
 fi
 
-if port_open 8000; then
-  echo "Backend port 8000 da co san, khong khoi dong them backend."
-  BACKEND_PID=""
-else
-  prepare_backend_privileges
-  echo "Khoi dong FastAPI backend..."
-  (
-    cd "$BACKEND_DIR"
-    "${BACKEND_PRIVILEGE_PREFIX[@]}" "$BACKEND_VENV/bin/python" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-  ) > "$LOG_DIR/backend.log" 2>&1 &
-  BACKEND_PID=$!
-  echo "backend:$BACKEND_PID" >> "$PID_FILE"
-fi
+prepare_backend_privileges
+echo "Khoi dong FastAPI backend..."
+(
+  cd "$BACKEND_DIR"
+  "${BACKEND_PRIVILEGE_PREFIX[@]}" "$BACKEND_VENV/bin/python" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+) > "$LOG_DIR/backend.log" 2>&1 &
+BACKEND_PID=$!
+echo "backend:$BACKEND_PID" >> "$PID_FILE"
 
-if port_open 5173; then
-  echo "Frontend port 5173 da co san, khong khoi dong them frontend."
-  FRONTEND_PID=""
-else
-  echo "Khoi dong React frontend..."
-  (
-    cd "$FRONTEND_DIR"
-    npm run dev -- --host 0.0.0.0 --port 5173
-  ) > "$LOG_DIR/frontend.log" 2>&1 &
-  FRONTEND_PID=$!
-  echo "frontend:$FRONTEND_PID" >> "$PID_FILE"
-fi
+echo "Khoi dong React frontend..."
+(
+  cd "$FRONTEND_DIR"
+  npm run dev -- --host 0.0.0.0 --port 5173
+) > "$LOG_DIR/frontend.log" 2>&1 &
+FRONTEND_PID=$!
+echo "frontend:$FRONTEND_PID" >> "$PID_FILE"
 
 wait_port "Controller" 6653 "$LOG_DIR/controller.log" "${CONTROLLER_PID:-}"
+echo "Chay Mininet dashboard preflight (VPWS, policy, endpoint, OVS flow)..."
+PREFLIGHT_EXIT=0
+(
+  cd "$ROOT_DIR"
+  "${BACKEND_PRIVILEGE_PREFIX[@]}" "$BACKEND_VENV/bin/python" "$ROOT_DIR/scripts/mininet_dashboard_preflight.py"
+) > "$LOG_DIR/dashboard-preflight.log" 2>&1 || PREFLIGHT_EXIT=$?
+if [[ "$PREFLIGHT_EXIT" -eq 2 ]]; then
+  echo "FAIL Mininet dashboard preflight khong dat. Log:"
+  tail -n 80 "$LOG_DIR/dashboard-preflight.log" 2>/dev/null || true
+  exit 1
+fi
+if [[ "$PREFLIGHT_EXIT" -ne 0 ]]; then
+  echo "WARN Mininet preflight co test case khong dat; dashboard van khoi dong de hien evidence."
+fi
+tail -n 1 "$LOG_DIR/dashboard-preflight.log"
 wait_port "Backend" 8000 "$LOG_DIR/backend.log" "${BACKEND_PID:-}"
 wait_backend_health "${BACKEND_PID:-}" "$LOG_DIR/backend.log"
 wait_port "Frontend" 5173 "$LOG_DIR/frontend.log" "${FRONTEND_PID:-}"

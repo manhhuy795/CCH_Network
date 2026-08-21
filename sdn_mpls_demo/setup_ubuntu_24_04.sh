@@ -21,7 +21,7 @@ sudo apt install -y \
   git mininet openvswitch-switch iperf3 nftables tcpdump \
   python3 python3-venv python3-pip python3-dev \
   build-essential curl jq iproute2 procps util-linux \
-  nodejs npm
+  nodejs
 
 echo "[2/4] Bật Open vSwitch"
 sudo systemctl enable --now openvswitch-switch

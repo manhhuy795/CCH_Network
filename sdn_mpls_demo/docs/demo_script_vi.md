@@ -6,6 +6,17 @@
 
 ## 2. Kiểm tra 110 user
 
+Trước khi mở dashboard ở Terminal 2, `./scripts/start_demo.sh` tự chạy preflight.
+Chỉ tiếp tục khi terminal in dòng dạng:
+
+```text
+PREFLIGHT PASSED · checks 5/5 · endpoints 133/133 · flows <số flow thực tế>
+```
+
+Trang **Tổng quan** phải hiển thị cùng số endpoint, flow và năm test case từ
+`runtime_reports/dashboard_preflight.json`; không dùng các thẻ “Online” lặp lại
+để thay cho số đo.
+
 Tại Mininet:
 
 ```text
@@ -40,7 +51,7 @@ Chọn `h50_01 → hsocial`: traffic bị chặn tại Firewall Branch.
 
 ## 6. Liên site
 
-Trước tiên chọn `h40_11 → h40_01`. Hai endpoint cùng VLAN/subnet nhưng khác site; path phải đi qua `access_branch → dist_branch → l2vpn_vpws40 → dist_hq_2 → access_floor2`. Nêu rõ bridge chỉ mô phỏng forwarding Ethernet, không mô phỏng nhãn MPLS hoặc PE/P control plane.
+Trước tiên chọn `h40_11 → h40_01`. Hai endpoint cùng VLAN/subnet nhưng khác site; đường trình bày phải đi qua `access_branch → dist_branch → ce_telesale → l2vpn_vpws40 → ce_hq → dist_hq_2 → access_floor2`. Nêu rõ hai CE là điểm demarcation của attachment circuit; runtime rút gọn service instance CE vào bridge và không mô phỏng nhãn MPLS hoặc PE/P control plane.
 
 Hạ link `dist_branch-l2vpn_vpws40`: ping xuyên site phải fail. Khôi phục link: ping phải hoạt động lại. Đây là bằng chứng failure injection thật trên attachment circuit, không phải chỉ đổi trạng thái giao diện.
 

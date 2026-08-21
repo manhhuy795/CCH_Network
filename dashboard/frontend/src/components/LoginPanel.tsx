@@ -33,7 +33,7 @@ export default function LoginPanel(props: Props) {
             {props.busy ? "Đang xác thực..." : "Đăng nhập"}
           </button>
         </form>
-        <p className="auth-note">Phiên làm việc hết hạn sẽ yêu cầu đăng nhập lại. Không nhập operator token vào trình duyệt.</p>
+        <p className="auth-note">Username mặc định là admin. Mật khẩu được tạo cục bộ bằng bootstrap và không được đóng gói trong frontend.</p>
       </div>
     </section>
   );

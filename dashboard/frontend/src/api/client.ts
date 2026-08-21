@@ -34,6 +34,8 @@ export type Link = {
   bandwidth_mbps?: number;
   delay_ms?: number;
   loss_percent?: number;
+  runtime_link_id?: string;
+  presentation_only?: boolean;
 };
 
 export type DesignNode = {
@@ -353,6 +355,47 @@ export type ActivityPayload = {
   events: ActivityEvent[];
   tasks: TaskHistoryItem[];
   count: number;
+};
+
+export type DashboardPreflightCase = {
+  id: string;
+  label: string;
+  source: string;
+  destination: string;
+  expectation: "allow" | "deny";
+  observed: "reachable" | "blocked";
+  evidence: string;
+  passed: boolean;
+  duration_seconds?: number | null;
+  packet_loss_percent?: number | null;
+  avg_rtt_ms?: number | null;
+};
+
+export type DashboardPreflight = {
+  schema_version?: number;
+  status: "passed" | "failed" | "not_run" | "invalid";
+  available: boolean;
+  checked_at?: string;
+  duration_seconds?: number;
+  age_seconds?: number | null;
+  stale?: boolean;
+  source?: string;
+  message_vi?: string;
+  error_code?: string;
+  summary?: {
+    checks_passed?: number;
+    checks_total?: number;
+    endpoints_online?: number;
+    endpoints_total?: number;
+    user_hosts_online?: number;
+    switches_ready?: number;
+    switches_expected?: number;
+    flow_entries?: number;
+    links_up?: number;
+    links_total?: number;
+  };
+  flow_counts?: Record<string, number>;
+  cases?: DashboardPreflightCase[];
 };
 
 function csrfToken(): string {

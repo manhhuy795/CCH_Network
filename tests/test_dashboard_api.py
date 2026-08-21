@@ -653,8 +653,13 @@ def test_dashboard_uses_six_operational_sidebar_destinations():
     assert 'DashboardPage = "overview" | "topology" | "testing" | "policy" | "performance" | "events"' in shell_source
     for label in ("Tổng quan", "Topology", "Kiểm tra kết nối", "Chính sách & OpenFlow", "Hiệu năng", "Sự kiện & nhật ký"):
         assert label in shell_source
-    for overview_item in ("Controller", "Backend", "Mininet", "Control Agent", "Open vSwitch", "WebSocket", "Host online", "Link/cảnh báo"):
+    for overview_item in ('"controller"', '"backend"', '"mininet_topology"', '"mininet_control_agent"', '"openvswitch"'):
         assert overview_item in overview_source
+    assert "DashboardPreflight" in overview_source
+    assert "OpenFlow inventory" in overview_source
+    assert '"websocket"' not in overview_source
+    for overview_signal in ("Endpoint Mininet", "OpenFlow inventory", "VLAN ${vlan} · VPWS", "Cảnh báo liên kết", "Đường dịch vụ Project C", "Bằng chứng runtime", "Mininet preflight"):
+        assert overview_signal in overview_source
     for measurement_item in ("Ping", "TCP Throughput", "UDP Jitter", "Voice Quality"):
         assert measurement_item in test_workflow
     assert "testLabels" in test_panel
@@ -692,7 +697,7 @@ def test_topology_uses_grouped_interaction_and_view_controls():
     topology_canvas = (repo_root / "dashboard" / "frontend" / "src" / "components" / "TopologyCanvas.tsx").read_text(encoding="utf-8")
     styles = (repo_root / "dashboard" / "frontend" / "src" / "styles" / "global.css").read_text(encoding="utf-8")
 
-    assert "selectedGroup.hosts.slice" in topology_canvas
+    assert "selectedGroupHosts.slice" in topology_canvas
     assert "chooseEndpoint" in topology_canvas
     assert 'kind: "node"' in topology_canvas
     assert 'kind: "link"' in topology_canvas
@@ -704,7 +709,7 @@ def test_topology_uses_grouped_interaction_and_view_controls():
     assert "requestFullscreen" in topology_canvas
     assert "style={{ width: `${zoom * 100}%` }}" in topology_canvas
     assert "activeIndex" in topology_canvas
-    assert "currentNode === id" in topology_canvas
+    assert "currentDisplayNode === id" in topology_canvas
     assert "prefers-reduced-motion" in styles
     assert ".topology-toolbar" in styles
     assert "h20_01" not in topology_canvas
@@ -719,7 +724,7 @@ def test_openflow_control_visualization_is_simplified():
     assert 'node.type === "switch"' in topology_canvas
     assert "OpenFlow Control Bus" not in topology_canvas
     assert "control-lite" not in topology_canvas
-    assert "currentNode === id" in topology_canvas
+    assert "currentDisplayNode === id" in topology_canvas
 
 
 def test_policy_is_not_rendered_as_topology_node_or_overlay():

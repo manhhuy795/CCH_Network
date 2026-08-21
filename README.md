@@ -23,9 +23,13 @@ Không có mật khẩu mặc định trong repository. Tạo admin lần đầu
 ```bash
 cd ~/Downloads/CCH_Network
 read -r -s ADMIN_PASSWORD; echo
-printf '%s\n' "$ADMIN_PASSWORD" | .venv/bin/python scripts/phase49_bootstrap_admin.py --username admin --password-stdin
+printf '%s\n' "$ADMIN_PASSWORD" | ./scripts/phase49_bootstrap_admin.py --username admin --password-stdin
 unset ADMIN_PASSWORD
 ```
+
+Frontend điền sẵn username `admin` để giảm thao tác trong buổi demo nhưng không
+đóng gói mật khẩu. Không dùng credential hard-code 8 ký tự: cách đó vi phạm
+policy tối thiểu 12 ký tự và sẽ bị secret scan đánh lỗi.
 
 
 ## Simulation Honesty
@@ -94,7 +98,7 @@ Service mô phỏng:
 
 ## VLAN Tagging
 
-Runtime cấu hình access VLAN và trunk 802.1Q thật trên OVS. VLAN 40 được gắn tag tại hai access switch, đi tới Distribution tương ứng, rồi được chuyển qua hai attachment circuit của bridge VPWS logic. Các SVI nằm trên gateway L3; Branch không có SVI VLAN 40.
+Runtime cấu hình access VLAN và trunk 802.1Q thật trên OVS. VLAN 40 được gắn tag tại hai access switch, đi tới Distribution tương ứng, rồi qua hai attachment circuit được trình bày tại CE HQ/CE Branch trước khi vào bridge VPWS logic. Runtime rút gọn service instance CE vào hai cổng bridge; các SVI nằm trên gateway L3 và Branch không có SVI VLAN 40.
 
 ## Kiến Trúc
 
@@ -184,6 +188,22 @@ cd ~/Downloads/CCH_Network
 Các lần sau, nếu dependency đã có:
 
 ```bash
+./scripts/start_demo.sh
+```
+
+Trong mỗi lần khởi động, `start_demo.sh` chạy
+`scripts/mininet_dashboard_preflight.py` trước khi công bố dashboard sẵn sàng.
+Preflight đo hai chiều VLAN 40 HQ ↔ Branch, voice reachability, project/guest
+isolation, số endpoint namespace, bridge OVS và flow OpenFlow. Evidence được lưu
+tại `runtime_reports/dashboard_preflight.json` và hiển thị trên trang Tổng quan.
+
+Script không tái sử dụng backend/frontend không do lần chạy hiện tại quản lý.
+Nếu cổng `8000` hoặc `5173` đang bị tiến trình cũ chiếm, kiểm tra rồi dừng đúng
+tiến trình trước khi chạy lại:
+
+```bash
+sudo fuser -v 8000/tcp 5173/tcp
+sudo fuser -k 8000/tcp 5173/tcp
 ./scripts/start_demo.sh
 ```
 
