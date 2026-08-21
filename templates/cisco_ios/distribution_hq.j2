@@ -1,0 +1,31 @@
+!
+hostname {{ device.name }}
+!
+no ip domain-lookup
+ip routing
+!
+{% for vlan in site_vlans %}
+vlan {{ vlan.id }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% for trunk in interfaces.trunks | default([]) %}
+interface {{ trunk.name }}
+ description {{ trunk.description }}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ trunk.allowed_vlans | join(',') }}
+ no shutdown
+!
+{% endfor %}
+{% for routed in interfaces.routed | default([]) %}
+interface {{ routed.name }}
+ description {{ routed.description }}
+ no switchport
+ ip address {{ routed.ip | ip_address }} {{ routed.ip | dotted_netmask }}
+ no shutdown
+!
+{% endfor %}
+{% for route in routes.intersite_routes | default([]) %}
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }}
+{% endfor %}
+end

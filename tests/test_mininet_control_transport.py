@@ -147,6 +147,39 @@ def test_disconnects_and_broken_pipe_do_not_kill_agent(agent):
     _assert_healthy(control_agent)
 
 
+def test_mininet_runtime_commands_are_serialized_across_socket_workers(agent, monkeypatch):
+    _module, control_agent = agent
+    entered = threading.Event()
+    release = threading.Event()
+    second_entered = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def fake_runtime_request(_request):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            if calls == 1:
+                entered.set()
+            else:
+                second_entered.set()
+        release.wait(timeout=2)
+        return {"ok": True}
+
+    monkeypatch.setattr(control_agent, "_handle_request_unlocked", fake_runtime_request)
+    request = {"token": "test-token", "command": "PING", "request_id": "serialized"}
+    first = threading.Thread(target=control_agent._handle_request, args=(request,))
+    second = threading.Thread(target=control_agent._handle_request, args=(request,))
+    first.start()
+    assert entered.wait(timeout=1)
+    second.start()
+    assert not second_entered.wait(timeout=0.1)
+    release.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+    assert calls == 2
+
+
 def test_fifty_health_requests_and_oversize_request_keep_agent_alive(agent):
     module, control_agent = agent
     for _ in range(50):

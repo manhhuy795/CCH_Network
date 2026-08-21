@@ -30,7 +30,7 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof TestPanel>> = 
     resultType: "ping",
     busy: false,
     elapsedSeconds: 0,
-    websocketOnline: true,
+    websocketState: "monitoring" as const,
     onSource: vi.fn(),
     onDestination: vi.fn(),
     onSeconds: vi.fn(),
@@ -50,14 +50,14 @@ describe("TestPanel", () => {
       decision: {
         action: "allow",
         reason: "Voice được cho phép",
-        path: ["project_a", "access_hq_a", "core_hq", "voice_access", "h90"],
+        path: ["project_a", "access_floor1", "dist_hq_1", "core_hq", "infra_access", "h90"],
         enforcement_switch: "core_hq",
       },
     };
     render(<TestPanel {...baseProps({ result })} />);
     expect(screen.getByText("Ping thành công")).toBeInTheDocument();
     expect(screen.getByText("12.4 ms")).toBeInTheDocument();
-    expect(screen.getByText(/project_a → access_hq_a → core_hq/)).toBeInTheDocument();
+    expect(screen.getByText(/project_a → access_floor1 → dist_hq_1 → core_hq/)).toBeInTheDocument();
     expect(screen.getByText("core_hq")).toBeInTheDocument();
   });
 
@@ -71,8 +71,15 @@ describe("TestPanel", () => {
     expect(screen.getByRole("button", { name: /Dự án A/ })).toBeDisabled();
   });
 
-  it("reports a disconnected realtime channel without blocking HTTP tests", () => {
-    render(<TestPanel {...baseProps({ websocketOnline: false })} />);
+  it("does not report a disconnected realtime channel before monitoring starts", () => {
+    render(<TestPanel {...baseProps({ websocketState: "idle" })} />);
+    expect(screen.queryByText("WebSocket mất kết nối")).not.toBeInTheDocument();
+    expect(screen.getByText("Chưa bật giám sát")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Chạy Ping/ })).toBeEnabled();
+  });
+
+  it("reports a reconnecting realtime channel without blocking HTTP tests", () => {
+    render(<TestPanel {...baseProps({ websocketState: "reconnecting" })} />);
     const warning = screen.getByText("WebSocket mất kết nối").closest("[role='status']");
     expect(warning).toHaveTextContent("WebSocket mất kết nối");
     expect(warning).toHaveTextContent("API HTTP");

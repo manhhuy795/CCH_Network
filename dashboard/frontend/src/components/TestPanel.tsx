@@ -4,6 +4,7 @@ import type { Host, TestResult, Topology } from "../api/client";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import StatusBadge from "./ui/StatusBadge";
 import TaskProgress from "./ui/TaskProgress";
+import { realtimeStatusLabel, realtimeStatusTone, type RealtimeConnectionState } from "./RealtimePanel";
 import { errorGuidance, testLabels, type NetworkTestType } from "./testWorkflow";
 
 type Action = NetworkTestType | "simulate" | "block" | "unblock";
@@ -18,7 +19,7 @@ type Props = {
   resultType: NetworkTestType;
   busy: boolean;
   elapsedSeconds: number;
-  websocketOnline: boolean;
+  websocketState: RealtimeConnectionState;
   result?: TestResult;
   onSource: (value: string) => void;
   onDestination: (value: string) => void;
@@ -143,6 +144,7 @@ export default function TestPanel(props: Props) {
   const decision = props.result?.decision;
   const sameEndpoint = props.source === props.destination;
   const canRun = !props.busy && !sameEndpoint && Boolean(props.source && props.destination);
+  const websocketWarning = props.websocketState === "reconnecting" || props.websocketState === "error";
   const testIcons = { ping: Activity, tcp: Gauge, udp: Gauge, quality: PhoneCall };
   const ActiveIcon = testIcons[props.resultType];
 
@@ -154,10 +156,10 @@ export default function TestPanel(props: Props) {
     <section className="network-test-workspace">
       <div className="section-title">
         <div><h2>Kiểm tra kết nối</h2><span>Kết quả thật từ Mininet, OVS và iperf3</span></div>
-        <StatusBadge status={props.websocketOnline ? "online" : "unknown"} label={props.websocketOnline ? "Realtime online" : "Realtime chưa kết nối"} />
+        <StatusBadge status={realtimeStatusTone(props.websocketState)} label={realtimeStatusLabel(props.websocketState)} />
       </div>
       <div className="panel-body">
-        {!props.websocketOnline && (
+        {websocketWarning && (
           <div className="realtime-warning" role="status">
             <strong>WebSocket mất kết nối</strong>
             <p>{errorGuidance("WEBSOCKET_OFFLINE")}</p>

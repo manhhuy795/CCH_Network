@@ -53,7 +53,7 @@ def test_ping_path_stops_before_a_real_down_link(monkeypatch):
     monkeypatch.setattr(
         live_mininet.mininet_control,
         "first_down_link",
-        lambda _path: {"link_id": "core_hq-voice_access", "blocked_at": "core_hq"},
+        lambda _path: {"link_id": "core_hq-infra_access", "blocked_at": "core_hq"},
     )
     monkeypatch.setattr(
         live_mininet.mininet_control,
@@ -67,7 +67,7 @@ def test_ping_path_stops_before_a_real_down_link(monkeypatch):
     result = live_mininet.ping("h20_01", "h90")
 
     assert result["ok"] is False
-    assert result["decision"]["failed_link"] == "core_hq-voice_access"
+    assert result["decision"]["failed_link"] == "core_hq-infra_access"
     assert result["decision"]["blocked_at"] == "core_hq"
     assert result["decision"]["path"][-1] == "core_hq"
-    assert "voice_access" not in result["decision"]["path"]
+    assert "infra_access" not in result["decision"]["path"]

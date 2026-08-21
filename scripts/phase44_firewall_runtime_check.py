@@ -39,6 +39,7 @@ ALLOWED_RUNTIME_BRANCHES = {
     "feature/phase47-full-regression",
     "feature/phase48-final-ubuntu-acceptance",
     "feature/phase49-auth-rbac",
+    "feature/redesign-callcenter-topology-dataflow",
 }
 PHASE47_BRANCH = "feature/phase47-full-regression"
 PHASE47_WORKTREE_FILES = frozenset({
@@ -124,6 +125,21 @@ def runtime_worktree_is_acceptable(branch_name: str, status_text: str) -> bool:
         if len(line) >= 4 and line.strip()
     }
     return bool(changed_files) and changed_files <= allowed_files
+
+
+def route_is_usable(node_name: str, route_text: str) -> bool:
+    """Validate routes according to the endpoint's runtime role.
+
+    Firewalls intentionally use explicit connected/static routes and do not
+    need a default route. Service hosts need a default route through the
+    Internet service zone.
+    """
+    lines = [line.strip() for line in route_text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    if node_name in FIREWALL_NAMES:
+        return any(" dev " in f" {line} " for line in lines)
+    return any("default via" in line for line in lines)
 
 
 class RuntimeCheckError(RuntimeError):
@@ -344,7 +360,7 @@ def main() -> int:
         reporter.record("Named firewall namespaces", set(FIREWALL_NAMES).issubset(names), namespaces=sorted(names))
 
         ovs = run(["ovs-vsctl", "show"], reporter, check=True)
-        reporter.record("Nine OVS connected", ovs.stdout.count("is_connected: true") == 9, connected=ovs.stdout.count("is_connected: true"))
+        reporter.record("Eight OVS connected", ovs.stdout.count("is_connected: true") == 8, connected=ovs.stdout.count("is_connected: true"))
 
         inventory = json.loads(INVENTORY_FILE.read_text(encoding="utf-8"))
         hosts = build_host_inventory(load_network_model())
@@ -389,7 +405,7 @@ def main() -> int:
             )
 
         isolation = (
-            ("Telesale -> BackOffice OpenFlow", "dist_telesale", "172.16.50.0/24", "172.16.60.0/24", "h50_01", "h60_01"),
+            ("Telesale -> BackOffice OpenFlow", "dist_branch", "172.16.50.0/24", "172.16.60.0/24", "h50_01", "h60_01"),
             ("BackOffice -> Telesale OpenFlow", "core_hq", "172.16.60.0/24", "172.16.50.0/24", "h60_01", "h50_01"),
         )
         for name, bridge, src_net, dst_net, source, destination in isolation:
@@ -426,7 +442,7 @@ def main() -> int:
                 reporter.record(f"Route {node_name}", False, reason="Missing namespace PID")
                 continue
             route = run(["mnexec", "-a", pid, "ip", "-4", "route", "show"], reporter, check=True)
-            has_route = bool(route.stdout.strip()) and "default via" in route.stdout
+            has_route = route_is_usable(node_name, route.stdout)
             route_ok = route_ok and has_route
             reporter.record(f"Route {node_name}", has_route, routes=route.stdout.strip())
         source_preserved = prove_no_nat_source_translation(reporter, inventory, hosts)

@@ -53,14 +53,18 @@ cleanup_stale_network() {
     tele_l3-eth2 ce_tel-eth0 ce_tel-eth1 fw_hq-eth0 fw_hq-eth1
     fw_tel-eth0 fw_tel-eth1 inet-eth0 inet-eth1 inet-eth2 svc-zone
     svc-zalo svc-call svc-social svc-inet
+    infra-hcp infra-dns infra-ntp infra-tor infra-nvr infra-ing infra-ler
+    infra-kup infra-had
   )
   local bridges=(
-    access_hq_a access_hq_b access_hq_c access_hq_it voice_access core_hq
-    access_telesale dist_telesale access_bo service_net
+    access_floor1 access_floor2 dist_hq_1 dist_hq_2 core_hq access_branch
+    dist_branch infra_access service_net
   )
   # Migration-only cleanup for bridges created by pre-Phase-42 runtimes.
   local legacy_bridges=(
-    access_branch dist_branch mpls_cloud internet
+    access_hq_a access_hq_b access_hq_c access_hq_it voice_access
+    access_telesale dist_telesale access_bo access_backoffice access_iot access_guest
+    mpls_cloud internet
   )
 
   for interface in "${interfaces[@]}"; do
@@ -76,6 +80,18 @@ cleanup_stale_network() {
   done
   for index in $(seq -w 1 10); do
     interface="h70-u${index}"
+    sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
+    sudo ip link delete "$interface" >/dev/null 2>&1 || true
+  done
+  for prefix in iot guest; do
+    for index in $(seq -w 1 5); do
+      interface="${prefix}-u${index}"
+      sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
+      sudo ip link delete "$interface" >/dev/null 2>&1 || true
+    done
+  done
+  for index in $(seq -w 1 2); do
+    interface="iotb-u${index}"
     sudo ovs-vsctl --if-exists del-port "$interface" >/dev/null 2>&1 || true
     sudo ip link delete "$interface" >/dev/null 2>&1 || true
   done

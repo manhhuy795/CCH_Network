@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-EXPECTED_BRIDGES = ("access_hq_a", "access_hq_b", "access_hq_c", "access_hq_it", "voice_access", "core_hq", "access_telesale", "dist_telesale", "access_bo")
+EXPECTED_BRIDGES = ("access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2", "core_hq", "access_branch", "dist_branch", "infra_access")
 REQUIRED_DOCS = ("docs/architecture.md", "docs/installation_ubuntu.md", "docs/runtime_operations.md", "docs/troubleshooting.md", "docs/testing_and_acceptance.md", "docs/security_notes.md")
 REQUIRED_SCRIPTS = ("scripts/start_demo.sh", "scripts/stop_demo.sh", "scripts/check_demo_health.sh", "scripts/phase46_automation_docs_gate.sh")
 SECRET_PATTERNS = (re.compile(r"-----BEGIN [A-Z ]+PRIVATE KEY-----"), re.compile(r"(?i)\\bpassword\\s*[:=]\\s*[A-Za-z0-9+/=_-]{16,}"), re.compile(r"CCH_DASHBOARD_OPERATOR_TOKEN\\s*=\\s*[A-Za-z0-9_-]{20,}"))
@@ -86,6 +86,8 @@ def parse_listening_ports(value: str) -> set[int]:
 def is_stale_socket(path: Path, token: str, timeout: float = 1.5) -> bool:
     if not path.exists():
         return False
+    if not hasattr(socket, "AF_UNIX"):
+        return True
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.settimeout(timeout)
@@ -118,7 +120,7 @@ def docs_reference_errors(root: Path) -> list[str]:
         for target in pattern.findall(document.read_text(encoding="utf-8")):
             target = target.split("#", 1)[0].strip()
             if target and "://" not in target and not target.startswith("mailto:") and not (document.parent / target).resolve().exists():
-                errors.append(f"{document.relative_to(root)} -> {target}")
+                errors.append(f"{document.relative_to(root).as_posix()} -> {target}")
     return errors
 
 

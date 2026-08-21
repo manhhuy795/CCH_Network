@@ -15,14 +15,29 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.network_model import build_host_inventory, load_network_model
+from sdn_mpls_demo.firewall_nftables import (
+    build_firewall_plans,
+    render_nftables_ruleset,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "runtime_reports"
 API = os.getenv("CCH_API_BASE", "http://127.0.0.1:8000").rstrip("/")
 COMMENT = os.getenv("CCH_SOCIAL_DENY_COMMENT", "cch:fw_hq:deny-social-media:hsocial")
-EXPECTED_RULES = int(os.getenv("CCH_EXPECTED_FIREWALL_RULE_COUNT", "13"))
-EXPECTED_BRIDGES = int(os.getenv("CCH_EXPECTED_OVS_BRIDGES", "9"))
-BRANCH_PATTERNS = ("feature/dual-branch-topology", "feature/phase46-automation-docs", "transfer/phase45*", "fix/phase44*", "phase44*")
+EXPECTED_RULE_COUNT_OVERRIDE = os.getenv("CCH_EXPECTED_FIREWALL_RULE_COUNT", "").strip()
+EXPECTED_RULE_COUNTS = {
+    name: render_nftables_ruleset(plan).count(" comment ")
+    for name, plan in build_firewall_plans().items()
+}
+EXPECTED_BRIDGES = int(os.getenv("CCH_EXPECTED_OVS_BRIDGES", "8"))
+BRANCH_PATTERNS = (
+    "feature/dual-branch-topology",
+    "feature/phase46-automation-docs",
+    "feature/redesign-callcenter-topology-dataflow",
+    "transfer/phase45*",
+    "fix/phase44*",
+    "phase44*",
+)
 CONTROL_SOCKET = Path(os.getenv("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 CONTROL_TOKEN = os.getenv("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
 TOKEN_FILE = ROOT / "logs" / "operator.token"
@@ -151,6 +166,12 @@ def rule_count(text: str, firewall: str) -> int:
     return sum(bool(pattern.search(line)) for line in text.replace("\r", "").splitlines())
 
 
+def expected_rule_count(firewall: str) -> int:
+    if EXPECTED_RULE_COUNT_OVERRIDE:
+        return int(EXPECTED_RULE_COUNT_OVERRIDE)
+    return EXPECTED_RULE_COUNTS[firewall]
+
+
 def api_counter(payload: Any) -> dict[str, Any]:
     for node in walk(payload):
         if isinstance(node, dict) and node.get("comment") == COMMENT and isinstance(node.get("packets"), int):
@@ -251,15 +272,16 @@ def firewall_case(r: Report) -> bool:
     )
     runtime_probe_ok = runtime_probe.get("error_code") is None and runtime_probe.get("ok") is False
     count = rule_count(after_raw, "fw_hq")
-    result = {"raw_delta": raw_delta, "api_delta": api_delta, "rule_count": count, "expected_rule_count": EXPECTED_RULES,
+    expected_count = expected_rule_count("fw_hq")
+    result = {"raw_delta": raw_delta, "api_delta": api_delta, "rule_count": count, "expected_rule_count": expected_count,
               "policy_action": action, "blocked_at": blocked, "api_policy_contract": api_policy_ok,
               "runtime_probe": {"ok": runtime_probe.get("ok"), "error_code": runtime_probe.get("error_code"),
                                 "raw_tail": str(runtime_probe.get("raw") or "")[-500:]},
               "runtime_probe_contract": runtime_probe_ok, "raw_before": braw, "raw_after": araw,
               "api_before": bapi, "api_after": aapi}
-    ok = raw_delta is not None and raw_delta > 0 and api_delta == raw_delta and count == EXPECTED_RULES and api_policy_ok and runtime_probe_ok
+    ok = raw_delta is not None and raw_delta > 0 and api_delta == raw_delta and count == expected_count and api_policy_ok and runtime_probe_ok
     result["status"] = "PASS" if ok else "FAIL"; r.data["firewall_counter"] = result
-    r.log(json.dumps(result, indent=2)); r.log(f"raw delta = {raw_delta}"); r.log(f"api delta = {api_delta}"); r.log(f"rule_count = {count}"); r.log(f"expected_rule_count = {EXPECTED_RULES}"); r.log(f"policy action = {action}"); r.log(f"blocked_at = {blocked}")
+    r.log(json.dumps(result, indent=2)); r.log(f"raw delta = {raw_delta}"); r.log(f"api delta = {api_delta}"); r.log(f"rule_count = {count}"); r.log(f"expected_rule_count = {expected_count}"); r.log(f"policy action = {action}"); r.log(f"blocked_at = {blocked}")
     return ok
 
 

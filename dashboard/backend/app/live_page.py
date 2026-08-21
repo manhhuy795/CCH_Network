@@ -18,7 +18,7 @@ LIVE_DASHBOARD_HTML = """<!doctype html>
 <body>
   <main>
     <section>
-      <h1>Hybrid MPLS L3VPN + SDN Edge Policy Demo</h1>
+      <h1>Hybrid MPLS L3VPN + VLAN 40 L2VPN + SDN Edge Policy Demo</h1>
       <p>
         Đây là trang fallback tối giản của FastAPI. Giao diện chính là React Dashboard
         chạy tại <code>http://localhost:5173</code>. Topology, policy và metrics đều lấy qua API,

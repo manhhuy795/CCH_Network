@@ -20,24 +20,24 @@ const nodes = [
   { id: "project_a", label: "Dự án A", type: "user_group", vlan: 20, count: 1, subnet: "172.10.20.0/24" },
   { id: "project_b", label: "Dự án B", type: "user_group", vlan: 30, count: 1, subnet: "172.10.30.0/24" },
   { id: "h90", label: "Voice Service", type: "service", ip: "172.10.90.10" },
-  { id: "access_hq_a", label: "Access HQ A", type: "switch", dpid: "1" },
-  { id: "access_hq_b", label: "Access HQ B", type: "switch", dpid: "2" },
-  { id: "access_hq_c", label: "Access HQ C", type: "switch", dpid: "3" },
-  { id: "access_hq_it", label: "Access HQ IT", type: "switch", dpid: "4" },
-  { id: "voice_access", label: "Voice Access", type: "switch", dpid: "5" },
-  { id: "core_hq", label: "Core HQ", type: "switch", dpid: "6" },
-  { id: "access_telesale", label: "Access Telesale", type: "switch", dpid: "7" },
-  { id: "dist_telesale", label: "Distribution Telesale", type: "switch", dpid: "8" },
-  { id: "access_backoffice", label: "Access BackOffice HQ", type: "switch", dpid: "9" },
+  { id: "access_floor1", label: "Access HQ Floor 1", type: "switch", dpid: "1" },
+  { id: "access_floor2", label: "Access HQ Floor 2", type: "switch", dpid: "2" },
+  { id: "dist_hq_1", label: "Distribution HQ 1", type: "switch", dpid: "3" },
+  { id: "dist_hq_2", label: "Distribution HQ 2", type: "switch", dpid: "4" },
+  { id: "core_hq", label: "Core HQ", type: "switch", dpid: "5" },
+  { id: "access_branch", label: "Access Branch", type: "switch", dpid: "6" },
+  { id: "dist_branch", label: "Distribution Branch", type: "switch", dpid: "7" },
+  { id: "infra_access", label: "Infrastructure Access", type: "switch", dpid: "8" },
 ];
 
 const links = [
-  { id: "project_a-access_hq_a", source: "project_a", target: "access_hq_a", type: "access", status: "up" },
-  { id: "access_hq_a-core_hq", source: "access_hq_a", target: "core_hq", type: "uplink", status: "up" },
-  { id: "project_b-access_hq_b", source: "project_b", target: "access_hq_b", type: "access", status: "up" },
-  { id: "access_hq_b-core_hq", source: "access_hq_b", target: "core_hq", type: "uplink", status: "up" },
-  { id: "core_hq-voice_access", source: "core_hq", target: "voice_access", type: "uplink", status: "up" },
-  { id: "voice_access-h90", source: "voice_access", target: "h90", type: "access", status: "up" },
+  { id: "project_a-access_floor1", source: "project_a", target: "access_floor1", type: "access", status: "up" },
+  { id: "access_floor1-dist_hq_1", source: "access_floor1", target: "dist_hq_1", type: "uplink", status: "up" },
+  { id: "project_b-access_floor2", source: "project_b", target: "access_floor2", type: "access", status: "up" },
+  { id: "access_floor2-dist_hq_2", source: "access_floor2", target: "dist_hq_2", type: "uplink", status: "up" },
+  { id: "dist_hq_1-core_hq", source: "dist_hq_1", target: "core_hq", type: "uplink", status: "up" },
+  { id: "core_hq-infra_access", source: "core_hq", target: "infra_access", type: "uplink", status: "up" },
+  { id: "infra_access-h90", source: "infra_access", target: "h90", type: "access", status: "up" },
 ];
 
 function json(route: Route, payload: unknown, status = 200) {
@@ -67,7 +67,7 @@ function measurementPayload(kind: MockOptions["measurement"]) {
   const allowDecision = {
     action: "allow",
     reason: "Voice được policy cho phép.",
-    path: ["project_b", "access_hq_b", "core_hq", "voice_access", "h90"],
+    path: ["project_b", "access_floor1", "dist_hq_1", "core_hq", "infra_access", "h90"],
     enforcement_switch: "core_hq",
     policy: "voice",
     cookie: "0x1200",
@@ -77,7 +77,7 @@ function measurementPayload(kind: MockOptions["measurement"]) {
     ok: false,
     message: "h20_01 → h30_01: PING THẤT BẠI",
     error_code: "POLICY_DENIED",
-    decision: { action: "deny", reason: "Cô lập dự án.", path: ["project_a", "access_hq_a", "core_hq"], blocked_at: "core_hq", enforcement_switch: "core_hq", policy: "hq_project_isolation", cookie: "0x1001", priority: 400 },
+    decision: { action: "deny", reason: "Cô lập dự án.", path: ["project_a", "access_floor1", "dist_hq_1", "core_hq"], blocked_at: "core_hq", enforcement_switch: "core_hq", policy: "hq_project_isolation", cookie: "0x1001", priority: 400 },
     result: { packet_loss_percent: 100, reachable: false },
   };
   if (kind === "udp_timeout") return { ok: false, message: "Agent timeout", error_code: "AGENT_TIMEOUT" };
@@ -112,11 +112,11 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
     if (path === "/api/topology") return json(route, {
       nodes,
       groups: [
-        { id: "project_a", label: "Dự án A", type: "user_group", site: "HQ", vlan: 20, count: 1, subnet: "172.10.20.0/24", switch: "access_hq_a", hosts: [hosts[0]] },
-        { id: "project_b", label: "Dự án B", type: "user_group", site: "HQ", vlan: 30, count: 1, subnet: "172.10.30.0/24", switch: "access_hq_b", hosts: [hosts[1]] },
+        { id: "project_a", label: "Dự án A", type: "user_group", site: "HQ", vlan: 20, count: 1, subnet: "172.10.20.0/24", switch: "access_floor1", hosts: [hosts[0]] },
+        { id: "project_b", label: "Dự án B", type: "user_group", site: "HQ", vlan: 30, count: 1, subnet: "172.10.30.0/24", switch: "access_floor1", hosts: [hosts[1]] },
       ],
       hosts,
-      links: links.map((link) => link.id === "project_a-access_hq_a" ? { ...link, status: linkDown ? "down" : "up" } : link),
+      links: links.map((link) => link.id === "project_a-access_floor1" ? { ...link, status: linkDown ? "down" : "up" } : link),
       policy_map: {
         project_a: { title: "Dự án A", allow: ["h90"], deny: ["project_b"], notes: { h90: "Cho phép Voice", project_b: "Cô lập dự án" } },
         project_b: { title: "Dự án B", allow: ["h90"], deny: ["project_a"], notes: { h90: "Cho phép Voice", project_a: "Cô lập dự án" } },
@@ -159,7 +159,7 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
     }
     if (path === "/api/link/fail") {
       linkDown = true;
-      return json(route, { ok: true, message: "Link đã DOWN.", failed_links: ["project_a-access_hq_a"] });
+      return json(route, { ok: true, message: "Link đã DOWN.", failed_links: ["project_a-access_floor1"] });
     }
     if (path === "/api/link/recover") {
       linkDown = false;

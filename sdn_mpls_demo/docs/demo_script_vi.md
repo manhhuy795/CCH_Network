@@ -2,8 +2,7 @@
 
 ## 1. Giới thiệu
 
-“Đây là mô hình Hybrid MPLS L3VPN + SDN Edge Policy. MPLS vận chuyển traffic
-giữa hai site; OS-Ken chỉ điều khiển các Open vSwitch ở hai đầu mạng.”
+“Đây là mô hình Hybrid MPLS L3VPN, MPLS L2VPN VPWS logic cho VLAN 40 và SDN Edge Policy. L3VPN vận chuyển các prefix routed; VPWS giữ cùng miền Ethernet cho Project C; OS-Ken chỉ điều khiển các Open vSwitch phía doanh nghiệp.”
 
 ## 2. Kiểm tra 110 user
 
@@ -13,7 +12,7 @@ Tại Mininet:
 nodes
 ```
 
-Chỉ ra các host từ `h20_01` đến `h60_20` và `h70_01` đến `h70_04`.
+Chỉ ra các host từ `h20_01` đến `h60_20` và `h70_01` đến `h70_10`.
 Dashboard gom chúng thành 6 nhóm để
 sơ đồ không bị rối nhưng dropdown vẫn chọn được từng user.
 
@@ -40,6 +39,10 @@ Chọn `h50_01 → hcall`: path đi qua Firewall Branch.
 Chọn `h50_01 → hsocial`: traffic bị chặn tại Firewall Branch.
 
 ## 6. Liên site
+
+Trước tiên chọn `h40_11 → h40_01`. Hai endpoint cùng VLAN/subnet nhưng khác site; path phải đi qua `access_branch → dist_branch → l2vpn_vpws40 → dist_hq_2 → access_floor2`. Nêu rõ bridge chỉ mô phỏng forwarding Ethernet, không mô phỏng nhãn MPLS hoặc PE/P control plane.
+
+Hạ link `dist_branch-l2vpn_vpws40`: ping xuyên site phải fail. Khôi phục link: ping phải hoạt động lại. Đây là bằng chứng failure injection thật trên attachment circuit, không phải chỉ đổi trạng thái giao diện.
 
 Chọn `h50_01 → h20_01`, bấm **Mô phỏng path**:
 

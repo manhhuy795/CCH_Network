@@ -9,12 +9,14 @@ import threading
 import time
 import uuid
 import hashlib
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from . import repo  # Đảm bảo repository root có trong sys.path.
 from . import mininet_control
+from scripts.common import load_vars
 from scripts.network_model import architecture_links, controlled_switches, load_network_model, runtime_switch_map, runtime_switch_name
 from sdn_mpls_demo.firewall_nftables import FIREWALL_NAMES, build_firewall_plans
 from sdn_mpls_demo.policy_engine import GROUP_PATHS, POLICY_FLOW_PROFILES, PolicyEngine
@@ -24,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 POLICY_FILE = REPO_ROOT / "sdn_mpls_demo" / "policy.yml"
 RUNTIME_FLOWS_FILE = REPO_ROOT / "sdn_mpls_demo" / "runtime" / "installed_flows.json"
 NETWORK_MODEL = load_network_model()
+SOURCE_TRUTH = load_vars()
 ENGINE = PolicyEngine(POLICY_FILE)
 CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
 MANUAL_BLOCK_COOKIE_BASE = 0x9000
@@ -160,6 +163,8 @@ def firewall_inventory() -> list[dict[str, Any]]:
         inventory.append({
             "name": firewall_name,
             "logical_name": firewall_name,
+            "runtime_node": firewall_name,
+            "representation": "runtime",
             "site": dashboard_site_id(plan.get("site")),
             "inside_interface": plan.get("inside_interface"),
             "outside_interface": plan.get("outside_interface"),
@@ -192,6 +197,120 @@ def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def _design_node(
+    node_id: str,
+    node_type: str,
+    label: str,
+    *,
+    runtime_node: str | None = None,
+    runtime_state: str = "design_only",
+    site: str = "logical",
+    role: str | None = None,
+) -> dict[str, Any]:
+    """Create an explicit design-only object without adding it to runtime nodes."""
+    return {
+        "id": node_id,
+        "logical_name": node_id,
+        "label": label,
+        "type": node_type,
+        "role": role or node_type,
+        "site": dashboard_site_id(site),
+        "runtime_node": runtime_node,
+        "runtime_state": runtime_state,
+        "representation": "design_only",
+        "controller_managed": False,
+        "status": "design_only",
+        "status_source": "source_of_truth",
+        "runtime_bridge": None,
+    }
+
+
+def topology_design_payload() -> dict[str, Any]:
+    """Expose the diagram's enterprise design layer separately from live Mininet."""
+    edge = deepcopy(NETWORK_MODEL.get("edge_design", {}))
+    provider = edge.get("provider_domain", {})
+    circuits = provider.get("circuits", {})
+    handoffs = deepcopy(SOURCE_TRUTH.get("provider_handoff_paths", {}))
+    firewall_design = deepcopy(edge.get("firewalls", {}))
+    firewall_policy = SOURCE_TRUTH.get("firewall_policy", {}).get("sites", {})
+    server_zone = deepcopy(NETWORK_MODEL.get("server_zone_design", {}))
+    design_nodes: list[dict[str, Any]] = []
+
+    for circuit_name, circuit in circuits.items():
+        design_nodes.append(_design_node(
+            str(circuit.get("id")),
+            "provider_circuit",
+            str(circuit.get("label", circuit_name)),
+            runtime_state="design_only",
+            site="wan",
+            role=circuit_name,
+        ))
+    for circuit_name, handoff in handoffs.items():
+        design_nodes.append(_design_node(
+            str(handoff.get("handoff_id")),
+            "wan_handoff",
+            str(handoff.get("label", circuit_name)),
+            runtime_state="design_only",
+            site="wan",
+            role=circuit_name,
+        ))
+
+    for site_name, firewall in firewall_design.items():
+        members = []
+        for member_key in ("primary_member", "backup_member"):
+            member = firewall.get(member_key)
+            if member:
+                members.append(str(member))
+                design_nodes.append(_design_node(
+                    str(member),
+                    "firewall_peer",
+                    str(member),
+                    runtime_node=str(firewall.get("runtime_node")),
+                    runtime_state="design_only",
+                    site=site_name,
+                    role=member_key.removesuffix("_member"),
+                ))
+        policy = firewall_policy.get(site_name, {})
+        firewall["runtime_state"] = "runtime_namespace"
+        firewall["representation"] = "design_metadata"
+        firewall["policy_site"] = site_name
+        firewall["outside_circuits"] = list(firewall.get("outside_circuits", []))
+        firewall["design_members"] = members or None
+        firewall["runtime_interfaces"] = deepcopy(policy.get("runtime_interfaces", {}))
+
+    for component_name, component in server_zone.get("components", {}).items():
+        runtime_node = component.get("runtime_node")
+        design_nodes.append(_design_node(
+            component_name,
+            "server_zone_component",
+            component_name.replace("_", " ").title(),
+            runtime_node=str(runtime_node) if runtime_node is not None else None,
+            runtime_state=str(component.get("runtime_state", "design_only")),
+            site="hq",
+            role=str(component.get("design_role") or component.get("runtime_kind") or "server_zone"),
+        ))
+
+    return {
+        "source_of_truth": [
+            "vars/network_model.yml",
+            "vars/routing.yml",
+            "vars/firewall_policies.yml",
+        ],
+        "runtime_authority": "Mininet Control Agent and live OVS/nftables evidence",
+        "design_only_is_runtime": False,
+        "provider_domain": {
+            "label": provider.get("label"),
+            "handoff_layer": provider.get("handoff_layer"),
+            "mode": provider.get("mode"),
+            "circuits": circuits,
+        },
+        "provider_handoff_paths": handoffs,
+        "firewall_redundancy": firewall_design,
+        "server_zone": server_zone,
+        "design_nodes": design_nodes,
+    }
+
+
 
 def topology_payload() -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
@@ -201,16 +320,20 @@ def topology_payload() -> dict[str, Any]:
         key=lambda item: (item["kind"] != "user", item["name"]),
     )
     for name, group in ENGINE.groups.items():
-        group_hosts = [host for host in hosts if host.get("group") == name and host.get("kind") == "user"]
+        group_hosts = [host for host in hosts if host.get("group") == name]
         item = {
             "id": name,
             "label": group["label"],
-            "type": "user_group",
+            "type": "user_group" if group.get("host_kind", "user") == "user" else "endpoint_group",
             "site": dashboard_site_id(group.get("site")),
+            "sites": sorted({str(host.get("site")) for host in group_hosts}),
             "vlan": int(group["vlan"]),
             "count": int(group["count"]),
             "subnet": group["subnet"],
             "switch": group["switch"],
+            "floor": group.get("floor"),
+            "placements": group.get("placements", []),
+            "addressing": group.get("addressing", "static"),
             "hosts": group_hosts,
         }
         nodes.append(item)
@@ -231,8 +354,10 @@ def topology_payload() -> dict[str, Any]:
             "subtitle": subtitle,
             "site": dashboard_site_id(source.get("site")),
             "dpid": source.get("dpid"),
-            "runtime_bridge": runtime_switch_name(NETWORK_MODEL, node_id) if switch else None,
+            "runtime_bridge": runtime_switch_name(NETWORK_MODEL, node_id) if switch else source.get("runtime_name"),
             "controller_managed": is_controlled,
+            "representation": "runtime",
+            "runtime_state": "unknown",
             "status": "unknown",
             "status_source": "live_mininet",
         }
@@ -252,6 +377,21 @@ def topology_payload() -> dict[str, Any]:
             "status_source": "live_mininet",
         })
 
+    for service_name, service in ENGINE.infrastructure_services.items():
+        nodes.append({
+            "id": service_name,
+            "logical_name": service_name,
+            "label": service["label"],
+            "type": "infrastructure_service",
+            "site": dashboard_site_id(service.get("site")),
+            "ip": service["ip"],
+            "vlan": int(service["vlan"]),
+            "role": service.get("role"),
+            "controller_managed": False,
+            "status": "unknown",
+            "status_source": "live_mininet",
+        })
+
     links = [
         {
             "id": f"{source}-{target}",
@@ -263,7 +403,7 @@ def topology_payload() -> dict[str, Any]:
         for source, target, link_type in ARCHITECTURE_LINKS
     ]
     site_groups = {
-        site_id: [group["id"] for group in groups if group["site"] == site_id]
+        site_id: [group["id"] for group in groups if site_id in group.get("sites", [group["site"]])]
         for site_id in ("hq", "telesale")
     }
     site_devices = {
@@ -282,6 +422,7 @@ def topology_payload() -> dict[str, Any]:
         for site_id in ("hq", "telesale")
     ]
     firewalls = firewall_inventory()
+    design_contract = topology_design_payload()
     return {
         "nodes": nodes,
         "groups": groups,
@@ -295,22 +436,52 @@ def topology_payload() -> dict[str, Any]:
         "runtime_bridge_map": dict(RUNTIME_BRIDGE_MAP),
         "ce_nodes": [device for device in devices if device["type"] == "router"],
         "firewalls": firewalls,
+        "topology_contract": design_contract,
+        "design_nodes": deepcopy(design_contract["design_nodes"]),
         "mpls": {
-            "id": "mpls_cloud",
-            "status": "logical_only",
+            "primary": {"id": "mpls_primary", "status": "active", "metric": 10, "path_between": ["ce_hq", "mpls_primary", "ce_telesale"]},
+            "backup": {"id": "mpls_backup", "status": "standby", "metric": 100, "path_between": ["ce_hq", "mpls_backup", "ce_telesale"]},
+            "failover_policy": "Primary DOWN -> Backup active; Primary RECOVER -> failback; both DOWN -> intersite unavailable.",
             "controller_managed": False,
-            "path_between": ["ce_hq", "mpls_cloud", "ce_telesale"],
+        },
+        "l2vpn": {
+            "service": "vlan40_project_c",
+            "type": "VPWS / E-Line logic",
+            "customer_vlan": 40,
+            "sites": ["hq", "telesale"],
+            "gateway_site": "hq",
+            "gateway_node": "core_hq",
+            "runtime_node": "l2vpn_vpws40",
+            "runtime_bridge": "l2vpn40",
+            "controller_managed": False,
+            "simulation_scope": "Transparent Ethernet forwarding; no MPLS labels or PE/P signaling",
+        },
+        "enterprise_zones": {
+            "iot_hq": {"vlan": 110, "subnet": "172.16.110.0/24", "endpoint_count": 5, "addressing": "reservation", "site": "hq"},
+            "iot_branch": {"vlan": 111, "subnet": "172.16.111.0/24", "endpoint_count": 2, "addressing": "reservation", "site": "branch_telesale"},
+            "guest": {"vlan": 120, "subnet": "172.16.120.0/24", "endpoint_count": 2, "addressing": "dhcp", "site": "hq", "internal_access": "deny"},
+            "infrastructure_services": {"vlan": 100, "subnet": "172.16.100.0/24", "service_count": len(ENGINE.infrastructure_services), "dhcp_relay": ["core_hq", "dist_branch"]},
         },
         "internet_zone": {"id": "internet_zone", "status": "logical_only", "controller_managed": False},
         "phase44_runtime": phase44_runtime_status(),
         "policy_map": policy_map_payload(),
         "summary": {
-            "user_count": sum(int(group["count"]) for group in ENGINE.groups.values()),
+            "user_count": sum(
+                int(group["count"])
+                for group in ENGINE.groups.values()
+                if group.get("host_kind", "user") == "user"
+            ),
             "service_count": len(ENGINE.services),
+            "iot_hq_count": sum(1 for host in hosts if host.get("kind") == "iot" and host.get("group") == "iot_hq"),
+            "iot_branch_count": sum(1 for host in hosts if host.get("kind") == "iot" and host.get("group") == "iot_branch"),
+            "guest_count": sum(1 for host in hosts if host.get("kind") == "guest"),
+            "infrastructure_service_count": len(ENGINE.infrastructure_services),
+            "endpoint_count": len(hosts),
             "controlled_ovs_count": len(CONTROLLED_SWITCHES),
             "site_count": 2,
             "ce_count": 2,
             "firewall_count": 2,
+            "l2vpn_service_count": 1,
         },
     }
 
@@ -318,15 +489,19 @@ def topology_payload() -> dict[str, Any]:
 def representative_endpoint(node_id: str) -> str:
     if node_id in ENGINE.groups:
         group = ENGINE.groups[node_id]
+        first_host = next((host for host in ENGINE.hosts.values() if host.get("group") == node_id), None)
+        if first_host:
+            return str(first_host["name"])
         return f"{group['prefix']}_01"
     return node_id
 
 
 def policy_map_payload() -> dict[str, Any]:
-    selectable = [*ENGINE.groups.keys(), *ENGINE.services.keys()]
+    selectable = [*ENGINE.groups.keys(), *ENGINE.services.keys(), *ENGINE.infrastructure_services.keys()]
     names = {
         **{name: group["label"] for name, group in ENGINE.groups.items()},
         **{name: service["label"] for name, service in ENGINE.services.items()},
+        **{name: service["label"] for name, service in ENGINE.infrastructure_services.items()},
     }
     payload: dict[str, Any] = {}
     for source_id in selectable:
@@ -356,6 +531,7 @@ def policy_payload() -> dict[str, Any]:
         "metadata": ENGINE.data["metadata"],
         "host_groups": ENGINE.groups,
         "services": ENGINE.services,
+        "infrastructure_services": ENGINE.infrastructure_services,
         "policies": ENGINE.policies,
     }
 

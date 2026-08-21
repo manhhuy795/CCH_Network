@@ -4,13 +4,37 @@ import type { Host, RealtimeMetric } from "../api/client";
 import { wsUrl } from "../api/client";
 import StatusBadge from "./ui/StatusBadge";
 
+export type RealtimeConnectionState = "idle" | "connecting" | "connected" | "monitoring" | "reconnecting" | "stopped" | "error";
+
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+export function realtimeStatusLabel(state: RealtimeConnectionState) {
+  const labels: Record<RealtimeConnectionState, string> = {
+    idle: "Chưa bật giám sát",
+    connecting: "Đang kết nối",
+    connected: "Realtime đã kết nối",
+    monitoring: "Đang giám sát",
+    reconnecting: "Đang kết nối lại",
+    stopped: "Đã dừng giám sát",
+    error: "Lỗi kết nối",
+  };
+  return labels[state];
+}
+
+export function realtimeStatusTone(state: RealtimeConnectionState) {
+  if (state === "connected" || state === "monitoring") return "online" as const;
+  if (state === "connecting" || state === "reconnecting") return "degraded" as const;
+  if (state === "error") return "offline" as const;
+  return "unknown" as const;
+}
+
 type Props = {
   hosts: Host[];
   source: string;
   destination: string;
   onSource: (value: string) => void;
   onDestination: (value: string) => void;
-  onStatus: (connected: boolean) => void;
+  onStatus: (state: RealtimeConnectionState) => void;
 };
 
 const chartFields: Array<{ field: keyof RealtimeMetric; label: string; unit: string }> = [
@@ -45,12 +69,13 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
   const [interval, setIntervalValue] = useState(2);
   const [rangeMinutes, setRangeMinutes] = useState(5);
   const [history, setHistory] = useState<RealtimeMetric[]>([]);
-  const [socketState, setSocketState] = useState<"idle" | "connecting" | "online" | "closed" | "error">("idle");
+  const [socketState, setSocketState] = useState<RealtimeConnectionState>("idle");
   const [reconnectNonce, setReconnectNonce] = useState(0);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
   const socketRef = useRef<WebSocket>();
   const reconnectTimer = useRef<number>();
+  const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -62,31 +87,42 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
     setHistory([]);
     setSocketState("idle");
     setReconnectAttempt(0);
+    reconnectAttemptRef.current = 0;
     socketRef.current?.close();
-    onStatus(false);
+    onStatus("idle");
   }, [source, destination, onStatus]);
 
   useEffect(() => {
     if (!running) return;
     let disposed = false;
     setSocketState("connecting");
+    onStatus("connecting");
     const socket = new WebSocket(wsUrl(source, destination, interval));
     socketRef.current = socket;
     socket.onopen = () => {
-      setSocketState("online");
+      setSocketState("monitoring");
       setReconnectAttempt(0);
-      onStatus(true);
+      reconnectAttemptRef.current = 0;
+      onStatus("monitoring");
     };
     socket.onclose = () => {
       if (disposed) return;
-      setSocketState("closed");
-      onStatus(false);
-      setReconnectAttempt((current) => current + 1);
-      reconnectTimer.current = window.setTimeout(() => setReconnectNonce((current) => current + 1), 1200);
+      const nextAttempt = reconnectAttemptRef.current + 1;
+      reconnectAttemptRef.current = nextAttempt;
+      if (nextAttempt > MAX_RECONNECT_ATTEMPTS) {
+        setSocketState("error");
+        onStatus("error");
+        return;
+      }
+      setSocketState("reconnecting");
+      onStatus("reconnecting");
+      setReconnectAttempt(nextAttempt);
+      const delay = Math.min(5000, 800 * (2 ** (nextAttempt - 1)));
+      reconnectTimer.current = window.setTimeout(() => setReconnectNonce((current) => current + 1), delay);
     };
     socket.onerror = () => {
       setSocketState("error");
-      onStatus(false);
+      onStatus("error");
     };
     socket.onmessage = (event) => {
       try {
@@ -112,13 +148,20 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
   const latestTime = latest?.timestamp ? new Date(latest.timestamp).getTime() : 0;
   const stale = Boolean(latestTime && clock - latestTime > interval * 3000);
   const selectableHosts = hosts.filter((host) => host.name !== (source || destination));
+  const stopMonitoring = () => {
+    setRunning(false);
+    setSocketState("stopped");
+    setReconnectAttempt(0);
+    reconnectAttemptRef.current = 0;
+    onStatus("stopped");
+  };
 
   return (
     <section>
       <div className="section-title">
         <div><h2>Giám sát hiệu năng theo thời gian thực</h2><span>Ping định kỳ và OpenFlow counter; không chạy iperf liên tục</span></div>
         <div className="realtime-statuses">
-          <StatusBadge status={socketState === "online" ? "online" : socketState === "error" ? "offline" : socketState === "connecting" || reconnectAttempt ? "degraded" : "unknown"} label={reconnectAttempt ? `WebSocket reconnect lần ${reconnectAttempt}` : `WebSocket ${socketState}`} />
+          <StatusBadge status={realtimeStatusTone(socketState)} label={reconnectAttempt ? `WebSocket reconnect lần ${reconnectAttempt}` : realtimeStatusLabel(socketState)} />
           {stale && <StatusBadge status="degraded" label="Dữ liệu stale" />}
         </div>
       </div>
@@ -147,7 +190,7 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
         </div>
         <div className="run-bar">
           <button className="primary" onClick={() => setRunning(true)} disabled={running || source === destination}><Play size={16} />Bắt đầu</button>
-          <button onClick={() => setRunning(false)} disabled={!running}><Pause size={16} />Dừng</button>
+          <button onClick={stopMonitoring} disabled={!running}><Pause size={16} />Dừng</button>
           <span className="realtime-updated">Cập nhật cuối: {updated} · {history.length} điểm</span>
         </div>
         {!history.length && <div className="metrics-empty">Chọn cặp endpoint và bấm Bắt đầu để nhận số liệu thật từ WebSocket.</div>}
