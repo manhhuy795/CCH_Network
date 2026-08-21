@@ -25,7 +25,14 @@ from mininet.net import Mininet
 from mininet.node import Node, OVSKernelSwitch, RemoteController, Switch
 
 try:
-    from scripts.network_model import build_host_inventory, dpid_map, load_network_model, runtime_switch_map, runtime_switch_name
+    from scripts.network_model import (
+        build_host_inventory,
+        dpid_map,
+        endpoint_link_segments,
+        load_network_model,
+        runtime_switch_map,
+        runtime_switch_name,
+    )
     from sdn_mpls_demo.firewall_nftables import (
         FIREWALL_NAMES,
         apply_to_mininet,
@@ -42,7 +49,14 @@ except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from scripts.network_model import build_host_inventory, dpid_map, load_network_model, runtime_switch_map, runtime_switch_name
+    from scripts.network_model import (
+        build_host_inventory,
+        dpid_map,
+        endpoint_link_segments,
+        load_network_model,
+        runtime_switch_map,
+        runtime_switch_name,
+    )
     from firewall_nftables import (
         FIREWALL_NAMES,
         apply_to_mininet,
@@ -935,18 +949,14 @@ class MininetControlAgent:
             return []
         left, right = link_id.split("-", 1)
         groups = self.policy.get("host_groups", {})
-        if left in groups and groups[left]["switch"] == right:
-            group = groups[left]
-            return [
-                (f"{group['prefix']}_{index:02d}", right)
-                for index in range(1, int(group["count"]) + 1)
-            ]
-        if right in groups and groups[right]["switch"] == left:
-            group = groups[right]
-            return [
-                (left, f"{group['prefix']}_{index:02d}")
-                for index in range(1, int(group["count"]) + 1)
-            ]
+        if left in groups:
+            segments = endpoint_link_segments(NETWORK_MODEL, left, right)
+            if segments:
+                return segments
+        if right in groups:
+            segments = endpoint_link_segments(NETWORK_MODEL, right, left)
+            if segments:
+                return [(switch, endpoint) for endpoint, switch in segments]
         return [(left, right)]
 
     def _segment_interface_map(self, left: str, right: str) -> dict:

@@ -471,5 +471,25 @@ def architecture_links(model: dict[str, Any]) -> list[tuple[str, str, str]]:
     return [tuple(link) for link in model.get("links", [])]
 
 
+def endpoint_link_segments(
+    model: dict[str, Any],
+    group_name: str,
+    access_switch: str,
+) -> list[tuple[str, str]]:
+    """Map one logical host-group edge to its real Mininet endpoint links.
+
+    A host group may span multiple access switches (Project B) or multiple
+    physical sites (Project C). Endpoint names may also be explicitly declared
+    instead of following the group's prefix (IoT). The expanded inventory is
+    therefore authoritative for runtime link-state checks.
+    """
+    return [
+        (str(endpoint_name), access_switch)
+        for endpoint_name, endpoint in build_host_inventory(model).items()
+        if str(endpoint.get("group")) == group_name
+        and str(endpoint.get("switch")) == access_switch
+    ]
+
+
 def user_count(model: dict[str, Any]) -> int:
     return sum(int(group.get("count", 0)) for group in model.get("host_groups", {}).values() if group.get("host_kind", "user") == "user")
