@@ -24,17 +24,21 @@ flowchart LR
     DH --> C["Core HQ\nGateway 172.16.40.1"]
   end
   subgraph WAN[Provider service logic]
+    CEH["CE HQ\nVLAN 40 AC"]
     PW["VPWS / E-Line\ntransparent bridge"]
+    CEB["CE Branch\nVLAN 40 AC"]
   end
   subgraph BR[Branch Telesale]
     B["10 Project C\nVLAN 40"] --> AB[Access Branch]
     AB --> DB[Distribution Branch]
   end
-  DH --- PW
-  PW --- DB
+  DH --- CEH
+  CEH --- PW
+  PW --- CEB
+  CEB --- DB
 ```
 
-Broadcast, ARP và unicast Ethernet của VLAN 40 được chuyển trong suốt qua `l2vpn_vpws40`. Branch không tạo SVI VLAN 40 và không quảng bá `172.16.40.0/24` vào L3VPN. Mọi traffic cần định tuyến hoặc Internet của Project C tại Branch đi qua gateway tập trung ở HQ.
+Broadcast, ARP và unicast Ethernet của VLAN 40 đi theo đường trình bày `Distribution HQ 2 → CE HQ → l2vpn_vpws40 → CE Branch → Distribution Branch`. Hai CE là điểm demarcation của attachment circuit; runtime rút gọn service instance tại CE vào hai đầu bridge `l2vpn40`. Branch không tạo SVI VLAN 40 và không quảng bá `172.16.40.0/24` vào L3VPN. Mọi traffic cần định tuyến hoặc Internet của Project C tại Branch đi qua gateway tập trung ở HQ.
 
 ## 3. Phạm vi mô phỏng trung thực
 

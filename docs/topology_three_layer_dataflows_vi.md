@@ -31,18 +31,26 @@ control path OpenFlow, khong nam trong data path cua packet.
 | HQ Floor 2 | BackOffice | 60 | access_floor2 |
 | HQ Floor 2 | IT Support | 70 | access_floor2 |
 | Branch | Telesale | 50 | access_branch |
+| Branch | Project C | 40 | access_branch |
 | Branch | IoT Branch | 111 | access_branch |
 | HQ service zone | PBX/SBC | 90 | infra_access |
 | HQ service zone | DHCP/DNS/NTP/monitoring/NVR/CRM... | 100 | infra_access |
 
 Project B dung chung VLAN/subnet nhung co placement tren hai access switch; path
 thuc te cua host la nguon de animation, khong phai path hardcode trong React.
+Project C co 10 endpoint tai HQ va 10 endpoint tai Branch. Hai placement dung
+chung VLAN 40 va subnet `172.16.40.0/24` qua `l2vpn_vpws40`; gateway
+`172.16.40.1` chi dat tai `core_hq`.
 
 ## Data flow
 
 - Agent HQ -> Voice/CRM: Access -> Distribution -> Core -> `infra_access`.
 - Telesale -> Voice/CRM: Access Branch -> Distribution Branch -> CE Branch ->
   MPLS Primary (metric 10) -> CE HQ -> Core -> `infra_access`.
+- Project C Branch -> Project C HQ/gateway: Access Branch -> Distribution Branch
+  -> CE Branch attachment -> `l2vpn_vpws40` -> CE HQ attachment -> Distribution
+  HQ 2 -> Access/Core HQ. Day la E-Line logic tach biet voi MPLS L3 transport va
+  firewall. Runtime rut gon service instance CE vao hai dau transparent bridge.
 - Khi Primary down, control agent doi link that sang Backup (metric 100). Khi
   Primary recover, policy failback. Hai cloud MPLS khong noi truc tiep voi nhau.
 - HQ Internet: Core -> `fw_hq` -> Internet Zone. Branch Internet:
@@ -70,5 +78,6 @@ thuc tu DHCP daemon. Khong duoc coi host IP static la DHCP lease.
 ## Gioi han
 
 UDP iperf la phep uoc luong jitter/loss, khong thay the SIP/RTP production.
-MPLS la transport logic, khong mo phong PE/P core that. Firewall la nftables
-namespace trong Mininet, khong phai appliance production.
+MPLS L3 va L2VPN VPWS deu la transport logic, khong mo phong PE/P core, MPLS
+label stack hay signaling that. Firewall la nftables namespace trong Mininet,
+khong phai appliance production.

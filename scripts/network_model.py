@@ -385,6 +385,14 @@ def validate_network_model(model: dict[str, Any]) -> list[str]:
         or l2vpn.get("runtime_mode") != "transparent_linux_bridge"
     ):
         errors.append("VLAN 40 L2VPN must be VPWS with a centralized HQ gateway and transparent bridge runtime")
+    if l2vpn.get("presentation_path") != ["dist_hq_2", "ce_hq", "l2vpn_vpws40", "ce_telesale", "dist_branch"]:
+        errors.append("VLAN 40 presentation path must traverse both CE attachment demarcations")
+    attachment_circuits = l2vpn.get("attachment_circuits", {})
+    expected_attachment_nodes = {"hq": ("dist_hq_2", "ce_hq"), "branch_telesale": ("dist_branch", "ce_telesale")}
+    for site, (customer_switch, ce_node) in expected_attachment_nodes.items():
+        attachment = attachment_circuits.get(site, {})
+        if attachment.get("customer_switch") != customer_switch or attachment.get("ce_node") != ce_node or int(attachment.get("vlan", -1)) != 40:
+            errors.append(f"VLAN 40 attachment circuit {site} must map {customer_switch} to {ce_node}")
     site_paths = model.get("site_group_paths", {}).get("project_c", {})
     if set(site_paths) != EXPECTED_PHYSICAL_SITES or "l2vpn_vpws40" not in site_paths.get("branch_telesale", []):
         errors.append("Project C must declare HQ and Branch site paths through l2vpn_vpws40")

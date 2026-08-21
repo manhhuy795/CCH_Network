@@ -454,6 +454,8 @@ def topology_payload() -> dict[str, Any]:
             "runtime_node": "l2vpn_vpws40",
             "runtime_bridge": "l2vpn40",
             "controller_managed": False,
+            "presentation_path": deepcopy(NETWORK_MODEL["l2vpn_services"]["vlan40_project_c"]["presentation_path"]),
+            "attachment_circuits": deepcopy(NETWORK_MODEL["l2vpn_services"]["vlan40_project_c"]["attachment_circuits"]),
             "simulation_scope": "Transparent Ethernet forwarding; no MPLS labels or PE/P signaling",
         },
         "enterprise_zones": {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiClientError, api, type ActivityEvent, type AuthStatus, type AuthUser, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
+import { ApiClientError, api, type ActivityEvent, type AuthStatus, type AuthUser, type DashboardPreflight, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
 import EventLog from "./components/EventLog";
@@ -47,7 +47,7 @@ export default function App() {
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
   const [websocketState, setWebsocketState] = useState<RealtimeConnectionState>("idle");
   const [user, setUser] = useState<AuthUser>();
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(true);
@@ -144,7 +144,7 @@ export default function App() {
       const result = await api.login(username, password);
       setUser(result.user);
       setPassword("");
-      notify(`Đã đăng nhập với role ${result.user.role}.`, "success");
+      notify(`Phiên ${result.user.username} đã sẵn sàng.`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Không xác thực được tài khoản.";
       setAuthError(message);
@@ -286,6 +286,9 @@ export default function App() {
 
   const healthComponents = (runtime.components || {}) as Record<string, { status?: string; message_vi?: string }>;
   const overallStatus = String(runtime.status || "unknown");
+  const requiredHealthKeys = ["backend", "controller", "mininet_topology", "mininet_control_agent", "openvswitch"];
+  const healthyRequired = requiredHealthKeys.filter((key) => healthComponents[key]?.status === "online").length;
+  const preflight = runtime.preflight as DashboardPreflight | undefined;
   const topologyProps = {
     topology,
     links: topology?.links || [],
@@ -298,6 +301,7 @@ export default function App() {
     linkOperation,
     authenticated: Boolean(user),
     source,
+    destination,
     onFail: (id: string) => void changeLink(id, true),
     onRecover: (id: string) => void changeLink(id, false),
     onSource: selectSource,
@@ -341,7 +345,11 @@ export default function App() {
       failedLinks={failedLinks}
       lastError={events.find((event) => event.severity === "error")?.message}
       lastUpdated={lastUpdated}
+      topology={topology}
+      preflight={preflight}
+      events={events}
       onNavigate={setPage}
+      onRefresh={refresh}
     />;
   };
 
@@ -350,6 +358,7 @@ export default function App() {
       page={page}
       onPage={setPage}
       overallStatus={overallStatus}
+      overallLabel={`${healthyRequired}/${requiredHealthKeys.length} dịch vụ`}
       websocketState={websocketState}
       user={user}
       authChecking={authChecking}

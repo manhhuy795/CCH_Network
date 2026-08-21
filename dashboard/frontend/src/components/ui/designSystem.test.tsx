@@ -9,7 +9,7 @@ import ToastRegion from "./ToastRegion";
 describe("dashboard design system", () => {
   it("shows icon and text for status", () => {
     render(<StatusBadge status="degraded" />);
-    expect(screen.getByRole("status")).toHaveTextContent("Suy giảm");
+    expect(screen.getByRole("status")).toHaveTextContent("Cần kiểm tra");
     expect(screen.getByRole("status").querySelector("svg")).toBeInTheDocument();
   });
 

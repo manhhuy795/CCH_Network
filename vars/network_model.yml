@@ -5,7 +5,7 @@ metadata:
   openflow_version: "1.3"
   controller: "127.0.0.1:6653"
   migration_note: "BackOffice da o HQ Floor 2. Cac ten access_hq_a/access_hq_b/access_hq_c/access_hq_it/voice_access/access_backoffice/access_iot/access_guest/branch_backoffice/dist_backoffice/ce_backoffice/fw_backoffice la ten legacy, khong phai active topology."
-  limitations: "core_hq la node runtime dai dien cho Core HQ Logical HA Pair; khong fake HSRP/VRRP/MLAG. mpls_primary/mpls_backup chi mo phong L3 transport. l2vpn_vpws40 la OVS/Linux bridge trong suot de mo phong dich vu VPWS, khong phai MPLS label forwarding hay PE/P router that."
+  limitations: "core_hq la node runtime dai dien cho Core HQ Logical HA Pair; khong fake HSRP/VRRP/MLAG. mpls_primary/mpls_backup chi mo phong L3 transport. l2vpn_vpws40 la OVS/Linux bridge trong suot nam giua hai attachment circuit CE de mo phong dich vu VPWS, khong phai MPLS label forwarding hay PE/P router that."
 
 sites:
   hq:
@@ -16,7 +16,7 @@ sites:
     label: "Branch Telesale"
     kind: physical
   wan:
-    label: "WAN / MPLS L3VPN Logic"
+    label: "WAN / MPLS L3 + L2VPN Logic"
     kind: logical
   internet:
     label: "Internet / Service Zone"
@@ -234,7 +234,7 @@ infrastructure:
   ce_telesale: {label: "CE Router Branch Telesale", type: router, site: branch_telesale}
   mpls_primary: {label: "MPLS Primary", subtitle: "WAN transport - metric 10", type: wan, site: wan, metric: 10}
   mpls_backup: {label: "MPLS Backup", subtitle: "WAN transport - metric 100", type: wan, site: wan, metric: 100}
-  l2vpn_vpws40: {label: "L2VPN VPWS - VLAN 40", subtitle: "Transparent E-Line logic HQ <-> Branch; no MPLS labels", type: l2vpn, site: wan, runtime_name: l2vpn40, controller_managed: false}
+  l2vpn_vpws40: {label: "Carrier L2VPN VPWS - VLAN 40", subtitle: "E-Line logic between CE attachment circuits; no MPLS labels", type: l2vpn, site: wan, runtime_name: l2vpn40, controller_managed: false}
   fw_hq: {label: "Firewall HQ Internet Edge", subtitle: "Local breakout HQ", type: firewall, site: hq}
   fw_telesale: {label: "Firewall Branch Internet Edge", subtitle: "Local breakout Branch", type: firewall, site: branch_telesale}
   internet_zone: {label: "Internet / Service Zone", type: service_edge, site: internet}
@@ -364,7 +364,7 @@ group_paths:
 site_group_paths:
   project_c:
     hq: [project_c, access_floor2, dist_hq_2, core_hq]
-    branch_telesale: [project_c, access_branch, dist_branch, l2vpn_vpws40, dist_hq_2, core_hq]
+    branch_telesale: [project_c, access_branch, dist_branch, ce_telesale, l2vpn_vpws40, ce_hq, dist_hq_2, core_hq]
 
 l2vpn_services:
   vlan40_project_c:
@@ -378,13 +378,14 @@ l2vpn_services:
     sites: [hq, branch_telesale]
     runtime_node: l2vpn_vpws40
     runtime_mode: transparent_linux_bridge
+    presentation_path: [dist_hq_2, ce_hq, l2vpn_vpws40, ce_telesale, dist_branch]
     attachment_circuits:
-      hq: {switch: dist_hq_2, interface: d2-eth40, service_port: pw40-hq}
-      branch_telesale: {switch: dist_branch, interface: bd-eth40, service_port: pw40-br}
-    limitations: "Mo phong forwarding Ethernet trong suot va su co attachment circuit; khong mo phong MPLS label stack, LDP/RSVP/BGP signaling hay PE/P control plane."
+      hq: {customer_switch: dist_hq_2, ce_node: ce_hq, vlan: 40, interface: d2-eth40, service_port: pw40-hq}
+      branch_telesale: {customer_switch: dist_branch, ce_node: ce_telesale, vlan: 40, interface: bd-eth40, service_port: pw40-br}
+    limitations: "CE trong so do la diem demarcation/attachment circuit. Runtime rut gon moi CE service instance vao dau bridge l2vpn40 de mo phong forwarding Ethernet va su co AC; khong mo phong MPLS label stack, LDP/RSVP/BGP signaling hay PE/P control plane."
 
 reference_paths:
-  project_c_l2vpn: [project_c, access_branch, dist_branch, l2vpn_vpws40, dist_hq_2, core_hq]
+  project_c_l2vpn: [project_c, access_branch, dist_branch, ce_telesale, l2vpn_vpws40, ce_hq, dist_hq_2, core_hq]
   project_a_internet: [project_a, access_floor1, dist_hq_1, core_hq, fw_hq, internet_zone, hzalo]
   project_b_floor2: [project_b, access_floor2, dist_hq_2, core_hq]
   backoffice_voice: [backoffice, access_floor2, dist_hq_2, core_hq, infra_access, h90]

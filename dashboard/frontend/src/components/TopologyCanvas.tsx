@@ -7,31 +7,35 @@ import StatusBadge from "./ui/StatusBadge";
 import { animationPath } from "./packetPath";
 
 const positions: Record<string, [number, number]> = {
-  project_a: [90, 135], project_b: [90, 215], iot_hq: [90, 295], guest: [90, 375],
-  project_c: [90, 475], backoffice: [90, 555], it_support: [90, 635], iot_branch: [90, 755], telesale: [90, 835],
-  access_floor1: [290, 250], access_floor2: [290, 560], access_branch: [290, 800],
-  dist_hq_1: [490, 250], dist_hq_2: [490, 560], dist_branch: [490, 800],
-  core_hq: [690, 405], infra_access: [690, 175], h90: [875, 125],
-  hdhcp: [875, 185], hdns: [875, 245], hntp: [875, 305], hmonitor: [875, 365], hnvr: [875, 425],
-  hrecording: [875, 485], hdialer: [875, 545], hbackup: [875, 605], had: [875, 665],
-  fw_hq: [850, 760], ce_hq: [1020, 340], ce_telesale: [1020, 800],
-  c0: [720, 50], mpls_primary: [1160, 340], mpls_backup: [1160, 470], l2vpn_vpws40: [1010, 635],
-  fw_telesale: [700, 835], internet_zone: [1270, 650],
-  hzalo: [1420, 135], hcall: [1420, 285], hsocial: [1420, 435], hinternet: [1420, 585],
+  project_a: [90, 150], project_b: [90, 230], iot_hq: [90, 310], guest: [90, 390],
+  project_c_hq: [90, 480], backoffice: [90, 560], it_support: [90, 640],
+  access_floor1: [280, 270], access_floor2: [280, 560], dist_hq_1: [470, 270], dist_hq_2: [470, 560],
+  core_hq: [650, 420], infra_access: [650, 180], h90: [830, 135],
+  hdhcp: [830, 195], hdns: [830, 255], hntp: [830, 315], hmonitor: [830, 375], hnvr: [830, 435],
+  hrecording: [830, 495], hdialer: [830, 555], hbackup: [830, 615], had: [830, 675], fw_hq: [830, 735],
+  project_c_branch: [90, 800], telesale: [90, 880], iot_branch: [90, 960],
+  access_branch: [300, 880], dist_branch: [500, 880], fw_telesale: [800, 960],
+  c0: [800, 50], ce_hq: [1020, 250], mpls_primary: [1030, 410], mpls_backup: [1170, 510],
+  l2vpn_vpws40: [1100, 700], ce_telesale: [1020, 890], internet_zone: [1360, 620],
+  hzalo: [1500, 280], hcall: [1500, 450], hsocial: [1500, 620], hinternet: [1500, 790],
 };
 
 const routedLinks: Record<string, [number, number][]> = {
-  "core_hq-fw_hq": [[690, 405], [770, 405], [770, 760], [850, 760]],
-  "fw_hq-internet_zone": [[850, 760], [1060, 760], [1060, 650], [1270, 650]],
-  "dist_branch-fw_telesale": [[490, 800], [610, 800], [610, 835], [700, 835]],
-  "fw_telesale-internet_zone": [[700, 835], [1080, 835], [1080, 650], [1270, 650]],
+  "core_hq-fw_hq": [[650, 420], [740, 420], [740, 735], [830, 735]],
+  "fw_hq-internet_zone": [[830, 735], [1220, 735], [1220, 620], [1360, 620]],
+  "dist_branch-fw_telesale": [[500, 880], [650, 880], [650, 960], [800, 960]],
+  "fw_telesale-internet_zone": [[800, 960], [1240, 960], [1240, 620], [1360, 620]],
+  "dist_hq_2-l2vpn_vpws40:hq-ac": [[470, 560], [760, 560], [760, 250], [1020, 250]],
+  "dist_hq_2-l2vpn_vpws40:hq-carrier": [[1020, 250], [1130, 250], [1130, 700], [1100, 700]],
+  "l2vpn_vpws40-dist_branch:branch-carrier": [[1100, 700], [1130, 700], [1130, 890], [1020, 890]],
+  "l2vpn_vpws40-dist_branch:branch-ac": [[1020, 890], [760, 840], [500, 840], [500, 880]],
 };
 
 const regions: Record<string, string> = {
-  project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", backoffice: "hq", iot_hq: "hq", guest: "hq", h90: "hq",
+  project_a: "hq", project_b: "hq", project_c_hq: "hq", it_support: "hq", backoffice: "hq", iot_hq: "hq", guest: "hq", h90: "hq",
   access_floor1: "hq", access_floor2: "hq", dist_hq_1: "hq", dist_hq_2: "hq", infra_access: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
   hdhcp: "hq", hdns: "hq", hntp: "hq", hmonitor: "hq", hnvr: "hq", hrecording: "hq", hdialer: "hq", hbackup: "hq", had: "hq",
-  iot_branch: "telesale", telesale: "telesale", access_branch: "telesale", dist_branch: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
+  project_c_branch: "telesale", iot_branch: "telesale", telesale: "telesale", access_branch: "telesale", dist_branch: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
   mpls_primary: "wan", mpls_backup: "wan", l2vpn_vpws40: "wan",
   internet_zone: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
 };
@@ -50,16 +54,60 @@ type Props = {
   authenticated?: boolean;
   linkOperation?: { linkId: string; action: "fail" | "recover"; status: "running" | "success" | "failed"; message: string };
   source: string;
+  destination: string;
   onFail: (linkId: string) => void;
   onRecover: (linkId: string) => void;
   onSource: (value: string) => void;
   onDestination: (value: string) => void;
 };
 
+function canonicalNodeId(id: string) {
+  return id === "project_c_hq" || id === "project_c_branch" ? "project_c" : id;
+}
+
 function isPathLink(path: string[], source: string, target: string) {
+  const canonicalSource = canonicalNodeId(source);
+  const canonicalTarget = canonicalNodeId(target);
   return path.some((node, index) => {
     const next = path[index + 1];
-    return (node === source && next === target) || (node === target && next === source);
+    return (node === canonicalSource && next === canonicalTarget) || (node === canonicalTarget && next === canonicalSource);
+  });
+}
+
+function displayNodes(topology?: Topology) {
+  return (topology?.nodes || []).flatMap((node) => {
+    if (String(node.id) !== "project_c") return [node];
+    const hosts = topology?.groups.find((group) => group.id === "project_c")?.hosts || [];
+    const atSite = (site: "hq" | "telesale") => hosts.filter((host) => host.site === site);
+    return [
+      { ...node, id: "project_c_hq", canonical_id: "project_c", label: "Project C · HQ", site: "hq", count: atSite("hq").length, hosts: atSite("hq") },
+      { ...node, id: "project_c_branch", canonical_id: "project_c", label: "Project C · Branch", site: "telesale", count: atSite("telesale").length, hosts: atSite("telesale") },
+    ];
+  });
+}
+
+function displayLinks(links: Link[]) {
+  const siteAwareLinks = links.map((link) => {
+    const projectCEndpoint = link.source === "project_c" ? "source" : link.target === "project_c" ? "target" : undefined;
+    if (!projectCEndpoint) return link;
+    const peer = projectCEndpoint === "source" ? link.target : link.source;
+    return { ...link, [projectCEndpoint]: peer === "access_branch" ? "project_c_branch" : "project_c_hq" };
+  });
+  return siteAwareLinks.flatMap((link) => {
+    const endpoints = new Set([link.source, link.target]);
+    if (endpoints.has("dist_hq_2") && endpoints.has("l2vpn_vpws40")) {
+      return [
+        { ...link, id: `${link.id}:hq-ac`, source: "dist_hq_2", target: "ce_hq", runtime_link_id: link.id, presentation_only: true },
+        { ...link, id: `${link.id}:hq-carrier`, source: "ce_hq", target: "l2vpn_vpws40", runtime_link_id: link.id, presentation_only: true },
+      ];
+    }
+    if (endpoints.has("dist_branch") && endpoints.has("l2vpn_vpws40")) {
+      return [
+        { ...link, id: `${link.id}:branch-carrier`, source: "l2vpn_vpws40", target: "ce_telesale", runtime_link_id: link.id, presentation_only: true },
+        { ...link, id: `${link.id}:branch-ac`, source: "ce_telesale", target: "dist_branch", runtime_link_id: link.id, presentation_only: true },
+      ];
+    }
+    return [link];
   });
 }
 
@@ -96,9 +144,9 @@ function wrapNodeText(value: string, maxChars = 17, maxLines = 2) {
   return visible;
 }
 
-function labelMap(topology?: Topology) {
+function labelMap(nodes: Array<Record<string, unknown>>) {
   const labels: Record<string, [string, string]> = {};
-  topology?.nodes.forEach((node) => {
+  nodes.forEach((node) => {
     const id = String(node.id);
     const title = displayNodeTitle(node);
     let subtitle = "";
@@ -229,7 +277,9 @@ function TopologyDesignContract({ topology }: { topology: Topology }) {
 
 export default function TopologyCanvas(props: Props) {
   const sectionRef = useRef<HTMLElement>(null);
-  const labels = useMemo(() => labelMap(props.topology), [props.topology]);
+  const renderedNodes = useMemo(() => displayNodes(props.topology), [props.topology]);
+  const renderedLinks = useMemo(() => displayLinks(props.links), [props.links]);
+  const labels = useMemo(() => labelMap(renderedNodes), [renderedNodes]);
   const [zoom, setZoom] = useState(1);
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState("all");
@@ -239,27 +289,35 @@ export default function TopologyCanvas(props: Props) {
   const [confirmLink, setConfirmLink] = useState<{ id: string; action: "fail" | "recover" } | null>(null);
 
   const packetPath = animationPath(props.decision);
-  const currentNode = packetPath[Math.min(props.activeIndex, Math.max(0, packetPath.length - 1))];
+  const currentPathIndex = Math.min(props.activeIndex, Math.max(0, packetPath.length - 1));
+  const currentNode = packetPath[currentPathIndex];
+  const projectCNodeForHost = (hostName: string) => props.topology?.hosts.find((host) => host.name === hostName)?.site === "telesale" ? "project_c_branch" : "project_c_hq";
+  const currentDisplayNode = currentNode === "project_c"
+    ? projectCNodeForHost(currentPathIndex === packetPath.length - 1 ? props.destination : props.source)
+    : currentNode;
   const controlledNodes = useMemo(
-    () => (props.topology?.nodes || []).filter((node) => node.type === "switch" && positions[String(node.id)]),
-    [props.topology],
+    () => renderedNodes.filter((node) => node.type === "switch" && positions[String(node.id)]),
+    [renderedNodes],
   );
   const selectedNode = inspector?.kind === "node"
-    ? props.topology?.nodes.find((node) => String(node.id) === inspector.id)
+    ? renderedNodes.find((node) => String(node.id) === inspector.id)
     : undefined;
   const selectedLink = inspector?.kind === "link"
-    ? props.links.find((link) => link.id === inspector.id)
+    ? renderedLinks.find((link) => link.id === inspector.id)
     : undefined;
   const selectedGroup = selectedNode
-    ? props.topology?.groups.find((group) => group.id === String(selectedNode.id))
+    ? props.topology?.groups.find((group) => group.id === canonicalNodeId(String(selectedNode.id)))
     : undefined;
+  const selectedGroupHosts = selectedGroup && String(selectedNode?.id).startsWith("project_c_")
+    ? selectedGroup.hosts.filter((host) => host.site === selectedNode?.site)
+    : selectedGroup?.hosts || [];
   const matchingNodes = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return new Set<string>();
-    return new Set((props.topology?.nodes || [])
+    return new Set(renderedNodes
       .filter((node) => JSON.stringify(node).toLowerCase().includes(needle))
       .map((node) => String(node.id)));
-  }, [props.topology, query]);
+  }, [renderedNodes, query]);
 
   const nodeVisible = (id: string) => region === "all" || regions[id] === region || (region === "hq" && id === "c0");
   const flowForNode = selectedNode
@@ -267,16 +325,17 @@ export default function TopologyCanvas(props: Props) {
     : [];
   const nodeTraffic = flowForNode.reduce((sum, flow) => sum + Number(flow.bytes || 0), 0);
   const relatedLinks = selectedNode
-    ? props.links.filter((link) => link.source === selectedNode.id || link.target === selectedNode.id)
+    ? renderedLinks.filter((link) => link.source === selectedNode.id || link.target === selectedNode.id)
     : [];
   const linkStatus = selectedLink
-    ? (props.failedLinks.includes(selectedLink.id) || selectedLink.status === "down" ? "offline" : selectedLink.status === "degraded" ? "degraded" : "online")
+    ? (props.failedLinks.includes(selectedLink.runtime_link_id || selectedLink.id) || selectedLink.status === "down" ? "offline" : selectedLink.status === "degraded" ? "degraded" : "online")
     : "unknown";
-  const selectedLinkOperation = selectedLink && props.linkOperation?.linkId === selectedLink.id ? props.linkOperation : undefined;
+  const selectedRuntimeLinkId = selectedLink?.runtime_link_id || selectedLink?.id;
+  const selectedLinkOperation = selectedLink && props.linkOperation?.linkId === selectedRuntimeLinkId ? props.linkOperation : undefined;
 
   const chooseEndpoint = (kind: "source" | "destination") => {
     if (!selectedNode) return;
-    const endpoint = selectedGroup?.hosts[0]?.name || String(selectedNode.id);
+    const endpoint = selectedGroupHosts[0]?.name || canonicalNodeId(String(selectedNode.id));
     if (kind === "source") props.onSource(endpoint);
     else props.onDestination(endpoint);
   };
@@ -304,11 +363,11 @@ export default function TopologyCanvas(props: Props) {
         </div>
       </div>
       <div className="topology-scroll">
-        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1510 900" aria-label="Sơ đồ mạng ba lớp Call Center BPO">
-          <rect className="zone" x="20" y="85" width="820" height="700" /><text className="zone-label" x="35" y="107">HQ · CORE / DISTRIBUTION / ACCESS</text>
-          <rect className="zone" x="20" y="785" width="820" height="100" /><text className="zone-label" x="35" y="807">BRANCH TELESALE · ACCESS / DISTRIBUTION</text>
-          <rect className="zone" x="1030" y="85" width="180" height="500" /><text className="zone-label" x="1045" y="107">WAN MPLS</text>
-          <rect className="zone" x="1230" y="85" width="260" height="720" /><text className="zone-label" x="1245" y="107">INTERNET / SERVICES</text>
+        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1600 1050" aria-label="Sơ đồ mạng ba lớp Call Center BPO">
+          <rect className="zone" x="20" y="85" width="900" height="680" /><text className="zone-label" x="35" y="107">HQ · CORE / DISTRIBUTION / ACCESS</text>
+          <rect className="zone" x="20" y="785" width="900" height="245" /><text className="zone-label" x="35" y="807">BRANCH TELESALE · ACCESS / DISTRIBUTION</text>
+          <rect className="zone" x="950" y="85" width="300" height="945" /><text className="zone-label" x="965" y="107">WAN · MPLS L3 + L2VPN VPWS</text>
+          <rect className="zone" x="1280" y="85" width="300" height="945" /><text className="zone-label" x="1295" y="107">INTERNET / SERVICES</text>
 
           {mode === "technical" && controlledNodes.map((node) => {
             const target = positions[String(node.id)];
@@ -316,12 +375,12 @@ export default function TopologyCanvas(props: Props) {
             return <line data-testid="control-path" key={`control-${String(node.id)}`} x1={controller[0]} y1={controller[1] + 25} x2={target[0]} y2={target[1]} className="topology-link control" />;
           })}
 
-          {props.links.filter((link) => link.type !== "control").map((link) => {
+          {renderedLinks.filter((link) => link.type !== "control").map((link) => {
             const from = positions[link.source];
             const to = positions[link.target];
             if (!from || !to) return null;
             const active = props.decision ? isPathLink(packetPath, link.source, link.target) : false;
-            const failed = link.status === "down" || props.failedLinks.includes(link.id);
+            const failed = link.status === "down" || props.failedLinks.includes(link.runtime_link_id || link.id);
             const route = routedLinks[link.id];
             const visible = nodeVisible(link.source) && nodeVisible(link.target);
             const blockedEdge = active && props.decision?.action === "deny" && Boolean(props.decision.blocked_at)
@@ -368,13 +427,13 @@ export default function TopologyCanvas(props: Props) {
             const [title, subtitle] = labels[id];
             const titleLines = wrapNodeText(title);
             const subtitleLines = wrapNodeText(subtitle, 20, 1);
-            const node = props.topology?.nodes.find((item) => String(item.id) === id);
+            const node = renderedNodes.find((item) => String(item.id) === id);
             const type = String(node?.type || "");
             const matched = matchingNodes.has(id);
             const dimmed = query && !matched;
             return (
               <g
-                className={`topology-node ${nodeClass(type, id)} ${currentNode === id ? "current" : ""} ${dimmed ? "search-dimmed" : ""} ${nodeVisible(id) ? "" : "region-hidden"}`}
+                className={`topology-node ${nodeClass(type, id)} ${currentDisplayNode === id ? "current" : ""} ${dimmed ? "search-dimmed" : ""} ${nodeVisible(id) ? "" : "region-hidden"}`}
                 key={id}
                 transform={`translate(${x - 60} ${y - 25})`}
                 onClick={() => setInspector({ kind: "node", id })}
@@ -406,13 +465,14 @@ export default function TopologyCanvas(props: Props) {
       )}
       {props.topology && <TopologyDesignContract topology={props.topology} />}
       <div className="topology-explanation">
-        <p><strong>Luồng liên chi nhánh:</strong> User → Access/Distribution → CE → MPLS L3VPN Logic Cloud → CE → Distribution/Access → User. Luồng này không đi qua firewall.</p>
+        <p><strong>Luồng liên chi nhánh routed:</strong> User → Access/Distribution → CE → MPLS L3VPN Logic → CE → Distribution/Access → User. Luồng này không đi qua firewall.</p>
+        <p><strong>Project C · VLAN 40:</strong> 10 endpoint HQ + 10 endpoint Branch dùng cùng broadcast domain qua L2VPN VPWS logic; gateway tập trung tại Core HQ.</p>
         <p><strong>Luồng Internet:</strong> User → Firewall nftables tại site → Internet/Service. Firewall chỉ xử lý local Internet breakout, không nằm trên data path MPLS.</p>
       </div>
       <Drawer open={Boolean(inspector)} title={selectedNode ? (String(selectedNode.type) === "firewall" ? labels[String(selectedNode.id)]?.[0] : `Node · ${labels[String(selectedNode.id)]?.[0] || String(selectedNode.id)}`) : selectedLink ? `Link · ${selectedLink.source} → ${selectedLink.target}` : "Inspector"} onClose={() => setInspector(null)}>
         {selectedNode && (
           <div className="inspector-grid">
-            <StatusBadge status={currentNode === selectedNode.id ? "online" : "unknown"} label={currentNode === selectedNode.id ? "Đang có packet" : "Theo inventory"} />
+            <StatusBadge status={currentDisplayNode === selectedNode.id ? "online" : "unknown"} label={currentDisplayNode === selectedNode.id ? "Đang có packet" : "Theo inventory"} />
             <dl>
               <dt>Tên</dt><dd>{String(selectedNode.id)}</dd>
               <dt>Logical ID</dt><dd>{String(selectedNode.logical_name || selectedNode.id)}</dd>
@@ -431,7 +491,7 @@ export default function TopologyCanvas(props: Props) {
             {selectedGroup && (
               <div className="inspector-hosts">
                 <strong>{selectedGroup.label} · {selectedGroup.subnet}</strong>
-                {selectedGroup.hosts.slice(0, 10).map((host: Host) => <span key={host.name}>{host.name} · {host.ip}</span>)}
+                {selectedGroupHosts.slice(0, 10).map((host: Host) => <span key={host.name}>{host.name} · {host.ip}</span>)}
               </div>
             )}
             {["user_group", "endpoint_group", "service", "blocked_service"].includes(String(selectedNode.type)) && (
@@ -458,14 +518,15 @@ export default function TopologyCanvas(props: Props) {
               <dt>Endpoint A</dt><dd>{selectedLink.source}</dd>
               <dt>Endpoint B</dt><dd>{selectedLink.target}</dd>
               <dt>Loại link</dt><dd>{selectedLink.type}</dd>
+              {selectedLink.runtime_link_id && <><dt>Runtime attachment</dt><dd>{selectedLink.runtime_link_id}</dd></>}
               <dt>Bandwidth</dt><dd>{String(selectedLink.bandwidth_mbps || "N/A")} Mbps</dd>
               <dt>Delay</dt><dd>{String(selectedLink.delay_ms || "N/A")} ms</dd>
               <dt>Loss</dt><dd>{String(selectedLink.loss_percent || "N/A")}%</dd>
             </dl>
             {props.liveLinkControl && selectedLink.type !== "control" && (
               <div className="drawer-actions">
-                <button className="danger" disabled={!props.authenticated || selectedLinkOperation?.status === "running"} onClick={() => setConfirmLink({ id: selectedLink.id, action: "fail" })}><Unplug size={15} />Fail link</button>
-                <button disabled={!props.authenticated || selectedLinkOperation?.status === "running"} onClick={() => setConfirmLink({ id: selectedLink.id, action: "recover" })}><RotateCcw size={15} />Recover</button>
+                <button className="danger" disabled={!props.authenticated || selectedLinkOperation?.status === "running"} onClick={() => setConfirmLink({ id: selectedRuntimeLinkId || selectedLink.id, action: "fail" })}><Unplug size={15} />Fail link</button>
+                <button disabled={!props.authenticated || selectedLinkOperation?.status === "running"} onClick={() => setConfirmLink({ id: selectedRuntimeLinkId || selectedLink.id, action: "recover" })}><RotateCcw size={15} />Recover</button>
               </div>
             )}
           </div>

@@ -38,6 +38,7 @@ from .security import (
 )
 from .topology import get_topology
 from .runtime_health import live_health_payload, system_health
+from .preflight import dashboard_preflight_status
 
 
 router = APIRouter(prefix="/api")
@@ -316,6 +317,7 @@ def api_metrics_pair(payload: HostPair):
 def api_live_status(principal: dict = Depends(require_permission("dashboard.read"))):
     return {
         **live_health_payload(),
+        "preflight": dashboard_preflight_status(),
         "iperf_sessions": iperf_runtime_status(),
         "firewalls": firewall_inventory(),
         "phase44_runtime": phase44_runtime_status(),

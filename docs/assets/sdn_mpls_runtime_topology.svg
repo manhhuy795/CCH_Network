@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Mininet runtime rút gọn - Hybrid MPLS L3VPN và VLAN 40 L2VPN VPWS logic</title>
+  <desc id="desc">Sơ đồ hai site HQ và Branch Telesale. Project C có 10 endpoint tại mỗi site dùng chung VLAN 40 qua L2VPN VPWS logic. Lưu lượng routed dùng MPLS Primary và Backup.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f7f7f5}.zone{fill:#fff;stroke:#dedbd4;stroke-width:1.5}.zone-title{fill:#56534e;font:700 13px "Segoe UI",Arial,sans-serif;letter-spacing:.3px}
+      .title{fill:#161616;font:700 25px "Segoe UI",Arial,sans-serif}.subtitle,.note{fill:#56534e;font:500 12px "Segoe UI",Arial,sans-serif}
+      .link{fill:none;stroke:#a9b0b8;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.link.mpls{stroke:#7166ca;stroke-width:4}.link.l2{stroke:#ca4810;stroke-width:5}.link.internet{stroke:#137452;stroke-width:3}.link.control{stroke:#8b5cf6;stroke-width:1.8;stroke-dasharray:7 6;opacity:.72}
+      .node rect{stroke-width:2;rx:8}.node text{fill:#161616;font:650 12px "Segoe UI",Arial,sans-serif;text-anchor:middle}.node .sub{fill:#56534e;font:500 10px "Segoe UI",Arial,sans-serif}
+      .user rect{fill:#f2f7ff;stroke:#3974b8}.project-c rect{fill:#fff3ea;stroke:#ca4810}.switch rect{fill:#eef9f4;stroke:#137452}.router rect{fill:#eff6ff;stroke:#3974b8}
+      .controller rect,.wan rect{fill:#f4f1ff;stroke:#7166ca}.l2vpn rect{fill:#fff3ea;stroke:#ca4810}.firewall rect{fill:#fff8ed;stroke:#9a4d09}.service rect{fill:#f7f4ff;stroke:#7166ca}.blocked rect{fill:#fff0ef;stroke:#b8322e}
+      .legend{fill:#56534e;font:500 11px "Segoe UI",Arial,sans-serif}.pill{fill:#fff3ea;stroke:#ca4810}
+    </style>
+  </defs>
+  <rect class="bg" width="1600" height="1000"/>
+  <text class="title" x="28" y="36">Mininet Runtime · Hybrid MPLS L3VPN + VLAN 40 L2VPN VPWS Logic</text>
+  <text class="subtitle" x="28" y="59">110 user · 8 Open vSwitch · CE service instance được rút gọn vào hai attachment circuit của l2vpn40</text>
+
+  <g class="legend" transform="translate(28 84)">
+    <line class="link" x1="0" y1="0" x2="34" y2="0"/><text x="44" y="4">Data / routed</text>
+    <line class="link mpls" x1="150" y1="0" x2="184" y2="0"/><text x="194" y="4">MPLS L3 transport</text>
+    <line class="link l2" x1="355" y1="0" x2="389" y2="0"/><text x="399" y="4">L2VPN VPWS · VLAN 40</text>
+    <line class="link control" x1="585" y1="0" x2="619" y2="0"/><text x="629" y="4">OpenFlow control</text>
+  </g>
+
+  <rect class="zone" x="20" y="110" width="900" height="570" rx="12"/>
+  <text class="zone-title" x="38" y="136">HQ · ACCESS / DISTRIBUTION / CORE / INFRASTRUCTURE</text>
+  <rect class="zone" x="20" y="700" width="900" height="270" rx="12"/>
+  <text class="zone-title" x="38" y="726">BRANCH TELESALE · ACCESS / DISTRIBUTION</text>
+  <rect class="zone" x="940" y="110" width="300" height="860" rx="12"/>
+  <text class="zone-title" x="958" y="136">WAN · MPLS L3 + L2VPN</text>
+  <rect class="zone" x="1260" y="110" width="320" height="860" rx="12"/>
+  <text class="zone-title" x="1278" y="136">INTERNET / SERVICES</text>
+
+  <!-- HQ access and three-layer paths -->
+  <line class="link" x1="105" y1="182" x2="275" y2="257"/><line class="link" x1="105" y1="252" x2="275" y2="257"/>
+  <line class="link" x1="105" y1="322" x2="275" y2="257"/><line class="link" x1="105" y1="392" x2="275" y2="257"/>
+  <line class="link" x1="105" y1="252" x2="275" y2="527"/><line class="link l2" x1="105" y1="482" x2="275" y2="527"/>
+  <line class="link" x1="105" y1="552" x2="275" y2="527"/><line class="link" x1="105" y1="622" x2="275" y2="527"/>
+  <line class="link" x1="340" y1="257" x2="455" y2="257"/><line class="link" x1="340" y1="527" x2="455" y2="527"/>
+  <line class="link" x1="520" y1="257" x2="635" y2="397"/><line class="link" x1="520" y1="527" x2="635" y2="397"/>
+  <line class="link" x1="635" y1="397" x2="635" y2="205"/><line class="link" x1="700" y1="205" x2="815" y2="182"/><line class="link" x1="700" y1="205" x2="815" y2="252"/>
+  <line class="link" x1="635" y1="397" x2="815" y2="622"/><line class="link" x1="635" y1="397" x2="1005" y2="232"/>
+
+  <!-- Branch and site edges -->
+  <line class="link l2" x1="105" y1="772" x2="315" y2="847"/><line class="link" x1="105" y1="852" x2="315" y2="847"/><line class="link" x1="105" y1="932" x2="315" y2="847"/>
+  <line class="link" x1="380" y1="847" x2="515" y2="847"/><line class="link" x1="580" y1="847" x2="1005" y2="847"/>
+  <line class="link" x1="580" y1="847" x2="815" y2="932"/>
+
+  <!-- MPLS L3 primary/backup -->
+  <line class="link mpls" x1="1070" y1="232" x2="1080" y2="390"/><line class="link mpls" x1="1070" y1="232" x2="1155" y2="500"/>
+  <line class="link mpls" x1="1080" y1="442" x2="1070" y2="847"/><line class="link mpls" x1="1155" y1="552" x2="1070" y2="847"/>
+
+  <!-- VLAN 40 E-Line: attachment circuits terminate on distribution switches -->
+  <polyline class="link l2" points="520,527 900,527 900,680 1030,680"/>
+  <polyline class="link l2" points="1030,732 900,732 900,847 580,847"/>
+  <rect class="pill" x="750" y="650" width="220" height="27" rx="14"/><text class="note" x="860" y="668" text-anchor="middle">Cùng VLAN 40 · 172.16.40.0/24</text>
+
+  <!-- Local internet breakout -->
+  <polyline class="link internet" points="880,622 1215,622 1215,615 1360,615"/>
+  <polyline class="link internet" points="880,932 1230,932 1230,615 1360,615"/>
+  <line class="link internet" x1="1425" y1="615" x2="1510" y2="300"/><line class="link internet" x1="1425" y1="615" x2="1510" y2="470"/>
+  <line class="link internet" x1="1425" y1="615" x2="1510" y2="640"/><line class="link internet" x1="1425" y1="615" x2="1510" y2="810"/>
+
+  <!-- Controller controls only the eight runtime OVS nodes -->
+  <g>
+    <line class="link control" x1="800" y1="105" x2="275" y2="257"/><line class="link control" x1="800" y1="105" x2="275" y2="527"/>
+    <line class="link control" x1="800" y1="105" x2="455" y2="257"/><line class="link control" x1="800" y1="105" x2="455" y2="527"/>
+    <line class="link control" x1="800" y1="105" x2="635" y2="397"/><line class="link control" x1="800" y1="105" x2="635" y2="205"/>
+    <line class="link control" x1="800" y1="105" x2="315" y2="847"/><line class="link control" x1="800" y1="105" x2="515" y2="847"/>
+  </g>
+
+  <!-- HQ nodes -->
+  <g class="node user" transform="translate(40 156)"><rect width="130" height="52"/><text x="65" y="21">Project A</text><text class="sub" x="65" y="38">20 user · VLAN 20</text></g>
+  <g class="node user" transform="translate(40 226)"><rect width="130" height="52"/><text x="65" y="21">Project B</text><text class="sub" x="65" y="38">20 user · VLAN 30</text></g>
+  <g class="node user" transform="translate(40 296)"><rect width="130" height="52"/><text x="65" y="21">IoT HQ</text><text class="sub" x="65" y="38">5 endpoint · VLAN 110</text></g>
+  <g class="node user" transform="translate(40 366)"><rect width="130" height="52"/><text x="65" y="21">Guest HQ</text><text class="sub" x="65" y="38">2 endpoint · VLAN 120</text></g>
+  <g class="node project-c" transform="translate(40 456)"><rect width="130" height="52"/><text x="65" y="21">Project C · HQ</text><text class="sub" x="65" y="38">10 user · VLAN 40</text></g>
+  <g class="node user" transform="translate(40 526)"><rect width="130" height="52"/><text x="65" y="21">BackOffice</text><text class="sub" x="65" y="38">20 user · VLAN 60</text></g>
+  <g class="node user" transform="translate(40 596)"><rect width="130" height="52"/><text x="65" y="21">IT Support</text><text class="sub" x="65" y="38">10 user · VLAN 70</text></g>
+  <g class="node switch" transform="translate(210 231)"><rect width="130" height="52"/><text x="65" y="21">Access Floor 1</text><text class="sub" x="65" y="38">OVS · OpenFlow 1.3</text></g>
+  <g class="node switch" transform="translate(210 501)"><rect width="130" height="52"/><text x="65" y="21">Access Floor 2</text><text class="sub" x="65" y="38">OVS · OpenFlow 1.3</text></g>
+  <g class="node switch" transform="translate(390 231)"><rect width="130" height="52"/><text x="65" y="21">Distribution HQ 1</text><text class="sub" x="65" y="38">OVS</text></g>
+  <g class="node switch" transform="translate(390 501)"><rect width="130" height="52"/><text x="65" y="21">Distribution HQ 2</text><text class="sub" x="65" y="38">OVS · AC VLAN 40</text></g>
+  <g class="node switch" transform="translate(570 371)"><rect width="130" height="52"/><text x="65" y="21">Core HQ</text><text class="sub" x="65" y="38">Logical HA · GW VLAN 40</text></g>
+  <g class="node switch" transform="translate(570 179)"><rect width="130" height="52"/><text x="65" y="21">Infra Access</text><text class="sub" x="65" y="38">OVS · VLAN 90/100</text></g>
+  <g class="node service" transform="translate(750 156)"><rect width="130" height="52"/><text x="65" y="21">PBX / SBC</text><text class="sub" x="65" y="38">VLAN 90</text></g>
+  <g class="node service" transform="translate(750 226)"><rect width="130" height="52"/><text x="65" y="21">Infra services</text><text class="sub" x="65" y="38">9 endpoint · VLAN 100</text></g>
+  <g class="node firewall" transform="translate(750 596)"><rect width="130" height="52"/><text x="65" y="21">Firewall HQ</text><text class="sub" x="65" y="38">Local breakout</text></g>
+
+  <!-- Branch nodes -->
+  <g class="node project-c" transform="translate(40 746)"><rect width="130" height="52"/><text x="65" y="21">Project C · Branch</text><text class="sub" x="65" y="38">10 user · VLAN 40</text></g>
+  <g class="node user" transform="translate(40 826)"><rect width="130" height="52"/><text x="65" y="21">Telesale</text><text class="sub" x="65" y="38">20 user · VLAN 50</text></g>
+  <g class="node user" transform="translate(40 906)"><rect width="130" height="52"/><text x="65" y="21">IoT Branch</text><text class="sub" x="65" y="38">2 endpoint · VLAN 111</text></g>
+  <g class="node switch" transform="translate(250 821)"><rect width="130" height="52"/><text x="65" y="21">Access Branch</text><text class="sub" x="65" y="38">OVS · VLAN 40/50/111</text></g>
+  <g class="node switch" transform="translate(450 821)"><rect width="130" height="52"/><text x="65" y="21">Distribution Branch</text><text class="sub" x="65" y="38">OVS · AC VLAN 40</text></g>
+  <g class="node firewall" transform="translate(750 906)"><rect width="130" height="52"/><text x="65" y="21">Firewall Branch</text><text class="sub" x="65" y="38">Local breakout</text></g>
+
+  <!-- WAN and control nodes -->
+  <g class="node controller" transform="translate(725 50)"><rect width="150" height="55"/><text x="75" y="22">SDN Controller</text><text class="sub" x="75" y="39">OS-Ken · 6653</text></g>
+  <g class="node router" transform="translate(955 206)"><rect width="130" height="52"/><text x="65" y="21">CE Router HQ</text><text class="sub" x="65" y="38">Customer edge</text></g>
+  <g class="node wan" transform="translate(1015 364)"><rect width="130" height="52"/><text x="65" y="21">MPLS Primary</text><text class="sub" x="65" y="38">L3 metric 10</text></g>
+  <g class="node wan" transform="translate(1090 474)"><rect width="130" height="52"/><text x="65" y="21">MPLS Backup</text><text class="sub" x="65" y="38">L3 metric 100</text></g>
+  <g class="node l2vpn" transform="translate(1030 680)"><rect width="140" height="52"/><text x="70" y="21">L2VPN VPWS</text><text class="sub" x="70" y="38">l2vpn40 · E-Line logic</text></g>
+  <g class="node router" transform="translate(955 821)"><rect width="130" height="52"/><text x="65" y="21">CE Router Branch</text><text class="sub" x="65" y="38">Customer edge</text></g>
+
+  <!-- Internet services -->
+  <g class="node switch" transform="translate(1295 589)"><rect width="130" height="52"/><text x="65" y="21">Internet Zone</text><text class="sub" x="65" y="38">Service gateway</text></g>
+  <g class="node service" transform="translate(1445 274)"><rect width="130" height="52"/><text x="65" y="21">Zalo</text><text class="sub" x="65" y="38">Allowed</text></g>
+  <g class="node service" transform="translate(1445 444)"><rect width="130" height="52"/><text x="65" y="21">Call App</text><text class="sub" x="65" y="38">Allowed</text></g>
+  <g class="node blocked" transform="translate(1445 614)"><rect width="130" height="52"/><text x="65" y="21">Social Media</text><text class="sub" x="65" y="38">Blocked by policy</text></g>
+  <g class="node service" transform="translate(1445 784)"><rect width="130" height="52"/><text x="65" y="21">General Internet</text><text class="sub" x="65" y="38">Test service</text></g>
+
+  <text class="note" x="958" y="930">L3 intersite: CE → MPLS Primary/Backup → CE</text>
+  <text class="note" x="958" y="950">L2 runtime collapsed: Dist HQ 2 → l2vpn40 → Dist Branch</text>
+  <text class="note" x="1278" y="950">Firewall chỉ xử lý Internet breakout tại từng site.</text>
+</svg>

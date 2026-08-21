@@ -32,6 +32,9 @@ def test_vlan40_has_one_centralized_gateway_and_is_not_routed_over_l3vpn():
     assert service["gateway_site"] == "hq"
     assert service["gateway_node"] == "core_hq"
     assert service["runtime_mode"] == "transparent_linux_bridge"
+    assert service["presentation_path"] == ["dist_hq_2", "ce_hq", "l2vpn_vpws40", "ce_telesale", "dist_branch"]
+    assert service["attachment_circuits"]["hq"]["ce_node"] == "ce_hq"
+    assert service["attachment_circuits"]["branch_telesale"]["ce_node"] == "ce_telesale"
     assert "172.16.40.0/24" not in {
         route["prefix"] for route in routes["routes"]["telesale_l3_gateway"]["user_routes"]
     }
@@ -71,8 +74,8 @@ def test_policy_and_dashboard_expose_the_cross_site_l2_path_and_limitations():
 
     assert decision["action"] == "allow"
     assert decision["path"] == [
-        "project_c", "access_branch", "dist_branch", "l2vpn_vpws40",
-        "dist_hq_2", "access_floor2", "project_c",
+        "project_c", "access_branch", "dist_branch", "ce_telesale", "l2vpn_vpws40",
+        "ce_hq", "dist_hq_2", "access_floor2", "project_c",
     ]
     assert "core_hq" not in decision["path"]
     assert "VPWS" in decision["reason"]
@@ -86,6 +89,11 @@ def test_policy_and_dashboard_expose_the_cross_site_l2_path_and_limitations():
         "runtime_node": "l2vpn_vpws40",
         "runtime_bridge": "l2vpn40",
         "controller_managed": False,
+        "presentation_path": ["dist_hq_2", "ce_hq", "l2vpn_vpws40", "ce_telesale", "dist_branch"],
+        "attachment_circuits": {
+            "hq": {"customer_switch": "dist_hq_2", "ce_node": "ce_hq", "vlan": 40, "interface": "d2-eth40", "service_port": "pw40-hq"},
+            "branch_telesale": {"customer_switch": "dist_branch", "ce_node": "ce_telesale", "vlan": 40, "interface": "bd-eth40", "service_port": "pw40-br"},
+        },
         "simulation_scope": "Transparent Ethernet forwarding; no MPLS labels or PE/P signaling",
     }
     assert "project_c" in next(site["groups"] for site in payload["sites"] if site["id"] == "hq")

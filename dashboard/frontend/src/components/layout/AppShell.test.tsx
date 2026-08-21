@@ -38,4 +38,12 @@ describe("AppShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Topology" }));
     expect(onPage).toHaveBeenCalledWith("topology");
   });
+
+  it("persists the selected color mode", () => {
+    localStorage.removeItem("cch-theme");
+    render(<AppShell {...baseProps}>Nội dung</AppShell>);
+    fireEvent.click(screen.getByRole("button", { name: "Tối" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(localStorage.getItem("cch-theme")).toBe("dark");
+  });
 });

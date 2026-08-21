@@ -7,11 +7,30 @@ const topology: Topology = {
   nodes: [
     { id: "c0", label: "OS-Ken", type: "controller" },
     { id: "project_a", label: "Dự án A", type: "user_group", vlan: 20, count: 1, subnet: "172.16.20.0/24" },
+    { id: "project_c", label: "Project C", type: "user_group", vlan: 40, count: 2, subnet: "172.16.40.0/24" },
+    { id: "ce_hq", label: "CE Router HQ", type: "router" },
+    { id: "l2vpn_vpws40", label: "Carrier L2VPN VPWS", type: "l2vpn" },
+    { id: "ce_telesale", label: "CE Router Branch", type: "router" },
     ...switches.map((id) => ({ id, label: id, type: "switch" })),
   ],
-  groups: [{ id: "project_a", label: "Dự án A", type: "user_group", site: "HQ", vlan: 20, count: 1, subnet: "172.16.20.0/24", switch: "access_floor1", hosts: [{ name: "h20_01", label: "User 1", ip: "172.16.20.11", kind: "user", group: "project_a", group_label: "Dự án A", vlan: 20, site: "HQ" }] }],
-  hosts: [],
-  links: [{ id: "project_a-access_floor1", source: "project_a", target: "access_floor1", type: "access", status: "up" }],
+  groups: [
+    { id: "project_a", label: "Dự án A", type: "user_group", site: "HQ", vlan: 20, count: 1, subnet: "172.16.20.0/24", switch: "access_floor1", hosts: [{ name: "h20_01", label: "User 1", ip: "172.16.20.11", kind: "user", group: "project_a", group_label: "Dự án A", vlan: 20, site: "hq" }] },
+    { id: "project_c", label: "Project C", type: "user_group", site: "hq", sites: ["hq", "telesale"], vlan: 40, count: 2, subnet: "172.16.40.0/24", switch: "access_floor2", hosts: [
+      { name: "h40_01", label: "Project C HQ", ip: "172.16.40.11", kind: "user", group: "project_c", group_label: "Project C", vlan: 40, site: "hq" },
+      { name: "h40_02", label: "Project C Branch", ip: "172.16.40.12", kind: "user", group: "project_c", group_label: "Project C", vlan: 40, site: "telesale" },
+    ] },
+  ],
+  hosts: [
+    { name: "h40_01", label: "Project C HQ", ip: "172.16.40.11", kind: "user", group: "project_c", group_label: "Project C", vlan: 40, site: "hq" },
+    { name: "h40_02", label: "Project C Branch", ip: "172.16.40.12", kind: "user", group: "project_c", group_label: "Project C", vlan: 40, site: "telesale" },
+  ],
+  links: [
+    { id: "project_a-access_floor1", source: "project_a", target: "access_floor1", type: "access", status: "up" },
+    { id: "project_c-access_floor2", source: "project_c", target: "access_floor2", type: "data", status: "up" },
+    { id: "project_c-access_branch", source: "project_c", target: "access_branch", type: "data", status: "up" },
+    { id: "dist_hq_2-l2vpn_vpws40", source: "dist_hq_2", target: "l2vpn_vpws40", type: "l2vpn", status: "up" },
+    { id: "l2vpn_vpws40-dist_branch", source: "l2vpn_vpws40", target: "dist_branch", type: "l2vpn", status: "up" },
+  ],
   topology_contract: {
     source_of_truth: ["vars/network_model.yml", "vars/routing.yml", "vars/firewall_policies.yml"],
     runtime_authority: "Mininet Control Agent and live OVS/nftables evidence",
@@ -55,6 +74,7 @@ const props = {
   liveLinkControl: true,
   authenticated: true,
   source: "h20_01",
+  destination: "h40_02",
   onFail: vi.fn(),
   onRecover: vi.fn(),
   onSource: vi.fn(),
@@ -62,7 +82,7 @@ const props = {
 };
 
 describe("TopologyCanvas", () => {
-  it("draws controller control paths only to nine OVS in technical mode", () => {
+  it("draws controller control paths only to eight OVS in technical mode", () => {
     render(<TopologyCanvas {...props} />);
     fireEvent.click(screen.getByText("Kỹ thuật"));
     expect(screen.getAllByTestId("control-path")).toHaveLength(8);
@@ -110,5 +130,31 @@ describe("TopologyCanvas", () => {
     expect(screen.getByTestId("design-server-zone-list")).toHaveTextContent("Database Server");
     expect(screen.queryByRole("button", { name: "Node ISP Circuit A - Primary" })).not.toBeInTheDocument();
     expect(screen.queryAllByTestId("control-path")).toHaveLength(0);
+  });
+
+  it("renders separate VLAN 40 endpoint groups at HQ and Branch", () => {
+    render(<TopologyCanvas {...props} />);
+    expect(screen.getByRole("button", { name: "Node Project C · HQ" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Node Project C · Branch" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link project_c_hq đến access_floor2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link project_c_branch đến access_branch" })).toBeInTheDocument();
+  });
+
+  it("maps the Branch Project C presentation node to a Branch endpoint", () => {
+    const onSource = vi.fn();
+    render(<TopologyCanvas {...props} source="h40_02" onSource={onSource} activeIndex={0} decision={{ action: "allow", reason: "VPWS", path: ["project_c", "access_branch", "dist_branch", "ce_telesale", "l2vpn_vpws40", "ce_hq", "dist_hq_2", "access_floor2", "project_c"] }} />);
+    const branchNode = screen.getByRole("button", { name: "Node Project C · Branch" });
+    expect(branchNode.getAttribute("class")).toContain("current");
+    fireEvent.click(branchNode);
+    fireEvent.click(screen.getByRole("button", { name: "Chọn làm nguồn" }));
+    expect(onSource).toHaveBeenCalledWith("h40_02");
+  });
+
+  it("presents VLAN 40 through both CE attachment demarcations", () => {
+    render(<TopologyCanvas {...props} />);
+    expect(screen.getByRole("button", { name: "Link dist_hq_2 đến ce_hq" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link ce_hq đến l2vpn_vpws40" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link l2vpn_vpws40 đến ce_telesale" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link ce_telesale đến dist_branch" })).toBeInTheDocument();
   });
 });

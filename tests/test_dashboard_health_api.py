@@ -301,7 +301,9 @@ def test_start_and_health_scripts_use_component_checks():
     assert "cleanup_failed_start" in start_script
     assert "PID file stale" in start_script
     assert 'port_open 6653' in start_script
-    assert 'port_open 5173' in start_script
+    assert 'for dashboard_port in 8000 5173' in start_script
+    assert 'port_open "$dashboard_port"' in start_script
+    assert "mininet_dashboard_preflight.py" in start_script
     assert "prepare_backend_privileges" in start_script
     assert "sudo -n -E true" in start_script
     assert "sudo -n -E" in start_script
