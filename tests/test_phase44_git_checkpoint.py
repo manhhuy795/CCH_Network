@@ -15,10 +15,16 @@ SPEC.loader.exec_module(MODULE)
 def test_transfer_branch_allowed():
     assert MODULE.branch_allowed("transfer/phase45-regression-fix")
     assert MODULE.branch_allowed("feature/phase46-automation-docs")
+    assert MODULE.branch_allowed("feature/redesign-callcenter-topology-dataflow")
 
 
 def test_unrelated_branch_rejected():
     assert not MODULE.branch_allowed("main")
+
+
+def test_firewall_debug_rule_expectations_follow_current_source_of_truth():
+    assert MODULE.expected_rule_count("fw_hq") == 14
+    assert MODULE.expected_rule_count("fw_telesale") == 13
 
 
 def test_clean_checkpoint_passes():

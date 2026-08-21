@@ -5,6 +5,7 @@ import signal
 import socket
 import subprocess
 import sys
+import pytest
 from pathlib import Path
 
 
@@ -30,6 +31,8 @@ def test_missing_binary_and_wrong_python_are_not_pass():
 
 
 def test_port_parser_and_stale_socket_detection():
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("Unix domain sockets are unavailable on this platform")
     ports = MODULE.parse_listening_ports("LISTEN 0 128 127.0.0.1:8000 0.0.0.0:*\n")
     assert 8000 in ports
     path = Path("/tmp/phase46-stale-socket-test.sock")

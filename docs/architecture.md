@@ -7,13 +7,13 @@ CCH_Network l? m? h?nh Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy cho 
 ## C?c l?p
 
 - Network automation: vars, templates, inventories, playbooks, scripts v? generated_configs.
-- Data plane lab: Mininet host/namespace, 9 OVS, CE logic, firewall namespace v? service simulator.
+- Data plane lab: Mininet host/namespace, 8 OVS, CE logic, firewall namespace va service simulator.
 - Control plane: OS-Ken ?i?u khi?n OpenFlow; controller kh?ng n?m tr?n ???ng ?i c?a g?i.
 - Operations plane: FastAPI ki?m tra ping/iperf/health, React hi?n th? topology v? packet path.
 
 ## Data path
 
-HQ d?ng access_hq_a, access_hq_b, access_hq_c, access_hq_it, voice_access v? core_hq. Branch d?ng access_telesale, dist_telesale v? access_bo. Telesale ?i qua logic MPLS/CE v? firewall branch; l?u l??ng Internet HQ ?i qua firewall HQ. Social Media b? ch?n theo enforcement point ???c backend tr? v?.
+HQ dung access_floor1/access_floor2 -> dist_hq_1/dist_hq_2 -> core_hq. Branch dung access_branch -> dist_branch. Telesale va IoT Branch di qua CE Telesale -> MPLS Primary/Backup -> CE HQ -> Core. Internet Branch breakout tai fw_telesale; Internet HQ breakout tai fw_hq. Social Media bi chan tai firewall local.
 
 ## Source of truth
 

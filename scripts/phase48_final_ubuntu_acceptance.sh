@@ -118,7 +118,7 @@ runtime_checks() {
   rm -f "$policy_backup"
   run_case R07_dashboard_smoke run_root "$PYTHON_BIN" scripts/dashboard_runtime_smoke_test.py
   phase47_group runtime F
-  run_case R08_flow_inventory bash -c 'for s in access_bo access_hq_a access_hq_b access_hq_c access_hq_it access_telesale core_hq dist_telesale voice_access; do sudo -n ovs-ofctl -O OpenFlow13 dump-flows "$s" | grep -q actions= || exit 1; done'
+  run_case R08_flow_inventory bash -c 'for s in access_floor1 access_floor2 dist_hq_1 dist_hq_2 core_hq access_branch dist_branch infra_access; do sudo -n ovs-ofctl -O OpenFlow13 dump-flows "$s" | grep -q actions= || exit 1; done'
   run_case R09_no_traceback bash -c '! grep -R -E "BrokenPipeError|ConnectionResetError|Exception in thread cch-mininet-control|Address already in use|unhandled task exception" logs sdn_mpls_demo/runtime/controller.log 2>/dev/null'
   run_case R10_agent_socket bash -c 'find /run /var/run /tmp "$ROOT_DIR" -maxdepth 4 -type s -name "*mininet*sock*" -print -quit 2>/dev/null | grep -q .'
 }

@@ -4,31 +4,35 @@ import type { Decision, Host, Link, Topology } from "../api/client";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Drawer from "./ui/Drawer";
 import StatusBadge from "./ui/StatusBadge";
+import { animationPath } from "./packetPath";
 
 const positions: Record<string, [number, number]> = {
-  project_a: [90, 135], project_b: [90, 215], project_c: [90, 295], it_support: [90, 375], backoffice: [90, 455], h90: [90, 535],
-  access_hq_a: [270, 135], access_hq_b: [270, 215], access_hq_c: [270, 295], access_hq_it: [270, 375], access_backoffice: [270, 455], voice_access: [270, 535],
-  core_hq: [470, 335], fw_hq: [665, 455], ce_hq: [790, 300],
-  c0: [775, 55], mpls_cloud: [900, 475],
-  telesale: [90, 690], access_telesale: [270, 690], dist_telesale: [470, 690],
-  fw_telesale: [665, 745], ce_telesale: [790, 650],
-  internet_zone: [1085, 620],
-  hzalo: [1260, 165], hcall: [1260, 315], hsocial: [1260, 555], hinternet: [1260, 725],
+  project_a: [90, 135], project_b: [90, 215], iot_hq: [90, 295], guest: [90, 375],
+  project_c: [90, 475], backoffice: [90, 555], it_support: [90, 635], iot_branch: [90, 755], telesale: [90, 835],
+  access_floor1: [290, 250], access_floor2: [290, 560], access_branch: [290, 800],
+  dist_hq_1: [490, 250], dist_hq_2: [490, 560], dist_branch: [490, 800],
+  core_hq: [690, 405], infra_access: [690, 175], h90: [875, 125],
+  hdhcp: [875, 185], hdns: [875, 245], hntp: [875, 305], hmonitor: [875, 365], hnvr: [875, 425],
+  hrecording: [875, 485], hdialer: [875, 545], hbackup: [875, 605], had: [875, 665],
+  fw_hq: [850, 760], ce_hq: [1020, 340], ce_telesale: [1020, 800],
+  c0: [720, 50], mpls_primary: [1160, 340], mpls_backup: [1160, 470], l2vpn_vpws40: [1010, 635],
+  fw_telesale: [700, 835], internet_zone: [1270, 650],
+  hzalo: [1420, 135], hcall: [1420, 285], hsocial: [1420, 435], hinternet: [1420, 585],
 };
 
 const routedLinks: Record<string, [number, number][]> = {
-  "core_hq-fw_hq": [[470, 335], [565, 335], [565, 455], [665, 455]],
-  "fw_hq-internet_zone": [[665, 455], [1010, 455], [1010, 620], [1085, 620]],
-  "dist_telesale-fw_telesale": [[470, 690], [565, 690], [565, 745], [665, 745]],
-  "fw_telesale-internet_zone": [[665, 745], [930, 745], [930, 620], [1085, 620]],
+  "core_hq-fw_hq": [[690, 405], [770, 405], [770, 760], [850, 760]],
+  "fw_hq-internet_zone": [[850, 760], [1060, 760], [1060, 650], [1270, 650]],
+  "dist_branch-fw_telesale": [[490, 800], [610, 800], [610, 835], [700, 835]],
+  "fw_telesale-internet_zone": [[700, 835], [1080, 835], [1080, 650], [1270, 650]],
 };
 
 const regions: Record<string, string> = {
-  project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", h90: "hq",
-  access_hq_a: "hq", access_hq_b: "hq", access_hq_c: "hq", access_hq_it: "hq", voice_access: "hq",
-  backoffice: "hq", access_backoffice: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
-  mpls_cloud: "wan",
-  telesale: "telesale", access_telesale: "telesale", dist_telesale: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
+  project_a: "hq", project_b: "hq", project_c: "hq", it_support: "hq", backoffice: "hq", iot_hq: "hq", guest: "hq", h90: "hq",
+  access_floor1: "hq", access_floor2: "hq", dist_hq_1: "hq", dist_hq_2: "hq", infra_access: "hq", core_hq: "hq", fw_hq: "hq", ce_hq: "hq", c0: "control",
+  hdhcp: "hq", hdns: "hq", hntp: "hq", hmonitor: "hq", hnvr: "hq", hrecording: "hq", hdialer: "hq", hbackup: "hq", had: "hq",
+  iot_branch: "telesale", telesale: "telesale", access_branch: "telesale", dist_branch: "telesale", fw_telesale: "telesale", ce_telesale: "telesale",
+  mpls_primary: "wan", mpls_backup: "wan", l2vpn_vpws40: "wan",
   internet_zone: "services", hzalo: "services", hcall: "services", hsocial: "services", hinternet: "services",
 };
 
@@ -59,17 +63,52 @@ function isPathLink(path: string[], source: string, target: string) {
   });
 }
 
+function displayNodeTitle(node: Record<string, unknown>) {
+  if (String(node.type || "") === "firewall") {
+    const site = String(node.site || "").toLowerCase();
+    return site.includes("telesale") ? "Firewall Telesale" : "Firewall HQ";
+  }
+  return String(node.label || node.id);
+}
+
+function wrapNodeText(value: string, maxChars = 17, maxLines = 2) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (word.length > maxChars && !line) {
+      lines.push(`${word.slice(0, Math.max(1, maxChars - 3))}...`);
+      continue;
+    }
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= maxChars || !line) line = candidate;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length <= maxLines) return lines;
+  const visible = lines.slice(0, maxLines);
+  const last = visible[maxLines - 1];
+  visible[maxLines - 1] = `${last.slice(0, Math.max(1, maxChars - 3))}...`;
+  return visible;
+}
+
 function labelMap(topology?: Topology) {
   const labels: Record<string, [string, string]> = {};
   topology?.nodes.forEach((node) => {
     const id = String(node.id);
-    const title = String(node.label || id);
+    const title = displayNodeTitle(node);
     let subtitle = "";
     if (node.subtitle) subtitle = String(node.subtitle);
     else if (node.type === "user_group") subtitle = `${node.count} users · VLAN ${node.vlan}`;
+    else if (node.type === "endpoint_group") subtitle = `${node.count} endpoints · VLAN ${node.vlan}`;
     else if (node.type === "switch") subtitle = "Open vSwitch";
-    else if (node.type === "firewall") subtitle = "Internet Edge Boundary";
+    else if (node.type === "firewall") subtitle = "nftables - Internet breakout";
     else if (node.type === "wan") subtitle = "WAN transport";
+    else if (node.type === "l2vpn") subtitle = "VPWS logic · VLAN 40";
     else if (node.type === "controller") subtitle = "127.0.0.1:6653";
     else if (node.ip) subtitle = String(node.ip);
     labels[id] = [title, subtitle];
@@ -78,14 +117,114 @@ function labelMap(topology?: Topology) {
 }
 
 function nodeClass(type: string, id: string) {
-  if (type === "user_group") return "user";
+  if (type === "user_group" || type === "endpoint_group") return "user";
   if (type === "switch") return "switch";
   if (type === "router") return "router";
   if (type === "wan") return "cloud";
+  if (type === "l2vpn") return "cloud";
   if (type === "firewall") return "firewall";
   if (type === "controller") return "controller";
   if (id === "hsocial") return "blocked";
   return "service";
+}
+
+function formatDesignValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Chưa khai báo";
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDesignState(value: unknown) {
+  const state = String(value || "").toLowerCase();
+  if (state === "active") return "Đang hoạt động";
+  if (state === "standby") return "Dự phòng";
+  if (state === "design_only" || state === "design_only_not_simulated") return "Chỉ có trong thiết kế";
+  if (state === "runtime_namespace") return "Namespace runtime";
+  if (state === "collapsed_voice_placeholder") return "Placeholder voice trong lab";
+  return formatDesignValue(value);
+}
+
+function DesignOnlyBadge() {
+  return <StatusBadge status="unknown" label="Design-only · không phải runtime" />;
+}
+
+function TopologyDesignContract({ topology }: { topology: Topology }) {
+  const contract = topology.topology_contract;
+  if (!contract) return null;
+
+  const circuits = Object.entries(contract.provider_domain.circuits);
+  const handoffs = Object.entries(contract.provider_handoff_paths);
+  const firewalls = Object.entries(contract.firewall_redundancy);
+  const serverComponents = Object.entries(contract.server_zone.components);
+  const designNodes = topology.design_nodes || contract.design_nodes;
+
+  return (
+    <section className="topology-contract" data-testid="topology-design-contract" aria-label="Thiết kế logic từ Source of Truth">
+      <div className="topology-contract-heading">
+        <div>
+          <h3>Thiết kế logic từ Source of Truth</h3>
+          <p>{contract.runtime_authority}. Các đối tượng dưới đây chỉ mô tả thiết kế doanh nghiệp.</p>
+        </div>
+        <DesignOnlyBadge />
+      </div>
+      <div className="topology-contract-grid">
+        <article className="topology-contract-card">
+          <h4>{contract.provider_domain.label}</h4>
+          <p className="topology-contract-muted">{contract.provider_domain.handoff_layer}</p>
+          <div className="topology-contract-list">
+            {circuits.map(([key, circuit]) => (
+              <div className="topology-contract-row" key={circuit.id || key}>
+                <span className={`circuit-dot ${circuit.color}`} aria-hidden="true" />
+                <div><strong>{circuit.label}</strong><small>{formatDesignState(circuit.state)} · {circuit.sites.join(" + ")}</small></div>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="topology-contract-card">
+          <h4>WAN handoff</h4>
+          <p className="topology-contract-muted">Ánh xạ từ carrier tới firewall từng site</p>
+          <div className="topology-contract-list">
+            {handoffs.map(([key, handoff]) => (
+              <div className="topology-contract-row" key={handoff.handoff_id || key}>
+                <span className={`circuit-dot ${handoff.color}`} aria-hidden="true" />
+                <div><strong>{handoff.label}</strong><small>{formatDesignState(handoff.state)} · {Object.entries(handoff.site_firewalls).map(([site, mapping]) => `${site}: ${mapping.firewall}`).join(" · ")}</small></div>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="topology-contract-card">
+          <h4>Firewall redundancy</h4>
+          <p className="topology-contract-muted">Peer HA là design metadata; firewall màu xanh trong SVG là namespace runtime.</p>
+          <div className="topology-contract-list">
+            {firewalls.map(([site, firewall]) => (
+              <div className="topology-contract-row" key={site}>
+                <div><strong>{formatDesignValue(site)} · {firewall.runtime_node}</strong><small>{formatDesignValue(firewall.design_role)} · inside {firewall.inside_node} · {firewall.outside_circuits.join(" + ")}</small></div>
+                {firewall.design_members?.length ? <small>HA members: {firewall.design_members.join(", ")}</small> : <small>Simulation: single namespace</small>}
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="topology-contract-card">
+          <h4>Server-zone roles</h4>
+          <p className="topology-contract-muted">Switch runtime: {contract.server_zone.runtime_switch}</p>
+          <div className="topology-contract-list" data-testid="design-server-zone-list">
+            {serverComponents.map(([name, component]) => (
+              <div className="topology-contract-row" key={name}>
+                <div><strong>{formatDesignValue(name)}</strong><small>runtime: {component.runtime_node || "Không mô phỏng"} · {formatDesignValue(component.design_role || component.runtime_kind || "server zone")}</small></div>
+                <small>{formatDesignState(component.runtime_state || (component.runtime_node ? "design_only" : "design_only_not_simulated"))}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+      <div className="topology-contract-footer" data-testid="design-node-list">
+        <DesignOnlyBadge />
+        <span>{designNodes.length} đối tượng thiết kế không được đưa vào runtime node, packet path hoặc OpenFlow control path.</span>
+        <span>Nguồn: {contract.source_of_truth.join(" · ")}</span>
+      </div>
+    </section>
+  );
 }
 
 export default function TopologyCanvas(props: Props) {
@@ -99,7 +238,8 @@ export default function TopologyCanvas(props: Props) {
   const [inspector, setInspector] = useState<Inspector>(null);
   const [confirmLink, setConfirmLink] = useState<{ id: string; action: "fail" | "recover" } | null>(null);
 
-  const currentNode = props.decision?.path[Math.min(props.activeIndex, Math.max(0, props.decision.path.length - 1))];
+  const packetPath = animationPath(props.decision);
+  const currentNode = packetPath[Math.min(props.activeIndex, Math.max(0, packetPath.length - 1))];
   const controlledNodes = useMemo(
     () => (props.topology?.nodes || []).filter((node) => node.type === "switch" && positions[String(node.id)]),
     [props.topology],
@@ -164,11 +304,11 @@ export default function TopologyCanvas(props: Props) {
         </div>
       </div>
       <div className="topology-scroll">
-        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1360 820" aria-label="Sơ đồ mạng Hybrid MPLS và SDN">
-          <rect className="zone" x="20" y="85" width="780" height="470" /><text className="zone-label" x="35" y="107">HQ</text>
-          <rect className="zone" x="20" y="575" width="780" height="220" /><text className="zone-label" x="35" y="597">TELESALE</text>
-          <rect className="zone" x="815" y="185" width="220" height="610" /><text className="zone-label" x="830" y="207">MPLS L3VPN LOGIC</text>
-          <rect className="zone" x="1045" y="95" width="295" height="700" /><text className="zone-label" x="1060" y="117">INTERNET / SERVICES</text>
+        <svg className="topology-svg" style={{ width: `${zoom * 100}%` }} viewBox="0 0 1510 900" aria-label="Sơ đồ mạng ba lớp Call Center BPO">
+          <rect className="zone" x="20" y="85" width="820" height="700" /><text className="zone-label" x="35" y="107">HQ · CORE / DISTRIBUTION / ACCESS</text>
+          <rect className="zone" x="20" y="785" width="820" height="100" /><text className="zone-label" x="35" y="807">BRANCH TELESALE · ACCESS / DISTRIBUTION</text>
+          <rect className="zone" x="1030" y="85" width="180" height="500" /><text className="zone-label" x="1045" y="107">WAN MPLS</text>
+          <rect className="zone" x="1230" y="85" width="260" height="720" /><text className="zone-label" x="1245" y="107">INTERNET / SERVICES</text>
 
           {mode === "technical" && controlledNodes.map((node) => {
             const target = positions[String(node.id)];
@@ -180,11 +320,14 @@ export default function TopologyCanvas(props: Props) {
             const from = positions[link.source];
             const to = positions[link.target];
             if (!from || !to) return null;
-            const active = props.decision ? isPathLink(props.decision.path, link.source, link.target) : false;
+            const active = props.decision ? isPathLink(packetPath, link.source, link.target) : false;
             const failed = link.status === "down" || props.failedLinks.includes(link.id);
             const route = routedLinks[link.id];
             const visible = nodeVisible(link.source) && nodeVisible(link.target);
-            const className = `topology-link data-link ${link.type} ${active ? props.decision?.action : ""} ${failed ? "failed" : ""} ${visible ? "" : "region-hidden"}`;
+            const blockedEdge = active && props.decision?.action === "deny" && Boolean(props.decision.blocked_at)
+              && (link.source === props.decision?.blocked_at || link.target === props.decision?.blocked_at);
+            const activeClass = active ? (blockedEdge ? "deny" : "allow") : "";
+            const className = `topology-link data-link ${link.type} ${activeClass} ${failed ? "failed" : ""} ${visible ? "" : "region-hidden"}`;
             const openLink = () => setInspector({ kind: "link", id: link.id });
             const keyboardOpen = (event: React.KeyboardEvent) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -223,6 +366,8 @@ export default function TopologyCanvas(props: Props) {
 
           {Object.entries(positions).filter(([id]) => labels[id]).map(([id, [x, y]]) => {
             const [title, subtitle] = labels[id];
+            const titleLines = wrapNodeText(title);
+            const subtitleLines = wrapNodeText(subtitle, 20, 1);
             const node = props.topology?.nodes.find((item) => String(item.id) === id);
             const type = String(node?.type || "");
             const matched = matchingNodes.has(id);
@@ -237,8 +382,10 @@ export default function TopologyCanvas(props: Props) {
                 aria-label={`Node ${title}`}
               >
                 <rect width="120" height="50" rx="5" />
-                <text x="60" y="20">{title}</text>
-                <text className="node-subtitle" x="60" y="36">{subtitle}</text>
+                <text x="60" y={titleLines.length > 1 ? 14 : 20}>
+                  {titleLines.map((line, index) => <tspan key={`${id}-title-${index}`} x="60" dy={index === 0 ? 0 : 12}>{line}</tspan>)}
+                </text>
+                <text className="node-subtitle" x="60" y={titleLines.length > 1 ? 43 : 36}>{subtitleLines[0]}</text>
               </g>
             );
           })}
@@ -253,10 +400,16 @@ export default function TopologyCanvas(props: Props) {
         <div className="legend">
           <span><i className="data" />Data path</span><span><i className="allow" />ALLOW</span>
           <span><i className="deny" />DENY / link DOWN</span><span><i className="control" />OpenFlow control path</span>
-          <span><i className="mpls" />MPLS transport</span>
+          <span><i className="mpls" />MPLS L3 transport</span>
+          <span><i className="l2vpn" />L2VPN VPWS · VLAN 40</span>
         </div>
       )}
-      <Drawer open={Boolean(inspector)} title={selectedNode ? `Node · ${String(selectedNode.label || selectedNode.id)}` : selectedLink ? `Link · ${selectedLink.source} → ${selectedLink.target}` : "Inspector"} onClose={() => setInspector(null)}>
+      {props.topology && <TopologyDesignContract topology={props.topology} />}
+      <div className="topology-explanation">
+        <p><strong>Luồng liên chi nhánh:</strong> User → Access/Distribution → CE → MPLS L3VPN Logic Cloud → CE → Distribution/Access → User. Luồng này không đi qua firewall.</p>
+        <p><strong>Luồng Internet:</strong> User → Firewall nftables tại site → Internet/Service. Firewall chỉ xử lý local Internet breakout, không nằm trên data path MPLS.</p>
+      </div>
+      <Drawer open={Boolean(inspector)} title={selectedNode ? (String(selectedNode.type) === "firewall" ? labels[String(selectedNode.id)]?.[0] : `Node · ${labels[String(selectedNode.id)]?.[0] || String(selectedNode.id)}`) : selectedLink ? `Link · ${selectedLink.source} → ${selectedLink.target}` : "Inspector"} onClose={() => setInspector(null)}>
         {selectedNode && (
           <div className="inspector-grid">
             <StatusBadge status={currentNode === selectedNode.id ? "online" : "unknown"} label={currentNode === selectedNode.id ? "Đang có packet" : "Theo inventory"} />
@@ -281,7 +434,7 @@ export default function TopologyCanvas(props: Props) {
                 {selectedGroup.hosts.slice(0, 10).map((host: Host) => <span key={host.name}>{host.name} · {host.ip}</span>)}
               </div>
             )}
-            {["user_group", "service", "blocked_service"].includes(String(selectedNode.type)) && (
+            {["user_group", "endpoint_group", "service", "blocked_service"].includes(String(selectedNode.type)) && (
               <div className="drawer-actions">
                 <button onClick={() => chooseEndpoint("source")}>Chọn làm nguồn</button>
                 <button onClick={() => chooseEndpoint("destination")}>Chọn làm đích</button>

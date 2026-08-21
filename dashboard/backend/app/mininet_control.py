@@ -130,7 +130,18 @@ def request_agent(
 
 
 def health() -> dict[str, Any]:
-    return request_agent("HEALTH")
+    response = request_agent("HEALTH")
+    if response.get("ok") is True and response.get("agent_alive") is True:
+        return response
+    if response.get("error_code"):
+        return response
+    return {
+        **response,
+        "ok": False,
+        "available": False,
+        "error_code": "AGENT_NOT_READY",
+        "message": "Mininet control agent phan hoi nhung thread agent khong con song.",
+    }
 
 
 def reload_firewall() -> dict[str, Any]:

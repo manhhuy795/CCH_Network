@@ -151,12 +151,12 @@ group_f() {
   run_case F02_backend bash -c 'ss -ltn | grep -Eq ":8000[[:space:]]"'
   run_case F03_frontend bash -c 'ss -ltn | grep -Eq ":5173[[:space:]]"'
   run_case F04_topology pgrep -f '[t]opology_hybrid_sdn.py'
-  run_case F05_ovs bash -c 'test "$(sudo -n ovs-vsctl list-br | wc -l)" = 9'
+  run_case F05_ovs bash -c 'test "$(sudo -n ovs-vsctl list-br | wc -l)" = 8'
   run_case F06_firewalls bash -c 'sudo -n ip netns list | grep -q fw_hq && sudo -n ip netns list | grep -q fw_telesale'
   run_case F07_health curl -fsS http://127.0.0.1:8000/api/health
 }
 group_g() {
-  for switch in access_bo access_hq_a access_hq_b access_hq_c access_hq_it access_telesale core_hq dist_telesale voice_access; do
+  for switch in access_floor1 access_floor2 dist_hq_1 dist_hq_2 core_hq access_branch dist_branch infra_access; do
     run_case G01_$switch bash -c 'sudo -n ovs-ofctl -O OpenFlow13 dump-flows "$1" | tee "$2" | grep -q actions=' _ "$switch" "$ARTIFACTS_DIR/flows_$switch.txt"
   done
   read_token
@@ -184,9 +184,9 @@ group_j() {
 }
 group_k() {
   read_token
-  api_post /api/link/fail '{"link_id":"access_hq_a-core_hq"}' "$ARTIFACTS_DIR/link_fail.json"
+  api_post /api/link/fail '{"link_id":"access_floor1-dist_hq_1"}' "$ARTIFACTS_DIR/link_fail.json"
   run_case K01_link_down json_expect "$ARTIFACTS_DIR/link_fail.json" status down
-  api_post /api/link/recover '{"link_id":"access_hq_a-core_hq"}' "$ARTIFACTS_DIR/link_recover.json"
+  api_post /api/link/recover '{"link_id":"access_floor1-dist_hq_1"}' "$ARTIFACTS_DIR/link_recover.json"
   run_case K02_link_up json_expect "$ARTIFACTS_DIR/link_recover.json" status up
   run_case K03_no_iperf bash -c '! pgrep -af "[i]perf3"'
 }

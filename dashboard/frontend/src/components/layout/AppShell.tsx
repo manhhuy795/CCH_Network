@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { AuthUser } from "../../api/client";
+import { realtimeStatusLabel, realtimeStatusTone, type RealtimeConnectionState } from "../RealtimePanel";
 import StatusBadge from "../ui/StatusBadge";
 
 export type DashboardPage = "overview" | "topology" | "testing" | "policy" | "performance" | "events";
@@ -30,7 +31,7 @@ type Props = {
   page: DashboardPage;
   onPage: (page: DashboardPage) => void;
   overallStatus: string;
-  websocketOnline: boolean;
+  websocketState: RealtimeConnectionState;
   user?: AuthUser;
   authChecking: boolean;
   onLogout: () => void;
@@ -65,17 +66,17 @@ export default function AppShell(props: Props) {
             );
           })}
         </nav>
-        {!collapsed && <div className="sidebar-foot"><span>Hybrid MPLS L3VPN Logic</span><span>SDN Edge Policy</span></div>}
+        {!collapsed && <div className="sidebar-foot"><span>MPLS L3VPN + L2VPN Logic</span><span>SDN Edge Policy</span></div>}
       </aside>
       <div className="app-stage">
         <header className="app-header">
           <div className="system-title">
             <strong>Call Center BPO Network Operations</strong>
-            <span>Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy</span>
+            <span>Hybrid MPLS L3VPN + VLAN 40 L2VPN Logic Simulation</span>
           </div>
           <div className="header-status">
             <StatusBadge status={props.overallStatus} />
-            <StatusBadge status={props.websocketOnline ? "online" : "unknown"} label={props.websocketOnline ? "WebSocket online" : "WebSocket chưa kết nối"} />
+            <StatusBadge status={realtimeStatusTone(props.websocketState)} label={realtimeStatusLabel(props.websocketState)} />
             <StatusBadge status={props.user ? "online" : "unknown"} label={props.user ? `Đã đăng nhập · ${props.user.role}` : "Chưa đăng nhập"} />
           </div>
           <div className="header-tools">

@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+pytest-of-root/
+pip-metadata-*/
+pip-unpack-*/
 .tmp_*/
 .env
 backups/*.cfg

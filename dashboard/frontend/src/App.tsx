@@ -8,9 +8,10 @@ import FlowTable from "./components/FlowTable";
 import MetricsPanel from "./components/MetricsPanel";
 import OverviewPage from "./components/OverviewPage";
 import PolicyPanel from "./components/PolicyPanel";
-import RealtimePanel from "./components/RealtimePanel";
+import RealtimePanel, { type RealtimeConnectionState } from "./components/RealtimePanel";
 import TestPanel from "./components/TestPanel";
 import TopologyCanvas from "./components/TopologyCanvas";
+import { animationPath } from "./components/packetPath";
 import { ensureTestResult, type NetworkTestType } from "./components/testWorkflow";
 import Drawer from "./components/ui/Drawer";
 import FeedbackState from "./components/ui/FeedbackState";
@@ -44,7 +45,7 @@ export default function App() {
   const [linkOperation, setLinkOperation] = useState<LinkOperation>();
   const [online, setOnline] = useState(0);
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
-  const [websocketOnline, setWebsocketOnline] = useState(false);
+  const [websocketState, setWebsocketState] = useState<RealtimeConnectionState>("idle");
   const [user, setUser] = useState<AuthUser>();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -64,6 +65,24 @@ export default function App() {
     const id = `${Date.now()}-${toastSequence.current}`;
     setToasts((current) => [...current.slice(-3), { id, message, tone }]);
   }, []);
+
+  const clearTestSelection = useCallback(() => {
+    window.clearInterval(timer.current);
+    setDecision(undefined);
+    setResult(undefined);
+    setMetrics({});
+    setActiveIndex(0);
+  }, []);
+
+  const selectSource = useCallback((value: string) => {
+    setSource(value);
+    clearTestSelection();
+  }, [clearTestSelection]);
+
+  const selectDestination = useCallback((value: string) => {
+    setDestination(value);
+    clearTestSelection();
+  }, [clearTestSelection]);
 
   const addEvent = useCallback((message: string, kind: "info" | "allow" | "deny" = "info") => {
     const localEvent: ActivityEvent = {
@@ -166,6 +185,10 @@ export default function App() {
 
   const animate = (path: string[]) => {
     window.clearInterval(timer.current);
+    if (path.length <= 1) {
+      setActiveIndex(0);
+      return;
+    }
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       setActiveIndex(Math.max(0, path.length - 1));
       return;
@@ -203,7 +226,7 @@ export default function App() {
       setResult(payload);
       if (payload.decision) {
         setDecision(payload.decision);
-        animate(payload.decision.path);
+        animate(animationPath(payload.decision));
       }
       if (payload.result) setMetrics(payload.result);
       addEvent(payload.message, payload.ok ? "allow" : "deny");
@@ -277,8 +300,8 @@ export default function App() {
     source,
     onFail: (id: string) => void changeLink(id, true),
     onRecover: (id: string) => void changeLink(id, false),
-    onSource: setSource,
-    onDestination: setDestination,
+    onSource: selectSource,
+    onDestination: selectDestination,
   };
 
   const pageContent = () => {
@@ -293,7 +316,7 @@ export default function App() {
         <TopologyCanvas {...topologyProps} />
         <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
           policyMap={topology?.policy_map} testType={testType} resultType={resultType} busy={busy} elapsedSeconds={elapsedSeconds}
-          websocketOnline={websocketOnline} result={result} onSource={setSource} onDestination={setDestination}
+          websocketState={websocketState} result={result} onSource={setSource} onDestination={setDestination}
           onSeconds={setSeconds} onTestType={setTestType} onRun={(action) => void runAction(action)}
           onCancel={() => abortController.current?.abort()} />
       </div>
@@ -306,7 +329,7 @@ export default function App() {
     );
     if (page === "performance") return (
       <div className="performance-grid">
-        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={setSource} onDestination={setDestination} onStatus={setWebsocketOnline} />
+        <RealtimePanel hosts={topology?.hosts || []} source={source} destination={destination} onSource={selectSource} onDestination={selectDestination} onStatus={setWebsocketState} />
         <MetricsPanel metrics={metrics} />
       </div>
     );
@@ -314,7 +337,7 @@ export default function App() {
     return <OverviewPage
       components={healthComponents}
       onlineHosts={online}
-      totalHosts={(topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5)}
+      totalHosts={topology?.summary.endpoint_count ?? ((topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5))}
       failedLinks={failedLinks}
       lastError={events.find((event) => event.severity === "error")?.message}
       lastUpdated={lastUpdated}
@@ -327,7 +350,7 @@ export default function App() {
       page={page}
       onPage={setPage}
       overallStatus={overallStatus}
-      websocketOnline={websocketOnline}
+      websocketState={websocketState}
       user={user}
       authChecking={authChecking}
       onLogout={() => {

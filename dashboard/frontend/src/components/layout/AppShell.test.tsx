@@ -5,7 +5,7 @@ const baseProps = {
   page: "overview" as const,
   onPage: vi.fn(),
   overallStatus: "online",
-  websocketOnline: false,
+  websocketState: "idle" as const,
   user: { id: "u1", username: "operator", role: "operator" as const },
   authChecking: false,
   onLogout: vi.fn(),
