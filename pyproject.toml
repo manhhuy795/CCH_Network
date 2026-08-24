@@ -8,14 +8,3 @@ requires-python = ">=3.10"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
-python_files = [
-  "test_v7_*.py",
-  "test_three_layer_topology.py",
-  "test_user_count.py",
-  "test_dashboard_health_api.py",
-  "test_firewall_nftables_node_command.py",
-  "test_mininet_control_timeouts.py",
-  "test_mininet_control_transport.py",
-  "test_phase38_activity_history.py",
-  "test_phase49_auth_rbac.py",
-]
