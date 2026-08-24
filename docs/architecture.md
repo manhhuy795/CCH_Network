@@ -54,20 +54,44 @@ CE/L2VPN nodes là Linux bridge abstraction. Backup path được giữ standby 
 
 ## Routed intersite / IPsec abstraction
 
-Non-VLAN93 traffic dùng:
+Non-VLAN93 traffic đi theo kiến trúc:
 
 ```text
-HQ gateway -> ipsec_l3 -> Branch gateway
+HQ Core-Dist -> Firewall HQ -> IPsec overlay -> Firewall Branch -> Branch Core-Dist
 ```
 
-`ipsec_l3` chỉ chứng minh route/path behavior. Không có IKE/ESP/XFRM hoặc cryptographic proof.
+Runtime biểu diễn tunnel bằng:
+
+```text
+fw_hq -> ipsec_l3 -> fw_telesale
+```
+
+`ipsec_l3` chỉ chứng minh routed path behavior giữa hai firewall namespaces. Không có IKE/ESP/XFRM hoặc cryptographic proof. VLAN 93 không được route qua tunnel này.
+
+## DHCP tập trung
+
+DHCP Server là `10.10.100.10` tại HQ. DHCP relay được khai báo trong `vars/routing.yml` và được sinh vào candidate Cisco config:
+
+- HQ: VLAN 93, 101, 103, 104, 110, 120, 140.
+- Branch: VLAN 50.
+- Branch không có SVI VLAN 93 nên không có DHCP relay cho VLAN 93 tại Branch.
 
 ## Firewall và Internet
 
 - HQ local breakout qua `fw_hq`.
 - Branch local breakout qua `fw_telesale` (runtime compatibility name cho firewall Branch).
 - Mỗi namespace nftables đại diện cho active firewall HA cluster của site.
+- Hai firewall có logical tunnel attachment cho routed intersite traffic.
+- HQ và Branch có circuit ISP Primary/Backup riêng; object Primary/Backup dùng chung trong automation chỉ là role, không phải một circuit vật lý dùng chung.
 - Project 2 Branch dùng gateway tại HQ, nên Internet/Partner traffic của VLAN 93 về HQ trước khi breakout.
+
+## Security boundary
+
+- Project VLANs bị cách ly lẫn nhau.
+- Project chỉ được truy cập DHCP, DNS, AD, File và NTP trong Server VLAN 100.
+- Guest chỉ được bootstrap services và General Internet.
+- HQ/Branch IoT chỉ được các infrastructure service đã khai báo.
+- Candidate config không tự suy diễn Port-channel, StackWise, VSS, MLAG hay cơ chế multi-chassis khi platform chưa được xác nhận.
 
 ## Partner services
 
