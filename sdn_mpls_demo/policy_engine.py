@@ -161,26 +161,45 @@ class PolicyEngine:
             path.reverse()
         return path
 
-    def _routed_between_sites(self, source_path: list[str], source_site: str, destination_path: list[str], destination_site: str) -> list[str]:
+    def _routed_between_sites(
+        self,
+        source_path: list[str],
+        source_site: str,
+        destination_path: list[str],
+        destination_site: str,
+    ) -> list[str]:
         if source_site == destination_site:
             return [*source_path, *list(reversed(destination_path))[1:]]
         source_gateway = self._site_gateway(source_site)
         destination_gateway = self._site_gateway(destination_site)
+        source_firewall = self._site_firewall(source_site)
+        destination_firewall = self._site_firewall(destination_site)
         left = list(source_path)
         if not left or left[-1] != source_gateway:
             left.append(source_gateway)
         right = list(reversed(destination_path))
         if right and right[0] == destination_gateway:
             right = right[1:]
-        return [*left, "ipsec_l3", destination_gateway, *right]
+        return [
+            *left,
+            source_firewall,
+            "ipsec_l3",
+            destination_firewall,
+            destination_gateway,
+            *right,
+        ]
 
-    def _path_between_groups(self, source_group: str, destination_group: str, source: dict[str, Any], destination: dict[str, Any]) -> list[str]:
-        source_path = self._path_for_endpoint(source)
-        destination_path = self._path_for_endpoint(destination)
+    def _path_between_groups(
+        self,
+        _source_group: str,
+        _destination_group: str,
+        source: dict[str, Any],
+        destination: dict[str, Any],
+    ) -> list[str]:
         return self._routed_between_sites(
-            source_path,
+            self._path_for_endpoint(source),
             self._gateway_site(source),
-            destination_path,
+            self._path_for_endpoint(destination),
             self._gateway_site(destination),
         )
 
@@ -217,12 +236,10 @@ class PolicyEngine:
             )
         if source["kind"] == "service":
             return self._result("deny", "Service external khong duoc chu dong truy cap service khac.", [source_name, self._internet_node()], self._internet_node())
-
         if source["kind"] in {"guest", "iot"}:
             return self._enterprise_source_decision(source, destination)
         if source["kind"] == "infrastructure_service":
             return self._result("deny", "Infrastructure service khong duoc chu dong lateral movement.", [], None)
-
         if destination["kind"] == "service":
             return self._service_decision(source, destination)
         if destination["kind"] == "infrastructure_service":
@@ -265,7 +282,6 @@ class PolicyEngine:
         service_name = str(destination["name"])
         if service_name == "hsocial" and self.policies.get("block_social_media", False):
             return self._result("deny", "Social Media bi chan tai stateful nftables firewall.", [*source_path, firewall], firewall)
-
         policy_flags = {
             "h90": "allow_voice",
             "hcall": "allow_call_app",
@@ -278,7 +294,6 @@ class PolicyEngine:
             allowed = bool(self.policies.get(policy_flags.get(service_name, ""), False))
         if not allowed:
             return self._result("deny", "Dich vu khong nam trong danh sach cho phep.", [*source_path, firewall], firewall)
-
         label = {
             "h90": "Partner PBX / Contact Center",
             "hcall": "Partner CRM",
@@ -301,7 +316,7 @@ class PolicyEngine:
         if site == "branch":
             if not path or path[-1] != "dist_branch":
                 path.append("dist_branch")
-            path.extend(["ipsec_l3", "core_hq"])
+            path.extend(["fw_telesale", "ipsec_l3", "fw_hq", "core_hq"])
         if not path or path[-1] != "core_hq":
             path.append("core_hq")
         return [*path, "infra_access", destination_name]
