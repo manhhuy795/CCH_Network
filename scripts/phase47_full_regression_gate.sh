@@ -9,8 +9,6 @@ shift || true
 PYTHON_BIN="${CCH_TEST_PYTHON:-$ROOT_DIR/.venv/bin/python}"
 [[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$(command -v python3)"
 
-# Kept for CLI compatibility with the old gate. v7 does not silently start or
-# mutate runtime processes; start the demo explicitly before runtime checks.
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --reuse-running|--verbose) ;;
@@ -59,6 +57,7 @@ static_checks() {
 }
 
 frontend_checks() {
+  run npm run lint --prefix dashboard/frontend
   run npm run test --prefix dashboard/frontend
   run npm run typecheck --prefix dashboard/frontend
   run npm run build --prefix dashboard/frontend
