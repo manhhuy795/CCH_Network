@@ -8,63 +8,61 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.common import load_vars
+from scripts.common import all_devices, load_vars
 from scripts.network_model import (
     EXPECTED_CE_NODES,
     EXPECTED_CONTROLLED_SWITCHES,
     EXPECTED_FIREWALL_NODES,
     EXPECTED_PHYSICAL_SITES,
     EXPECTED_SITES,
-    build_host_inventory,
     load_network_model,
     validate_network_model,
 )
 
 
-EXPECTED_HQ_ISOLATION = {20: {30, 40}, 30: {20, 40}, 40: {20, 30}}
-REQUIRED_TRANSIT_LINKS = {
-    "core_hq_to_ce_hq": {"core_hq", "ce_hq"},
-    "ce_hq_to_mpls_primary": {"ce_hq", "mpls_primary"},
-    "mpls_primary_to_ce_telesale": {"mpls_primary", "ce_telesale"},
-    "ce_hq_to_mpls_backup": {"ce_hq", "mpls_backup"},
-    "mpls_backup_to_ce_telesale": {"mpls_backup", "ce_telesale"},
-    "ce_telesale_to_dist_branch": {"ce_telesale", "dist_branch"},
-    "core_hq_to_fw_hq": {"core_hq", "fw_hq"},
-    "dist_branch_to_fw_branch": {"dist_branch", "fw_telesale"},
+EXPECTED_VLANS = {10, 50, 93, 100, 101, 103, 104, 110, 120, 140}
+EXPECTED_PROJECT_ISOLATION = {
+    101: {93, 103, 104},
+    93: {101, 103, 104},
+    103: {93, 101, 104},
+    104: {93, 101, 103},
+}
+EXPECTED_ROUTING_LINKS = {
+    "hq_l3_to_fw_hq": {"hq_l3_gateway", "fw_hq"},
+    "fw_hq_to_ipsec": {"fw_hq", "ipsec_l3"},
+    "ipsec_to_fw_branch": {"ipsec_l3", "fw_telesale"},
+    "branch_l3_to_fw_branch": {"telesale_l3_gateway", "fw_telesale"},
     "fw_hq_to_internet_zone": {"fw_hq", "internet_zone"},
-    "fw_telesale_to_internet_zone": {"fw_telesale", "internet_zone"},
+    "fw_branch_to_internet_zone": {"fw_telesale", "internet_zone"},
 }
-EXPECTED_SITE_MODEL_NODES = {
-    "hq": {"access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2", "core_hq", "infra_access", "ce_hq", "fw_hq"},
-    "branch_telesale": {"access_branch", "dist_branch", "ce_telesale", "fw_telesale"},
+EXPECTED_AUTOMATION_NODES = {
+    "hq": {"access_floor1", "access_floor2", "core_hq", "infra_access", "ce_hq1", "ce_hq2", "fw_hq"},
+    "branch": {"access_branch", "dist_branch", "ce_branch1", "ce_branch2", "fw_telesale"},
 }
-EXPECTED_PROVIDER_HANDOFFS = {
-    "primary": {"provider_id": "isp_circuit_a", "handoff_id": "wan_handoff_primary", "state": "active", "color": "blue"},
-    "backup": {"provider_id": "isp_circuit_b", "handoff_id": "wan_handoff_backup", "state": "standby", "color": "purple"},
-}
+RUNTIME_ONLY_ROUTER_NODES = {"hq_l3_gateway", "telesale_l3_gateway"}
+PROJECT_SERVICE_HOSTS = {"10.10.100.10", "10.10.100.11", "10.10.100.12", "10.10.100.13", "10.10.100.16"}
+INTERNAL_PREFIXES = {"10.10.0.0/16", "10.20.0.0/16"}
 
 
 def _network(value: str) -> ipaddress.IPv4Network:
     return ipaddress.ip_network(value, strict=True)
 
 
-def _model_node_ids(model: dict[str, Any]) -> set[str]:
-    return set().union(model.get("host_groups", {}), model.get("services", {}), model.get("infrastructure_services", {}), model.get("switches", {}), model.get("infrastructure", {}))
+def _all_model_nodes(model: dict[str, Any]) -> set[str]:
+    nodes: set[str] = set()
+    for category in ("host_groups", "services", "infrastructure_services", "switches", "infrastructure"):
+        nodes.update(str(name) for name in model.get(category, {}))
+    return nodes
 
 
-def validate_all(config: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
-    model = load_network_model()
-    errors.extend(validate_network_model(model))
-    node_ids = _model_node_ids(model)
-
-    vlans = config.get("vlans", [])
-    vlan_ids = [int(item["id"]) for item in vlans]
-    if len(vlan_ids) != len(set(vlan_ids)):
+def _validate_vlans(config: dict[str, Any], errors: list[str]) -> None:
+    vlans = list(config.get("vlans", []))
+    ids = [int(item["id"]) for item in vlans]
+    if len(ids) != len(set(ids)):
         errors.append("Duplicate VLAN IDs found")
-    expected_vlans = {10, 20, 30, 40, 50, 60, 70, 90, 100, 110, 111, 120}
-    if set(vlan_ids) != expected_vlans:
-        errors.append(f"VLAN plan must be {sorted(expected_vlans)}, found {sorted(vlan_ids)}")
+    if set(ids) != EXPECTED_VLANS:
+        errors.append(f"VLAN plan must be {sorted(EXPECTED_VLANS)}, found {sorted(ids)}")
+    networks: list[tuple[int, ipaddress.IPv4Network]] = []
     for vlan in vlans:
         try:
             network = _network(str(vlan["subnet"]))
@@ -73,223 +71,216 @@ def validate_all(config: dict[str, Any]) -> list[str]:
             errors.append(f"VLAN {vlan.get('id')} has invalid addressing: {exc}")
             continue
         if gateway not in network or gateway in {network.network_address, network.broadcast_address}:
-            errors.append(f"VLAN {vlan['id']} gateway must be usable inside {network}")
+            errors.append(f"VLAN {vlan['id']} gateway is not usable inside {network}")
+        networks.append((int(vlan["id"]), network))
+    for index, (left_id, left) in enumerate(networks):
+        for right_id, right in networks[index + 1:]:
+            if left.overlaps(right):
+                errors.append(f"VLAN subnet overlap: {left_id} and {right_id}")
 
-    for source_vlan, denied in EXPECTED_HQ_ISOLATION.items():
-        item = next((item for item in config.get("hq_project_isolation", []) if int(item.get("source_vlan", -1)) == source_vlan), None)
-        if not item or not denied.issubset({int(value) for value in item.get("deny_destination_vlans", [])}):
-            errors.append(f"VLAN {source_vlan} must deny project VLANs {sorted(denied)}")
+    vlan93 = next((item for item in vlans if int(item["id"]) == 93), {})
+    if vlan93.get("subnet") != "10.10.93.0/24" or vlan93.get("gateway") != "10.10.93.1":
+        errors.append("VLAN 93 must use 10.10.93.0/24 with gateway 10.10.93.1")
+    if vlan93.get("gateway_site") != "hq" or vlan93.get("scope") != "stretched":
+        errors.append("VLAN 93 must be stretched with its gateway owned by HQ")
 
-    if set(config.get("sites", {})) != EXPECTED_SITES:
+
+def _validate_sites_and_devices(config: dict[str, Any], model: dict[str, Any], errors: list[str]) -> None:
+    sites = config.get("sites", {})
+    if set(sites) != EXPECTED_SITES:
         errors.append(f"Automation sites must be {sorted(EXPECTED_SITES)}")
-    if {name for name, item in config.get("sites", {}).items() if item.get("kind") == "physical"} != EXPECTED_PHYSICAL_SITES:
-        errors.append(f"Automation physical sites must be {sorted(EXPECTED_PHYSICAL_SITES)}")
+    physical = {name for name, item in sites.items() if item.get("kind") == "physical"}
+    if physical != EXPECTED_PHYSICAL_SITES:
+        errors.append(f"Physical sites must be {sorted(EXPECTED_PHYSICAL_SITES)}")
 
-    devices: list[dict[str, Any]] = [device for site in config.get("sites", {}).values() for device in site.get("devices", [])]
-    device_nodes = {str(device.get("model_node")) for device in devices}
-    for site_name, expected_nodes in EXPECTED_SITE_MODEL_NODES.items():
-        if {str(device.get("model_node")) for device in config.get("sites", {}).get(site_name, {}).get("devices", [])} != expected_nodes:
-            errors.append(f"{site_name} managed nodes must be {sorted(expected_nodes)}")
-    if len({device.get("name") for device in devices}) != len(devices):
+    devices = all_devices(config)
+    names = [str(item.get("name")) for item in devices]
+    management_ips = [str(item.get("management_ip")) for item in devices if item.get("management_ip")]
+    if len(names) != len(set(names)):
         errors.append("Duplicate automation device names")
-    if len({device.get("management_ip") for device in devices}) != len(devices):
+    if len(management_ips) != len(set(management_ips)):
         errors.append("Duplicate management IPs")
-    if not device_nodes.issubset(node_ids):
-        errors.append("Automation inventory references a missing source-of-truth node")
-    expected_edge_inventory = {
-        "fw_hq": {"design_role": "firewall_ha_logical_pair", "redundancy": "active_standby"},
-        "fw_telesale": {"redundancy": "single_node_simulation"},
-    }
-    for model_node, expected in expected_edge_inventory.items():
-        device = next((item for item in devices if item.get("model_node") == model_node), {})
-        if device.get("outside_circuits") != ["primary", "backup"]:
-            errors.append(f"Automation inventory {model_node} must declare primary and backup outside circuits")
-        for key, value in expected.items():
-            if device.get(key) != value:
-                errors.append(f"Automation inventory {model_node} {key} must be {value!r}")
 
-    routing = config.get("links", {})
-    if set(routing) != set(REQUIRED_TRANSIT_LINKS):
-        errors.append(f"Transit links must be exactly {sorted(REQUIRED_TRANSIT_LINKS)}")
-    if config.get("transit_addressing", {}).get("prefix_length") != 30:
-        errors.append("Transit addressing must use /30")
+    model_nodes = _all_model_nodes(model)
+    for site_name, expected_nodes in EXPECTED_AUTOMATION_NODES.items():
+        observed = {str(item.get("model_node")) for item in sites.get(site_name, {}).get("devices", [])}
+        if observed != expected_nodes:
+            errors.append(f"{site_name} automation nodes must be {sorted(expected_nodes)}, found {sorted(observed)}")
+    for device in devices:
+        model_node = str(device.get("model_node", ""))
+        if model_node not in model_nodes:
+            errors.append(f"Automation device {device.get('name')} references missing model node {model_node}")
+        template = Path(__file__).resolve().parents[1] / "templates" / str(device.get("template", ""))
+        if not template.is_file():
+            errors.append(f"Automation device {device.get('name')} references missing template {device.get('template')}")
+
+    branch_core = next((item for item in devices if item.get("model_node") == "dist_branch"), {})
+    if 93 not in set(int(value) for value in branch_core.get("no_svi_vlans", [])):
+        errors.append("Branch collapsed core must explicitly suppress SVI VLAN 93")
+    if 93 in set(int(value) for value in branch_core.get("svi_vlans", [])):
+        errors.append("Branch collapsed core must not create SVI VLAN 93")
+
+    ce_nodes = {str(item.get("model_node")) for item in devices if item.get("role") == "ce_l2vpn_edge"}
+    if ce_nodes != EXPECTED_CE_NODES:
+        errors.append(f"Automation must contain four CE L2VPN edge devices: {sorted(EXPECTED_CE_NODES)}")
+    firewall_nodes = {str(item.get("model_node")) for item in devices if item.get("role") == "firewall"}
+    if firewall_nodes != EXPECTED_FIREWALL_NODES:
+        errors.append(f"Automation firewall nodes must be {sorted(EXPECTED_FIREWALL_NODES)}")
+
+
+def _validate_routing(config: dict[str, Any], model: dict[str, Any], errors: list[str]) -> None:
+    links = config.get("links", {})
+    if set(links) != set(EXPECTED_ROUTING_LINKS):
+        errors.append(f"Routed links must be exactly {sorted(EXPECTED_ROUTING_LINKS)}")
+    if int(config.get("transit_addressing", {}).get("prefix_length", 0)) != 30:
+        errors.append("Routed transit addressing must use /30")
+
+    allowed_nodes = _all_model_nodes(model) | RUNTIME_ONLY_ROUTER_NODES
     transit_networks: list[tuple[str, ipaddress.IPv4Network]] = []
     transit_ips: set[str] = set()
-    for name, expected_endpoints in REQUIRED_TRANSIT_LINKS.items():
-        link = routing.get(name, {})
+    for name, expected_nodes in EXPECTED_ROUTING_LINKS.items():
+        link = links.get(name, {})
         try:
             network = _network(str(link["cidr"]))
         except (KeyError, ValueError) as exc:
-            errors.append(f"Transit link {name} has invalid CIDR: {exc}")
+            errors.append(f"Routing link {name} has invalid CIDR: {exc}")
             continue
         if network.prefixlen != 30:
-            errors.append(f"Transit link {name} must be /30")
+            errors.append(f"Routing link {name} must use /30")
         transit_networks.append((name, network))
-        endpoints = []
-        for key in ("endpoint_a", "endpoint_b"):
-            endpoint = link.get(key, {})
-            node, ip_text = str(endpoint.get("node", "")), str(endpoint.get("ip", ""))
-            endpoints.append(node)
-            if node not in node_ids:
-                errors.append(f"Transit link {name} references missing node {node}")
+        observed_nodes: set[str] = set()
+        for endpoint_key in ("endpoint_a", "endpoint_b"):
+            endpoint = link.get(endpoint_key, {})
+            node = str(endpoint.get("node", ""))
+            ip_text = str(endpoint.get("ip", ""))
+            observed_nodes.add(node)
+            if node not in allowed_nodes:
+                errors.append(f"Routing link {name} references missing node {node}")
             try:
                 address = ipaddress.ip_address(ip_text)
             except ValueError:
-                errors.append(f"Transit link {name} has invalid endpoint IP {ip_text}")
+                errors.append(f"Routing link {name} has invalid endpoint IP {ip_text}")
                 continue
             if address not in network or address in {network.network_address, network.broadcast_address}:
-                errors.append(f"Transit link {name} endpoint IP {ip_text} is not usable in {network}")
+                errors.append(f"Routing link {name} endpoint {ip_text} is not usable in {network}")
             if ip_text in transit_ips:
-                errors.append(f"Duplicate transit IP {ip_text}")
+                errors.append(f"Duplicate routed transit IP {ip_text}")
             transit_ips.add(ip_text)
-        if set(endpoints) != expected_endpoints:
-            errors.append(f"Transit link {name} endpoints must be {sorted(expected_endpoints)}")
-    for name, link in routing.items():
-        for endpoint_key in ("endpoint_a", "endpoint_b"):
-            node = str(link.get(endpoint_key, {}).get("node", ""))
-            if node and node not in node_ids:
-                errors.append(f"Routing link {name} references missing node {node}")
+        if observed_nodes != expected_nodes:
+            errors.append(f"Routing link {name} endpoints must be {sorted(expected_nodes)}")
+
     for index, (left_name, left) in enumerate(transit_networks):
         for right_name, right in transit_networks[index + 1:]:
             if left.overlaps(right):
-                errors.append(f"Transit CIDR overlap: {left_name} and {right_name}")
+                errors.append(f"Routed transit CIDR overlap: {left_name} and {right_name}")
 
-    declared_networks: list[tuple[str, ipaddress.IPv4Network]] = []
-    for vlan in config.get("vlans", []):
-        try:
-            declared_networks.append((f"vlan_{vlan['id']}", _network(str(vlan["subnet"]))))
-        except (KeyError, ValueError):
-            continue
-    for category in ("host_groups", "services", "infrastructure_services"):
-        for name, item in model.get(category, {}).items():
-            if item.get("subnet"):
-                try:
-                    declared_networks.append((f"{category}.{name}", ipaddress.ip_network(str(item["subnet"]), strict=False)))
-                except ValueError:
-                    continue
-    service_zone_cidr = config.get("service_zone", {}).get("cidr")
-    if service_zone_cidr:
-        declared_networks.append(("service_zone", _network(str(service_zone_cidr))))
-    for transit_name, transit in transit_networks:
-        for declared_name, declared in declared_networks:
-            if transit.overlaps(declared):
-                errors.append(f"Transit CIDR overlaps declared subnet: {transit_name} and {declared_name}")
+    routes = config.get("routes", {})
+    if routes.get("ipsec_l3", {}).get("cryptographic_ipsec") is not False:
+        errors.append("ipsec_l3 must explicitly declare cryptographic_ipsec=false")
+    if routes.get("ipsec_l3", {}).get("runtime_mode") != "routed_tunnel_abstraction_between_firewalls":
+        errors.append("ipsec_l3 must terminate logically on the two firewall abstractions")
+    routed_prefixes = {
+        str(item.get("prefix"))
+        for owner in ("hq_l3_gateway", "telesale_l3_gateway")
+        for item in routes.get(owner, {}).get("user_routes", [])
+    }
+    if "10.10.93.0/24" in routed_prefixes:
+        errors.append("VLAN 93 must not be routed through the IPsec abstraction")
 
-    provider_handoffs = config.get("provider_handoff_paths", {})
-    if set(provider_handoffs) != set(EXPECTED_PROVIDER_HANDOFFS):
-        errors.append(f"Provider handoff paths must be {sorted(EXPECTED_PROVIDER_HANDOFFS)}")
-    for name, expected in EXPECTED_PROVIDER_HANDOFFS.items():
-        item = provider_handoffs.get(name, {})
-        for key, value in expected.items():
-            if item.get(key) != value:
-                errors.append(f"Provider handoff {name} {key} must be {value!r}")
-        if item.get("representation") != "design_only" or item.get("runtime_node") is not None or item.get("runtime_state") != "design_only" or item.get("controller_managed") is not False:
-            errors.append(f"Provider handoff {name} must be explicitly design-only")
-        handoff_sites = item.get("site_firewalls", {})
-        if set(handoff_sites) != set(EXPECTED_PHYSICAL_SITES):
-            errors.append(f"Provider handoff {name} must terminate at HQ and Branch Telesale")
-        for site, firewall in (("hq", "fw_hq"), ("branch_telesale", "fw_telesale")):
-            endpoint = handoff_sites.get(site, {})
-            if endpoint.get("firewall") != firewall:
-                errors.append(f"Provider handoff {name} {site} firewall must be {firewall}")
-            expected_runtime_link = {
-                "hq": "fw_hq_to_internet_zone",
-                "branch_telesale": "fw_telesale_to_internet_zone",
-            }[site]
-            if endpoint.get("runtime_link") != expected_runtime_link or endpoint.get("runtime_link") not in routing:
-                errors.append(f"Provider handoff {name} {site} must reference {expected_runtime_link}")
+    relay = config.get("dhcp_relay", {})
+    if relay.get("server_ip") != "10.10.100.10":
+        errors.append("DHCP relay must target 10.10.100.10")
+    if set(relay.get("hq_vlans", [])) != {93, 101, 103, 104, 110, 120, 140}:
+        errors.append("HQ DHCP relay VLAN set is incorrect")
+    if set(relay.get("branch_vlans", [])) != {50}:
+        errors.append("Branch DHCP relay must exist only on local VLAN 50")
+
+
+def _validate_policy_and_edges(config: dict[str, Any], model: dict[str, Any], errors: list[str]) -> None:
+    isolation = {
+        int(item["source_vlan"]): {int(value) for value in item.get("deny_destination_vlans", [])}
+        for item in config.get("hq_project_isolation", [])
+    }
+    for vlan, denied in EXPECTED_PROJECT_ISOLATION.items():
+        if isolation.get(vlan) != denied:
+            errors.append(f"VLAN {vlan} isolation must deny exactly {sorted(denied)}")
+
+    for policy in config.get("hq_project_isolation", []):
+        if set(policy.get("allow_service_hosts", [])) != PROJECT_SERVICE_HOSTS:
+            errors.append(f"VLAN {policy.get('source_vlan')} project services are not least-privilege aligned")
+        if set(policy.get("deny_internal_prefixes", [])) != INTERNAL_PREFIXES:
+            errors.append(f"VLAN {policy.get('source_vlan')} must deny other internal prefixes after explicit allows")
+
+    zones = {int(item["source_vlan"]): item for item in config.get("hq_zone_policies", [])}
+    if set(zones) != {120, 140}:
+        errors.append("HQ zone policies must cover Guest VLAN 120 and HQ IoT VLAN 140")
+    if zones.get(120, {}).get("allow_internet") is not True:
+        errors.append("Guest VLAN 120 must be Internet-only after bootstrap service allows")
+    if zones.get(140, {}).get("allow_internet") is not False:
+        errors.append("HQ IoT VLAN 140 must not receive broad Internet access")
+
+    l2 = config.get("l2vpn_policy", {})
+    if int(l2.get("vlan", -1)) != 93 or l2.get("branch_svi_allowed") is not False:
+        errors.append("L2VPN policy must make VLAN 93 HQ-gateway-only with no Branch SVI")
 
     firewall_sites = config.get("firewall_policy", {}).get("sites", {})
-    expected_ownership = {
-        "hq": ("fw_hq", "core_hq", {"172.16.20.0/24", "172.16.30.0/24", "172.16.40.0/24", "172.16.60.0/24", "172.16.70.0/24", "172.16.90.0/24", "172.16.100.0/24", "172.16.110.0/24", "172.16.120.0/24"}),
-        "branch_telesale": ("fw_telesale", "dist_branch", {"172.16.50.0/24", "172.16.111.0/24"}),
-    }
-    if set(firewall_sites) != set(expected_ownership):
-        errors.append("Firewall policy sites must be HQ and Branch Telesale")
-    for site, (firewall, inside, subnets) in expected_ownership.items():
-        item = firewall_sites.get(site, {})
-        if (item.get("firewall_name"), item.get("inside_node"), set(item.get("owned_subnets", []))) != (firewall, inside, subnets):
-            errors.append(f"Firewall ownership is incorrect for {site}")
-        if item.get("outside_node") != "internet_zone":
-            errors.append(f"Firewall {site} must use internet_zone as outside node")
+    if set(firewall_sites) != {"hq", "branch"}:
+        errors.append("Firewall policy sites must be HQ and Branch")
+    for site, item in firewall_sites.items():
+        if item.get("design_redundancy") != "active_standby":
+            errors.append(f"Firewall {site} must be represented as active/standby HA in design")
+        if not item.get("tunnel_interface") or "tunnel" not in item.get("runtime_interfaces", {}):
+            errors.append(f"Firewall {site} must expose the routed intersite tunnel interface")
+        if not item.get("remote_subnets"):
+            errors.append(f"Firewall {site} must declare remote corporate subnets")
 
-    expected_runtime_interfaces = {
-        "hq": {"inside": "fw_hq-eth0", "outside": "fw_hq-eth1"},
-        "branch_telesale": {"inside": "fw_tel-eth0", "outside": "fw_tel-eth1"},
-    }
-    for site, expected_interfaces in expected_runtime_interfaces.items():
-        if firewall_sites.get(site, {}).get("runtime_interfaces") != expected_interfaces:
-            errors.append(f"Firewall policy {site} has incorrect runtime interfaces")
+    provider = model.get("edge_design", {}).get("provider_domain", {}).get("circuits", {})
+    expected_provider = {"hq_primary", "hq_backup", "branch_primary", "branch_backup"}
+    if set(provider) != expected_provider:
+        errors.append("Provider design must contain independent Primary/Backup circuits for HQ and Branch")
+    for name, circuit in provider.items():
+        sites = list(circuit.get("sites", []))
+        if len(sites) != 1:
+            errors.append(f"Provider circuit {name} must belong to exactly one physical site")
 
-    expected_firewall_design = {
-        "hq": ("active_standby", ["fw_hq_primary", "fw_hq_backup"]),
-        "branch_telesale": ("single_firewall_simulation", None),
-    }
-    for site, (redundancy, members) in expected_firewall_design.items():
-        item = firewall_sites.get(site, {})
-        if item.get("design_redundancy") != redundancy:
-            errors.append(f"Firewall policy {site} design_redundancy must be {redundancy}")
-        if members is not None and item.get("design_members") != members:
-            errors.append(f"Firewall policy {site} design_members must be {members}")
-        if item.get("outside_circuits") != ["primary", "backup"]:
-            errors.append(f"Firewall policy {site} must declare primary and backup outside circuits")
+    handoffs = config.get("provider_handoff_paths", {})
+    if set(handoffs) != {"primary", "backup"}:
+        errors.append("Provider handoff role plan must contain primary and backup")
+    for name, item in handoffs.items():
+        if item.get("representation") != "design_only" or item.get("runtime_node") is not None:
+            errors.append(f"Provider handoff {name} must remain design-only")
 
-    defaults = config.get("firewall_policy", {}).get("runtime_defaults", {})
-    expected_defaults = {
-        "engine": "nftables",
-        "family": "inet",
-        "table_name": "cch_filter",
-        "input_policy": "drop",
-        "forward_policy": "drop",
-        "output_policy": "accept",
-        "chain_priority": 0,
-        "allow_established_related": True,
-        "drop_invalid": True,
-        "counter_enabled": True,
-    }
-    for key, expected in expected_defaults.items():
-        if defaults.get(key) != expected:
-            errors.append(f"firewall runtime default {key} must be {expected!r}")
-    nat = defaults.get("nat", {})
-    if nat.get("enabled") is not False or nat.get("mode") != "routed_lab":
-        errors.append("NAT must remain disabled in routed_lab mode until runtime proof")
-    if nat.get("runtime_verification_required") is not True:
-        errors.append("NAT decision must require Ubuntu runtime verification")
+    interfaces = config.get("interfaces", {})
+    if any("port-channel" in str(value).lower() for value in interfaces.values()):
+        errors.append("Candidate interface mapping must not invent Port-channel without a confirmed physical design")
 
-    firewall_link_roles = {
-        "fw_hq": ("core_hq", "fw_hq_to_internet_zone"),
-        "fw_telesale": ("dist_branch", "fw_telesale_to_internet_zone"),
-    }
-    for firewall, (inside_node, outside_link_name) in firewall_link_roles.items():
-        inside_links = [
-            name for name, link in routing.items()
-            if firewall in {link.get("endpoint_a", {}).get("node"), link.get("endpoint_b", {}).get("node")}
-            and link.get("role") == "firewall_inside"
-            and inside_node in {link.get("endpoint_a", {}).get("node"), link.get("endpoint_b", {}).get("node")}
-        ]
-        outside_links = [
-            name for name, link in routing.items()
-            if name == outside_link_name
-            and firewall in {link.get("endpoint_a", {}).get("node"), link.get("endpoint_b", {}).get("node")}
-            and link.get("role") == "firewall_outside"
-        ]
-        if len(inside_links) != 1 or len(outside_links) != 1:
-            errors.append(f"{firewall} must have one firewall_inside and one firewall_outside link")
+    sdn = config.get("sdn", {})
+    if sdn.get("enabled") is not True:
+        errors.append("SDN must be enabled")
+    if len(EXPECTED_CONTROLLED_SWITCHES) != 6:
+        errors.append("v7 must have exactly six controlled OVS")
+    for intent in sdn.get("intents", []):
+        if intent.get("allow_destination_vlans") == [100]:
+            errors.append(f"SDN intent {intent.get('name')} must not grant broad access to Server VLAN 100")
 
-    for host in build_host_inventory(model).values():
-        if host["ip"] in transit_ips:
-            errors.append(f"Endpoint {host['name']} overlaps a transit endpoint IP")
+
+def validate_all(config: dict[str, Any]) -> list[str]:
+    model = load_network_model()
+    errors = list(validate_network_model(model))
+    _validate_vlans(config, errors)
+    _validate_sites_and_devices(config, model, errors)
+    _validate_routing(config, model, errors)
+    _validate_policy_and_edges(config, model, errors)
     return errors
 
 
 def main() -> int:
     errors = validate_all(load_vars())
     if errors:
-        print("Validation failed:")
         for error in errors:
-            print(f"- {error}")
+            print(f"ERROR: {error}")
         return 1
-    print("Validation passed.")
+    print("OK: enterprise v7 variables are internally consistent")
     return 0
 
 

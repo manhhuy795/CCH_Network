@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -19,44 +18,70 @@ SHOW_COMMANDS = [
     "show interfaces trunk",
     "show ip route",
     "show access-lists",
-    "show running-config section access-list",
 ]
+
+
+def _read_required(config_dir: Path, name: str, errors: list[str]) -> str:
+    path = config_dir / name
+    if not path.exists():
+        errors.append(f"Missing {path}; run generate_configs.py first")
+        return ""
+    return path.read_text(encoding="utf-8")
 
 
 def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
     errors = validate_all(load_vars())
-    hq_core = config_dir / "hq-core-l3.cfg"
-    hq_ce = config_dir / "hq-ce-router.cfg"
-    br_ce = config_dir / "br-ce-router.cfg"
+    hq_core = _read_required(config_dir, "hq-core-dist.cfg", errors)
+    br_core = _read_required(config_dir, "br-core-dist.cfg", errors)
 
-    if hq_core.exists():
-        text = hq_core.read_text(encoding="utf-8")
-        for acl_name, denied in {
-            "ACL_VLAN20_IN": ("172.16.30.0 0.0.0.255", "172.16.40.0 0.0.0.255"),
-            "ACL_VLAN30_IN": ("172.16.20.0 0.0.0.255", "172.16.40.0 0.0.0.255"),
-            "ACL_VLAN40_IN": ("172.16.20.0 0.0.0.255", "172.16.30.0 0.0.0.255"),
-        }.items():
-            if acl_name not in text:
-                errors.append(f"{acl_name} missing from HQ core config")
-            for prefix in denied:
-                if prefix not in text:
-                    errors.append(f"{acl_name} missing deny reference to {prefix}")
-        if "ip route 0.0.0.0 0.0.0.0 10.10.254.2" not in text:
-            errors.append("HQ core default route to firewall missing")
-    else:
-        errors.append(f"Missing {hq_core}; run generate_configs.py first")
+    if hq_core:
+        for expected in (
+            "interface Vlan93",
+            "ip address 10.10.93.1 255.255.255.0",
+            "ip helper-address 10.10.100.10",
+            "ip route 0.0.0.0 0.0.0.0 10.10.254.2",
+            "ACL_VLAN93_IN",
+            "ACL_GUEST_IN",
+            "ACL_IOT_HQ_IN",
+            "host 10.10.100.12",
+            "host 10.10.100.13",
+        ):
+            if expected not in hq_core:
+                errors.append(f"HQ Core-Dist missing: {expected}")
+        if "Port-channel" in hq_core:
+            errors.append("HQ candidate config must not invent Port-channel before physical HA technology is confirmed")
+        if "deny ip 10.10.101.0 0.0.0.255 10.10.0.0 0.0.255.255 log" not in hq_core:
+            errors.append("Project 1 ACL must deny other internal HQ destinations after explicit service allows")
 
-    for ce_file, forbidden_next_hops in (
-        (hq_ce, ["10.20.255.2", "198.51.100.2"]),
-        (br_ce, ["10.10.255.2", "203.0.113.2"]),
-    ):
-        if ce_file.exists():
-            text = ce_file.read_text(encoding="utf-8")
-            for next_hop in forbidden_next_hops:
-                if re.search(rf"^ip route .+ {re.escape(next_hop)}$", text, re.MULTILINE):
-                    errors.append(f"{ce_file.name} has forbidden direct route to remote CE {next_hop}")
-        else:
-            errors.append(f"Missing {ce_file}; run generate_configs.py first")
+    if br_core:
+        if "interface Vlan93" in br_core:
+            errors.append("Branch Core-Dist must not create interface Vlan93")
+        for expected in (
+            "interface Vlan50",
+            "ip address 10.20.50.1 255.255.255.0",
+            "ip helper-address 10.10.100.10",
+            "ip route 0.0.0.0 0.0.0.0 10.20.254.2",
+        ):
+            if expected not in br_core:
+                errors.append(f"Branch Core-Dist missing: {expected}")
+        if "Port-channel" in br_core:
+            errors.append("Branch candidate config must not invent Port-channel before physical HA technology is confirmed")
+
+    for name in ("hq-ce1.cfg", "hq-ce2.cfg", "br-ce1.cfg", "br-ce2.cfg"):
+        text = _read_required(config_dir, name, errors)
+        if not text:
+            continue
+        if "vlan 93" not in text or "switchport access vlan 93" not in text:
+            errors.append(f"{name} must expose VLAN 93 on the customer attachment")
+        for forbidden in ("xconnect ", "mpls ip", "pseudowire-class"):
+            if forbidden in text.lower():
+                errors.append(f"{name} invents provider MPLS syntax: {forbidden.strip()}")
+
+    for name in ("hq-firewall-ha.policy.txt", "br-firewall-ha.policy.txt"):
+        text = _read_required(config_dir, name, errors)
+        if text and "tunnel:" not in text:
+            errors.append(f"{name} must expose the logical firewall-to-firewall tunnel attachment")
+
     return errors
 
 

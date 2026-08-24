@@ -129,15 +129,13 @@ def prefix_to_acl(prefix: str) -> str:
 
 
 def acl_name_for_vlan(config: dict[str, Any], vlan_id: int) -> str | None:
-    for policy in config.get("hq_project_isolation", []):
-        if int(policy["source_vlan"]) == int(vlan_id):
-            return policy["name"]
+    for group in ("hq_project_isolation", "hq_zone_policies", "branch_policies"):
+        for policy in config.get(group, []):
+            if int(policy["source_vlan"]) == int(vlan_id):
+                return policy["name"]
     management = config.get("management_policy", {})
     if int(management.get("source_vlan", -1)) == int(vlan_id):
         return management.get("name")
-    for policy in config.get("branch_policies", []):
-        if int(policy["source_vlan"]) == int(vlan_id):
-            return policy["name"]
     return None
 
 
@@ -159,24 +157,13 @@ def jinja_env() -> Environment:
 
 def render_device_config(config: dict[str, Any], device: dict[str, Any]) -> str:
     template = jinja_env().get_template(device["template"])
-    model_node = device.get("model_node", "")
-    # Routing YAML contains runtime route ownership and a small compatibility
-    # view for generated device templates. Merge both views so CE templates
-    # receive internal routes and MPLS routes without duplicating source data.
-    routes: dict[str, Any] = {}
-    for candidate in (
-        config.get(model_node, {}),
-        config.get("routes", {}).get(model_node, {}),
-        config.get("routes", {}).get(device["name"], {}),
-    ):
-        if isinstance(candidate, dict):
-            routes = deep_merge(routes, candidate)
+    route_node = device.get("route_node", device.get("model_node", ""))
     return template.render(
         config=config,
         device=device,
         vlans_by_id=vlans_by_id(config),
         site_vlans=vlans_for_site(config, device["site"]),
         interfaces=config.get("interfaces", {}).get(device["name"], {}),
-        routes=routes,
+        routes=config.get("routes", {}).get(route_node, {}),
         firewall_site=config.get("firewall_policy", {}).get("sites", {}).get(device["site"], {}),
     )

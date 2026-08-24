@@ -17,6 +17,12 @@ IPERF_SAFETY_MARGIN_SECONDS = 10.0
 PING_SAFETY_MARGIN_SECONDS = 3.0
 MAX_REQUEST_TIMEOUT_SECONDS = 45.0
 MAX_RESPONSE_BYTES = 128 * 1024
+VLAN93_BACKUP_LINKS = {
+    "core_hq-ce_hq2",
+    "ce_hq2-l2vpn_backup",
+    "l2vpn_backup-ce_branch2",
+    "ce_branch2-dist_branch",
+}
 
 
 def _unavailable(
@@ -160,7 +166,28 @@ def set_link_state(link_id: str, state: str) -> dict[str, Any]:
 
 
 def get_link_status() -> dict[str, Any]:
-    return request_agent("GET_LINK_STATUS")
+    """Expose physical-down backup attachment links as intentional standby.
+
+    The control agent keeps the second VLAN 93 path administratively down to
+    prevent a Layer-2 loop. Dashboard/API consumers must not count that state
+    as a failure while the primary path is healthy.
+    """
+    response = request_agent("GET_LINK_STATUS")
+    if response.get("ok") is not True:
+        return response
+    links = dict(response.get("links") or {})
+    primary_down = any(
+        state == "down"
+        for link_id, state in links.items()
+        if link_id not in VLAN93_BACKUP_LINKS and (
+            "ce_hq1" in link_id or "l2vpn_primary" in link_id or "ce_branch1" in link_id
+        )
+    )
+    if not primary_down:
+        for link_id in VLAN93_BACKUP_LINKS:
+            if links.get(link_id) == "down":
+                links[link_id] = "standby"
+    return {**response, "links": links}
 
 
 def live_status() -> dict[str, Any]:

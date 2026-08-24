@@ -1,4 +1,6 @@
 ! Generated candidate config for {{ device.name }}
+! Enterprise v7 logical collapsed Core/Distribution pair.
+! Do not add an SVI for VLAN 93 at Branch.
 hostname {{ device.name }}
 ip routing
 !
@@ -12,6 +14,9 @@ vlan {{ vlan.id }}
 interface Vlan{{ vlan.id }}
  description SVI {{ vlan.name }} - {{ vlan.description }}
  ip address {{ vlan.gateway }} {{ vlan.subnet | dotted_netmask }}
+{% if vlan.id in config.dhcp_relay.branch_vlans %}
+ ip helper-address {{ config.dhcp_relay.server_ip }}
+{% endif %}
 {% set acl_name = acl_name_for_vlan(config, vlan.id) %}
 {% if acl_name %}
  ip access-group {{ acl_name }} in
@@ -19,12 +24,15 @@ interface Vlan{{ vlan.id }}
  no shutdown
 !
 {% endfor %}
+{% if 93 in device.no_svi_vlans %}
+! VLAN 93 is Layer-2 stretched to HQ; no interface Vlan93 is generated here.
+{% endif %}
 {% for trunk in interfaces.trunks %}
 interface {{ trunk.name }}
  description {{ trunk.description }}
  switchport mode trunk
  switchport trunk allowed vlan {{ trunk.allowed_vlans | join(',') }}
- spanning-tree portfast trunk
+ no shutdown
 !
 {% endfor %}
 {% for iface in interfaces.routed %}
@@ -36,23 +44,30 @@ interface {{ iface.name }}
 !
 {% endfor %}
 ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_BRANCH_FIREWALL
-{% for route in routes.intersite_routes %}
-ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name MPLS_TO_CE
+{% for route in routes.user_routes %}
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name FIREWALL_IPSEC_INTERSITE
 {% endfor %}
 !
 {% for policy in config.branch_policies %}
 {% set src = vlans_by_id[policy.source_vlan] %}
 ip access-list extended {{ policy.name }}
- remark Inbound policy for VLAN {{ policy.source_vlan }} - no implicit full branch access
+ remark Least-privilege policy for Branch VLAN {{ policy.source_vlan }}
 {% for dst_id in policy.deny_destination_vlans %}
 {% set dst = vlans_by_id[dst_id] %}
  deny ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }} log
 {% endfor %}
- remark TODO: add explicit permits for {{ policy.allowed_service_objects | join(', ') }} after service IPs are known
- permit udp {{ src.subnet | prefix_to_acl }} any eq domain
- permit udp {{ src.subnet | prefix_to_acl }} any eq ntp
- deny ip {{ src.subnet | prefix_to_acl }} 172.16.0.0 0.0.255.255 log
- permit ip {{ src.subnet | prefix_to_acl }} any
+{% for service in policy.allowed_service_hosts %}
+{% if service.protocol == 'ip' %}
+ permit ip {{ src.subnet | prefix_to_acl }} host {{ service.ip }}
+{% else %}
+ permit {{ service.protocol }} {{ src.subnet | prefix_to_acl }} host {{ service.ip }} eq {{ service.port }}
+{% endif %}
+{% endfor %}
+{% for prefix in policy.deny_internal_prefixes %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ prefix | prefix_to_acl }} log
+{% endfor %}
+ deny ip {{ src.subnet | prefix_to_acl }} any log
 !
 {% endfor %}
+! VLAN 93 stays Layer 2 through CE-BR1/CE-BR2; its gateway is 10.10.93.1 at HQ.
 end

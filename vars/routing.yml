@@ -1,115 +1,153 @@
 transit_addressing:
   prefix_length: 30
-  rationale: "Dung /30 cho tung point-to-point link vi Mininet/L3 namespace de debug de; moi link co subnet rieng, khong tai su dung transit."
+  rationale: "Moi routed transit dung /30 rieng de de kiem tra trong Mininet; VLAN 93 khong duoc routed qua IPsec."
 
-# Enterprise WAN edge drawing. These are logical provider paths, not additional
-# Mininet links. The runtime model keeps one routed outside interface per
-# firewall namespace; the two circuits are validated as design intent here.
 provider_handoff_paths:
   primary:
-    provider_id: isp_circuit_a
+    provider_id: site_local_primary_role
     handoff_id: wan_handoff_primary
-    label: "Carrier A - HQ + Branch"
+    label: "Site-local ISP Primary role"
     state: active
     color: blue
     representation: design_only
     runtime_node: null
     runtime_state: design_only
     controller_managed: false
+    note: "HQ va Branch co circuit Primary rieng; object nay chi la role chung, khong phai mot circuit vat ly dung chung."
     site_firewalls:
       hq: {firewall: fw_hq, runtime_link: fw_hq_to_internet_zone}
-      branch_telesale: {firewall: fw_telesale, runtime_link: fw_telesale_to_internet_zone}
+      branch: {firewall: fw_telesale, runtime_link: fw_branch_to_internet_zone}
   backup:
-    provider_id: isp_circuit_b
+    provider_id: site_local_backup_role
     handoff_id: wan_handoff_backup
-    label: "Carrier B - HQ + Branch"
+    label: "Site-local ISP Backup role"
     state: standby
     color: purple
     representation: design_only
     runtime_node: null
     runtime_state: design_only
     controller_managed: false
+    note: "HQ va Branch co circuit Backup rieng; object nay chi la role chung, khong phai mot circuit vat ly dung chung."
     site_firewalls:
       hq: {firewall: fw_hq, runtime_link: fw_hq_to_internet_zone}
-      branch_telesale: {firewall: fw_telesale, runtime_link: fw_telesale_to_internet_zone}
+      branch: {firewall: fw_telesale, runtime_link: fw_branch_to_internet_zone}
 
 links:
-  core_hq_to_ce_hq: {site: hq, role: routed, cidr: 10.10.255.0/30, endpoint_a: {node: core_hq, interface: core-ce, ip: 10.10.255.1}, endpoint_b: {node: ce_hq, interface: ce-core, ip: 10.10.255.2}}
-  ce_hq_to_mpls_primary: {site: wan, role: mpls_transport_primary, cidr: 10.255.0.0/30, endpoint_a: {node: ce_hq, interface: ce-primary, ip: 10.255.0.1}, endpoint_b: {node: mpls_primary, interface: primary-hq, ip: 10.255.0.2}}
-  mpls_primary_to_ce_telesale: {site: wan, role: mpls_transport_primary, cidr: 10.255.0.4/30, endpoint_a: {node: mpls_primary, interface: primary-branch, ip: 10.255.0.5}, endpoint_b: {node: ce_telesale, interface: ce-primary, ip: 10.255.0.6}}
-  ce_hq_to_mpls_backup: {site: wan, role: mpls_transport_backup, cidr: 10.255.0.8/30, endpoint_a: {node: ce_hq, interface: ce-backup, ip: 10.255.0.9}, endpoint_b: {node: mpls_backup, interface: backup-hq, ip: 10.255.0.10}}
-  mpls_backup_to_ce_telesale: {site: wan, role: mpls_transport_backup, cidr: 10.255.0.12/30, endpoint_a: {node: mpls_backup, interface: backup-branch, ip: 10.255.0.13}, endpoint_b: {node: ce_telesale, interface: ce-backup, ip: 10.255.0.14}}
-  ce_telesale_to_dist_branch: {site: branch_telesale, role: routed, cidr: 10.20.255.0/30, endpoint_a: {node: ce_telesale, interface: ce-dist, ip: 10.20.255.2}, endpoint_b: {node: dist_branch, interface: dist-ce, ip: 10.20.255.1}}
-  core_hq_to_fw_hq: {site: hq, role: firewall_inside, cidr: 10.10.254.0/30, endpoint_a: {node: core_hq, interface: core-fw, ip: 10.10.254.1}, endpoint_b: {node: fw_hq, interface: inside, ip: 10.10.254.2}}
-  dist_branch_to_fw_branch: {site: branch_telesale, role: firewall_inside, cidr: 10.20.254.0/30, endpoint_a: {node: dist_branch, interface: dist-fw, ip: 10.20.254.1}, endpoint_b: {node: fw_telesale, interface: inside, ip: 10.20.254.2}}
-  fw_hq_to_internet_zone: {site: hq, role: firewall_outside, cidr: 10.255.10.0/30, endpoint_a: {node: fw_hq, interface: outside, ip: 10.255.10.1}, endpoint_b: {node: internet_zone, interface: inet-hq, ip: 10.255.10.2}}
-  fw_telesale_to_internet_zone: {site: branch_telesale, role: firewall_outside, cidr: 10.255.10.4/30, endpoint_a: {node: fw_telesale, interface: outside, ip: 10.255.10.5}, endpoint_b: {node: internet_zone, interface: inet-branch, ip: 10.255.10.6}}
+  hq_l3_to_fw_hq:
+    site: hq
+    role: firewall_inside
+    cidr: 10.10.254.0/30
+    endpoint_a: {node: hq_l3_gateway, interface: hq-fw, ip: 10.10.254.1}
+    endpoint_b: {node: fw_hq, interface: inside, ip: 10.10.254.2}
+  fw_hq_to_ipsec:
+    site: wan
+    role: ipsec_tunnel_hq
+    cidr: 10.255.20.0/30
+    endpoint_a: {node: fw_hq, interface: tunnel, ip: 10.255.20.1}
+    endpoint_b: {node: ipsec_l3, interface: ipsec-hq, ip: 10.255.20.2}
+  ipsec_to_fw_branch:
+    site: wan
+    role: ipsec_tunnel_branch
+    cidr: 10.255.20.4/30
+    endpoint_a: {node: ipsec_l3, interface: ipsec-br, ip: 10.255.20.5}
+    endpoint_b: {node: fw_telesale, interface: tunnel, ip: 10.255.20.6}
+  branch_l3_to_fw_branch:
+    site: branch
+    role: firewall_inside
+    cidr: 10.20.254.0/30
+    endpoint_a: {node: telesale_l3_gateway, interface: br-fw, ip: 10.20.254.1}
+    endpoint_b: {node: fw_telesale, interface: inside, ip: 10.20.254.2}
+  fw_hq_to_internet_zone:
+    site: hq
+    role: firewall_outside
+    cidr: 10.255.10.0/30
+    endpoint_a: {node: fw_hq, interface: outside, ip: 10.255.10.1}
+    endpoint_b: {node: internet_zone, interface: inet-hq, ip: 10.255.10.2}
+  fw_branch_to_internet_zone:
+    site: branch
+    role: firewall_outside
+    cidr: 10.255.10.4/30
+    endpoint_a: {node: fw_telesale, interface: outside, ip: 10.255.10.5}
+    endpoint_b: {node: internet_zone, interface: inet-branch, ip: 10.255.10.6}
 
 service_zone:
   addressing_model: interface_plus_service_vip
   cidr: 10.255.30.0/24
   gateway_node: internet_zone
   gateway_ip: 10.255.30.1
-  service_nodes: [hzalo, hcall, hsocial, hinternet]
+  service_nodes: [h90, hcall, hzalo, hsocial, hinternet]
+
+dhcp_relay:
+  server_ip: 10.10.100.10
+  hq_vlans: [93, 101, 103, 104, 110, 120, 140]
+  branch_vlans: [50]
+  note: "VLAN 93 relay is configured only on the HQ SVI because Branch has no VLAN 93 SVI."
 
 routes:
   hq_l3_gateway:
-    default_route: {next_hop: 10.10.254.2, description: "HQ local Internet breakout via fw_hq"}
+    default_route: {next_hop: 10.10.254.2, description: "HQ local Internet breakout via firewall HA abstraction"}
     user_routes:
-      - {prefix: 172.16.50.0/24, next_hop: 10.10.255.2}
-      - {prefix: 172.16.111.0/24, next_hop: 10.10.255.2}
+      - {prefix: 10.20.50.0/24, next_hop: 10.10.254.2, transport: firewall_ipsec_l3_logic}
   telesale_l3_gateway:
-    default_route: {next_hop: 10.20.254.2, description: "Branch local Internet breakout via fw_telesale"}
+    default_route: {next_hop: 10.20.254.2, description: "Branch local Internet breakout via firewall HA abstraction"}
     user_routes:
-      - {prefix: 172.16.20.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.30.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.60.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.70.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.90.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.100.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.110.0/24, next_hop: 10.20.255.2}
-      - {prefix: 172.16.120.0/24, next_hop: 10.20.255.2}
-  ce_hq:
-    primary: {next_hop: 10.255.0.2, metric: 10}
-    backup: {next_hop: 10.255.0.10, metric: 100}
-    internal_routes:
-      - {prefix: 172.16.0.0/16, next_hop: 10.10.255.1}
-  ce_telesale:
-    branch_route: {prefix: 172.16.50.0/24, next_hop: 10.20.255.1}
-    iot_branch_route: {prefix: 172.16.111.0/24, next_hop: 10.20.255.1}
-    primary: {next_hop: 10.255.0.5, metric: 10}
-    backup: {next_hop: 10.255.0.13, metric: 100}
-  mpls_primary:
-    routes: [{prefix: 172.16.20.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.30.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.60.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.70.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.90.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.100.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.110.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.120.0/24, next_hop: 10.255.0.1}, {prefix: 172.16.50.0/24, next_hop: 10.255.0.6}, {prefix: 172.16.111.0/24, next_hop: 10.255.0.6}]
-  mpls_backup:
-    routes: [{prefix: 172.16.20.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.30.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.60.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.70.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.90.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.100.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.110.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.120.0/24, next_hop: 10.255.0.9}, {prefix: 172.16.50.0/24, next_hop: 10.255.0.14}, {prefix: 172.16.111.0/24, next_hop: 10.255.0.14}]
+      - {prefix: 10.10.100.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.101.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.103.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.104.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.110.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.120.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.140.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+  fw_hq:
+    default_route: {next_hop: 10.255.10.2}
+    inside_routes:
+      - 10.10.93.0/24
+      - 10.10.100.0/24
+      - 10.10.101.0/24
+      - 10.10.103.0/24
+      - 10.10.104.0/24
+      - 10.10.110.0/24
+      - 10.10.120.0/24
+      - 10.10.140.0/24
+    inside_next_hop: 10.10.254.1
+    tunnel_routes: [10.20.50.0/24]
+    tunnel_next_hop: 10.255.20.2
+  fw_telesale:
+    default_route: {next_hop: 10.255.10.6}
+    inside_routes: [10.20.50.0/24]
+    inside_next_hop: 10.20.254.1
+    tunnel_routes:
+      - 10.10.100.0/24
+      - 10.10.101.0/24
+      - 10.10.103.0/24
+      - 10.10.104.0/24
+      - 10.10.110.0/24
+      - 10.10.120.0/24
+      - 10.10.140.0/24
+    tunnel_next_hop: 10.255.20.5
+  ipsec_l3:
+    cryptographic_ipsec: false
+    runtime_mode: routed_tunnel_abstraction_between_firewalls
+    hq_routes:
+      - 10.10.100.0/24
+      - 10.10.101.0/24
+      - 10.10.103.0/24
+      - 10.10.104.0/24
+      - 10.10.110.0/24
+      - 10.10.120.0/24
+      - 10.10.140.0/24
+    hq_next_hop: 10.255.20.1
+    branch_routes: [10.20.50.0/24]
+    branch_next_hop: 10.255.20.6
 
 l2vpn_services:
-  vlan40_project_c:
+  vlan93_project_2:
     service_type: vpws
-    customer_vlan: 40
+    customer_vlan: 93
     routed_advertisement: false
     gateway_owner: core_hq
     gateway_site: hq
-    attachment_circuits: [dist_hq_2, dist_branch]
-    runtime_node: l2vpn_vpws40
-
-# Automation template views. Runtime Mininet uses the explicit hq_l3/branch_l3
-# gateways above; these entries keep generated device configs deterministic.
-core_hq:
-  default_route: {next_hop: 10.10.254.2}
-  intersite_routes: [{prefix: 172.16.50.0/24, next_hop: 10.10.255.2}, {prefix: 172.16.111.0/24, next_hop: 10.10.255.2}]
-dist_hq_1: {intersite_routes: []}
-dist_hq_2: {intersite_routes: []}
-dist_branch:
-  default_route: {next_hop: 10.20.254.2}
-  intersite_routes: [{prefix: 172.16.20.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.30.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.60.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.70.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.90.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.100.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.110.0/24, next_hop: 10.20.255.2}, {prefix: 172.16.120.0/24, next_hop: 10.20.255.2}]
-ce_hq:
-  mpls_routes: [{prefix: 172.16.50.0/24, next_hop: 10.255.0.2}, {prefix: 172.16.111.0/24, next_hop: 10.255.0.2}]
-ce_telesale:
-  internal_routes: [{prefix: 172.16.50.0/24, next_hop: 10.20.255.1}, {prefix: 172.16.111.0/24, next_hop: 10.20.255.1}]
-  mpls_routes: [{prefix: 172.16.20.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.30.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.60.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.70.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.90.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.100.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.110.0/24, next_hop: 10.255.0.5}, {prefix: 172.16.120.0/24, next_hop: 10.255.0.5}]
-fw_hq:
-  default_route: {next_hop: 10.255.10.2}
-fw_telesale:
-  default_route: {next_hop: 10.255.10.6}
+    primary_path: [ce_hq1, l2vpn_primary, ce_branch1]
+    backup_path: [ce_hq2, l2vpn_backup, ce_branch2]
+    primary_state: active
+    backup_state: standby

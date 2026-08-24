@@ -7,58 +7,82 @@ sdn:
     password_env: SDN_PASSWORD
     api_path: /api/v1/network-intents
   fabric_scope:
-    - hq-core-l3
-    - hq-access-floor1
-    - hq-access-floor2
-    - hq-dist-1
-    - hq-dist-2
+    - hq-core-dist
+    - hq-access-a
+    - hq-access-b
     - hq-infra-access
-    - br-dist-l3
+    - br-core-dist
     - br-access
   protected_boundaries:
-    - name: mpls_l3vpn
-      rule: "Do not program ISP MPLS PE/P core. Only enterprise CE-facing or LAN fabric policy is in scope."
+    - name: mpls_l2vpn
+      rule: "Do not program the provider PE/P core. SDN controls only the enterprise OVS/LAN edge; CE/MPLS bridges are unmanaged transport abstractions."
+    - name: ipsec_l3_abstraction
+      rule: "The lab models routed intersite reachability between the two firewall abstractions through ipsec_l3 but does not claim IKE, ESP, XFRM or cryptographic IPsec evidence."
     - name: firewall_internet_breakout
-      rule: "Internet app/category control remains on firewall unless the target SDN controller supports service insertion."
+      rule: "Internet and partner-service enforcement remains on the local nftables firewall abstraction."
   intents:
-    - name: isolate-hq-project-a
+    - name: isolate-project-1
       type: segmentation
-      source_vlan: 20
-      deny_destination_vlans: [30, 40]
-      allow_destination_vlans: [90]
+      source_vlan: 101
+      deny_destination_vlans: [93, 103, 104]
+      allowed_services: [dhcp, dns, ad, file, ntp]
       enforcement: acl_or_group_policy
       log: true
-    - name: isolate-hq-project-b
+    - name: isolate-project-2
       type: segmentation
-      source_vlan: 30
-      deny_destination_vlans: [20, 40]
-      allow_destination_vlans: [90]
+      source_vlan: 93
+      deny_destination_vlans: [101, 103, 104]
+      allowed_services: [dhcp, dns, ad, file, ntp]
       enforcement: acl_or_group_policy
       log: true
-    - name: isolate-hq-project-c
+    - name: isolate-project-3
       type: segmentation
-      source_vlan: 40
-      deny_destination_vlans: [20, 30]
-      allow_destination_vlans: [90]
+      source_vlan: 103
+      deny_destination_vlans: [93, 101, 104]
+      allowed_services: [dhcp, dns, ad, file, ntp]
       enforcement: acl_or_group_policy
       log: true
-    - name: branch-telesale-limited
+    - name: isolate-project-4
+      type: segmentation
+      source_vlan: 104
+      deny_destination_vlans: [93, 101, 103]
+      allowed_services: [dhcp, dns, ad, file, ntp]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: hq-iot-limited
+      type: segmentation
+      source_vlan: 140
+      allowed_services: [dhcp, dns, ntp, monitoring]
+      deny_internal: true
+      enforcement: acl_or_group_policy
+      log: true
+    - name: guest-internet-only
+      type: segmentation
+      source_vlan: 120
+      allowed_services: [dhcp, dns, ntp, general_internet]
+      deny_internal: true
+      enforcement: acl_or_group_policy
+      log: true
+    - name: branch-iot-limited
       type: segmentation
       source_vlan: 50
-      deny_destination_vlans: [60]
-      allowed_services: [dns, ntp, call_app]
+      deny_destination_vlans: [93]
+      allowed_services: [dhcp, dns, ntp, monitoring]
       enforcement: acl_or_group_policy
       log: true
-    - name: branch-admin-limited
-      type: segmentation
-      source_vlan: 60
-      deny_destination_vlans: [50]
-      allowed_services: [dns, ntp, admin_backoffice]
-      enforcement: acl_or_group_policy
+    - name: vlan93-l2-extension
+      type: l2_service_boundary
+      source_vlan: 93
+      sites: [hq, branch]
+      gateway_site: hq
+      branch_svi: false
+      primary_transport: l2vpn_primary
+      backup_transport: l2vpn_backup
+      enforcement: transport_contract
       log: true
     - name: internet-policy-steering
       type: service_insertion
-      source_vlans: [20, 30, 40, 50, 60]
+      source_vlans: [93, 101, 103, 104, 110, 120]
       next_service: firewall
       policy_reference: firewall_policy
       enforcement: route_or_pbr_to_firewall

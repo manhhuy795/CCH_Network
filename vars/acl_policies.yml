@@ -1,45 +1,69 @@
 admin_allowed_sources:
-  - 172.16.0.10/32
-  - 172.16.0.11/32
+  - 10.10.110.10/32
+  - 10.10.110.11/32
 
 hq_project_isolation:
-  - name: ACL_VLAN20_IN
-    source_vlan: 20
-    deny_destination_vlans: [30, 40]
-    allow_destination_vlans: [90]
+  - name: ACL_VLAN101_IN
+    source_vlan: 101
+    deny_destination_vlans: [93, 103, 104]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
     allow_internet: true
-  - name: ACL_VLAN30_IN
-    source_vlan: 30
-    deny_destination_vlans: [20, 40]
-    allow_destination_vlans: [90]
+  - name: ACL_VLAN93_IN
+    source_vlan: 93
+    deny_destination_vlans: [101, 103, 104]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
     allow_internet: true
-  - name: ACL_VLAN40_IN
-    source_vlan: 40
-    deny_destination_vlans: [20, 30]
-    allow_destination_vlans: [90]
+  - name: ACL_VLAN103_IN
+    source_vlan: 103
+    deny_destination_vlans: [93, 101, 104]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
     allow_internet: true
+  - name: ACL_VLAN104_IN
+    source_vlan: 104
+    deny_destination_vlans: [93, 101, 103]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
+    allow_internet: true
+
+hq_zone_policies:
+  - name: ACL_GUEST_IN
+    source_vlan: 120
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.16]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
+    allow_internet: true
+  - name: ACL_IOT_HQ_IN
+    source_vlan: 140
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.14, 10.10.100.16]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
+    allow_internet: false
 
 management_policy:
-  name: ACL_MGMT_IN
-  source_vlan: 10
+  name: ACL_IT_SUPPORT_IN
+  source_vlan: 110
   allowed_sources_ref: admin_allowed_sources
-  deny_from_user_vlans: [20, 30, 40, 50, 60]
+  managed_destination_vlans: [50, 93, 100, 101, 103, 104, 120, 140]
+  deny_unsolicited_from_user_vlans: [50, 93, 101, 103, 104, 120, 140]
 
 branch_policies:
-  - name: ACL_VLAN50_IN
+  - name: ACL_VLAN50_IOT_IN
     source_vlan: 50
-    deny_destination_vlans: [60]
-    allow_destination_vlans: [90]
-    allowed_service_objects:
-      - call_app
-      - dns
-      - ntp
+    allowed_service_objects: [dhcp, dns, ntp, monitoring]
+    allowed_service_hosts:
+      - {name: DHCP, ip: 10.10.100.10, protocol: udp, port: 67}
+      - {name: DNS_UDP, ip: 10.10.100.11, protocol: udp, port: 53}
+      - {name: DNS_TCP, ip: 10.10.100.11, protocol: tcp, port: 53}
+      - {name: NTP, ip: 10.10.100.16, protocol: udp, port: 123}
+      - {name: MONITORING, ip: 10.10.100.14, protocol: ip}
+    deny_destination_vlans: [93]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
     default_action: deny_internal_log
-  - name: ACL_VLAN60_IN
-    source_vlan: 60
-    deny_destination_vlans: [50]
-    allowed_service_objects:
-      - admin_backoffice
-      - dns
-      - ntp
-    default_action: deny_internal_log
+
+l2vpn_policy:
+  vlan: 93
+  branch_svi_allowed: false
+  gateway_site: hq
+  gateway: 10.10.93.1
+  note: "VLAN 93 is the only Layer-2-stretched customer VLAN. Branch must not create a local SVI for VLAN 93."

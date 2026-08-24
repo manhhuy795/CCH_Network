@@ -116,7 +116,7 @@ export type Topology = {
   groups: Group[];
   hosts: Host[];
   links: Link[];
-  sites?: Array<{ id: "hq" | "telesale"; label: string; kind: string; source_id: string; groups: string[]; devices: string[] }>;
+  sites?: Array<{ id: "hq" | "branch"; label: string; kind: string; source_id: string; groups: string[]; devices: string[] }>;
   site_ids?: string[];
   devices?: Array<Record<string, unknown>>;
   logical_switches?: Array<Record<string, unknown>>;

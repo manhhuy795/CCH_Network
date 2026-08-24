@@ -1,54 +1,67 @@
 interfaces:
-  hq-access-floor1:
+  hq-access-a:
     access_ports:
-      - {range: GigabitEthernet1/0/1-24, description: "Project A", vlan: 20}
-      - {range: GigabitEthernet1/0/25-36, description: "Project B Floor 1", vlan: 30}
-      - {range: GigabitEthernet1/0/37-42, description: "IoT HQ and UPS", vlan: 110}
-      - {range: GigabitEthernet1/0/43-48, description: "Guest HQ", vlan: 120}
-    uplink: {name: GigabitEthernet1/0/49, description: "TRUNK to hq-dist-1", allowed_vlans: [20, 30, 110, 120]}
-  hq-access-floor2:
+      - {range: GigabitEthernet1/0/1-20, description: "Project 1", vlan: 101}
+      - {range: GigabitEthernet1/0/21-30, description: "Project 2 - HQ runtime sample", vlan: 93}
+      - {range: GigabitEthernet1/0/31-35, description: "HQ IoT / Camera / Printer / UPS", vlan: 140}
+      - {range: GigabitEthernet1/0/36-37, description: "Guest HQ", vlan: 120}
+    uplink: {name: GigabitEthernet1/0/48, description: "Logical uplink to HQ collapsed Core/Distribution pair; physical dual-homing not encoded", allowed_vlans: [93, 101, 120, 140]}
+  hq-access-b:
     access_ports:
-      - {range: GigabitEthernet1/0/1-12, description: "Project B Floor 2", vlan: 30}
-      - {range: GigabitEthernet1/0/13-22, description: "Project C - HQ half of stretched VLAN", vlan: 40}
-      - {range: GigabitEthernet1/0/23-42, description: "BackOffice", vlan: 60}
-      - {range: GigabitEthernet1/0/43-48, description: "IT Support", vlan: 70}
-    uplink: {name: GigabitEthernet1/0/49, description: "TRUNK to hq-dist-2", allowed_vlans: [30, 40, 60, 70]}
-  hq-dist-1:
-    trunks: [{name: GigabitEthernet1/0/1, description: "Floor 1 access", allowed_vlans: [20, 30, 110, 120]}, {name: GigabitEthernet1/0/2, description: "To Core", allowed_vlans: [20, 30, 90, 100, 110, 120]}]
-  hq-dist-2:
-    trunks: [{name: GigabitEthernet1/0/1, description: "Floor 2 access", allowed_vlans: [30, 40, 60, 70]}, {name: GigabitEthernet1/0/2, description: "To Core and centralized VLAN 40 gateway", allowed_vlans: [30, 40, 60, 70]}, {name: GigabitEthernet1/0/40, description: "VLAN 40 attachment circuit to MPLS L2VPN VPWS", allowed_vlans: [40]}]
+      - {range: GigabitEthernet1/0/1-20, description: "Project 3", vlan: 103}
+      - {range: GigabitEthernet1/0/21-40, description: "Project 4", vlan: 104}
+      - {range: GigabitEthernet1/0/41-48, description: "Office / IT Support", vlan: 110}
+    uplink: {name: GigabitEthernet1/0/48, description: "Logical uplink to HQ collapsed Core/Distribution pair; physical dual-homing not encoded", allowed_vlans: [103, 104, 110]}
   hq-infra-access:
     access_ports:
-      - {range: GigabitEthernet1/0/1, description: "PBX/SBC Voice", vlan: 90}
-      - {range: GigabitEthernet1/0/2-48, description: "Infrastructure services", vlan: 100}
-    uplink: {name: GigabitEthernet1/0/49, description: "TRUNK to hq-dist-1", allowed_vlans: [90, 100]}
+      - {range: GigabitEthernet1/0/1-24, description: "Server Farm: AD/DNS/DHCP/File/NMS/Backup", vlan: 100}
+    uplink: {name: GigabitEthernet1/0/48, description: "Logical uplink to HQ collapsed Core/Distribution pair; physical dual-homing not encoded", allowed_vlans: [100]}
+  hq-core-dist:
+    trunks:
+      - {name: GigabitEthernet1/0/1, description: "Logical trunk to HQ Access A", allowed_vlans: [93, 101, 120, 140]}
+      - {name: GigabitEthernet1/0/2, description: "Logical trunk to HQ Access B", allowed_vlans: [103, 104, 110]}
+      - {name: GigabitEthernet1/0/3, description: "Logical trunk to Server/Infrastructure Access", allowed_vlans: [100]}
+      - {name: GigabitEthernet1/0/41, description: "VLAN 93 primary L2 handoff to CE-HQ1", allowed_vlans: [93]}
+      - {name: GigabitEthernet1/0/42, description: "VLAN 93 backup L2 handoff to CE-HQ2", allowed_vlans: [93]}
+    routed:
+      - {name: GigabitEthernet1/0/48, description: "Inside to HQ firewall HA", ip: 10.10.254.1/30}
+  hq-ce1:
+    l2vpn:
+      customer: {name: GigabitEthernet0/0, description: "VLAN 93 L2 handoff from HQ Core-Dist", vlan: 93}
+      provider: {name: GigabitEthernet0/1, description: "MPLS L2VPN Primary attachment circuit", service: primary}
+  hq-ce2:
+    l2vpn:
+      customer: {name: GigabitEthernet0/0, description: "VLAN 93 L2 handoff from HQ Core-Dist", vlan: 93}
+      provider: {name: GigabitEthernet0/1, description: "MPLS L2VPN Backup attachment circuit", service: backup}
+  hq-firewall-ha:
+    routed:
+      - {name: inside, description: "Inside to HQ Core-Dist", ip: 10.10.254.2/30}
+      - {name: outside, description: "Outside to HQ site-local Internet service zone", ip: 10.255.10.1/30}
+      - {name: tunnel, description: "Logical routed IPsec tunnel attachment", ip: 10.255.20.1/30}
+
   br-access:
     access_ports:
-      - {range: GigabitEthernet1/0/1-20, description: "Telesale", vlan: 50}
-      - {range: GigabitEthernet1/0/21-30, description: "Project C - Branch half of stretched VLAN", vlan: 40}
-      - {range: GigabitEthernet1/0/31-36, description: "IoT Branch and UPS", vlan: 111}
-    uplink: {name: GigabitEthernet1/0/49, description: "TRUNK to br-dist-l3", allowed_vlans: [40, 50, 111]}
-  hq-core-l3:
-    trunks: [{name: GigabitEthernet1/0/1, description: "To HQ distribution", allowed_vlans: [20, 30, 40, 60, 70, 90, 100, 110, 120]}]
-    routed: [{name: GigabitEthernet1/0/47, description: "L3 link to HQ CE", ip: 10.10.255.1/30}, {name: GigabitEthernet1/0/48, description: "L3 link to HQ firewall", ip: 10.10.254.1/30}]
-  hq-ce-router:
+      - {range: GigabitEthernet1/0/1-10, description: "Project 2 - Branch runtime sample", vlan: 93}
+      - {range: GigabitEthernet1/0/11-20, description: "Branch IoT", vlan: 50}
+    uplink: {name: GigabitEthernet1/0/48, description: "Logical uplink to Branch collapsed Core/Distribution pair; physical dual-homing not encoded", allowed_vlans: [50, 93]}
+  br-core-dist:
+    trunks:
+      - {name: GigabitEthernet1/0/1, description: "Logical trunk to Branch Access", allowed_vlans: [50, 93]}
+      - {name: GigabitEthernet1/0/41, description: "VLAN 93 primary L2 handoff to CE-BR1", allowed_vlans: [93]}
+      - {name: GigabitEthernet1/0/42, description: "VLAN 93 backup L2 handoff to CE-BR2", allowed_vlans: [93]}
     routed:
-      - {name: GigabitEthernet0/0, description: "L3 link to HQ Core", ip: 10.10.255.2/30}
-      - {name: GigabitEthernet0/1, description: "MPLS Primary CE handoff", ip: 10.255.0.1/30}
-      - {name: GigabitEthernet0/2, description: "MPLS Backup CE handoff", ip: 10.255.0.9/30}
-  hq-firewall:
+      - {name: GigabitEthernet1/0/48, description: "Inside to Branch firewall HA", ip: 10.20.254.1/30}
+    no_svi_vlans: [93]
+  br-ce1:
+    l2vpn:
+      customer: {name: GigabitEthernet0/0, description: "VLAN 93 L2 handoff from Branch Core-Dist", vlan: 93}
+      provider: {name: GigabitEthernet0/1, description: "MPLS L2VPN Primary attachment circuit", service: primary}
+  br-ce2:
+    l2vpn:
+      customer: {name: GigabitEthernet0/0, description: "VLAN 93 L2 handoff from Branch Core-Dist", vlan: 93}
+      provider: {name: GigabitEthernet0/1, description: "MPLS L2VPN Backup attachment circuit", service: backup}
+  br-firewall-ha:
     routed:
-      - {name: eth0, description: "Inside to HQ Core", ip: 10.10.254.2/30}
-      - {name: eth1, description: "Outside to Internet Edge", ip: 10.255.10.1/30}
-  br-dist-l3:
-    trunks: [{name: GigabitEthernet1/0/1, description: "To Branch access", allowed_vlans: [40, 50, 111]}, {name: GigabitEthernet1/0/40, description: "VLAN 40 attachment circuit to MPLS L2VPN VPWS", allowed_vlans: [40]}]
-    routed: [{name: GigabitEthernet1/0/47, description: "L3 link to Branch CE", ip: 10.20.255.1/30}, {name: GigabitEthernet1/0/48, description: "L3 link to Branch firewall", ip: 10.20.254.1/30}]
-  br-ce-router:
-    routed:
-      - {name: GigabitEthernet0/0, description: "L3 link to Branch Distribution", ip: 10.20.255.2/30}
-      - {name: GigabitEthernet0/1, description: "MPLS Primary CE handoff", ip: 10.255.0.6/30}
-      - {name: GigabitEthernet0/2, description: "MPLS Backup CE handoff", ip: 10.255.0.14/30}
-  br-firewall:
-    routed:
-      - {name: eth0, description: "Inside to Branch Distribution", ip: 10.20.254.2/30}
-      - {name: eth1, description: "Outside to Internet Edge", ip: 10.255.10.5/30}
+      - {name: inside, description: "Inside to Branch Core-Dist", ip: 10.20.254.2/30}
+      - {name: outside, description: "Outside to Branch site-local Internet service zone", ip: 10.255.10.5/30}
+      - {name: tunnel, description: "Logical routed IPsec tunnel attachment", ip: 10.255.20.6/30}
