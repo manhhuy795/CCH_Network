@@ -41,7 +41,7 @@ interface {{ iface.name }}
 !
 {% endfor %}
 ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_BRANCH_FIREWALL
-{% for route in routes.intersite_routes %}
+{% for route in routes.user_routes %}
 ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name IPSEC_INTERSITE
 {% endfor %}
 !
