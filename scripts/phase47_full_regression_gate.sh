@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
 MODE="${1:-full}"
 shift || true
 PYTHON_BIN="${CCH_TEST_PYTHON:-$ROOT_DIR/.venv/bin/python}"
@@ -37,20 +39,21 @@ run() {
 }
 
 static_checks() {
-  run "$PYTHON_BIN" "$ROOT_DIR/scripts/validate_vars.py"
-  run "$PYTHON_BIN" "$ROOT_DIR/scripts/validate_redesigned_topology.py"
+  run "$PYTHON_BIN" scripts/validate_vars.py
+  run "$PYTHON_BIN" scripts/validate_redesigned_topology.py
+  local tmp_dir
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "${tmp_dir:-}"' RETURN
-  run "$PYTHON_BIN" "$ROOT_DIR/scripts/generate_configs.py" --output-dir "$tmp_dir"
-  run "$PYTHON_BIN" "$ROOT_DIR/scripts/verify_network.py" --config-dir "$tmp_dir"
+  run "$PYTHON_BIN" scripts/generate_configs.py --output-dir "$tmp_dir"
+  run "$PYTHON_BIN" scripts/verify_network.py --config-dir "$tmp_dir"
+  rm -rf "$tmp_dir"
   run "$PYTHON_BIN" -m pytest -q
-  run git -C "$ROOT_DIR" diff --check
+  run git diff --check
 }
 
 frontend_checks() {
-  run npm run test --prefix "$ROOT_DIR/dashboard/frontend"
-  run npm run typecheck --prefix "$ROOT_DIR/dashboard/frontend"
-  run npm run build --prefix "$ROOT_DIR/dashboard/frontend"
+  run npm run test --prefix dashboard/frontend
+  run npm run typecheck --prefix dashboard/frontend
+  run npm run build --prefix dashboard/frontend
 }
 
 runtime_checks() {
@@ -61,6 +64,7 @@ runtime_checks() {
     exit 3
   }
 
+  local expected actual
   expected="access_branch access_floor1 access_floor2 core_hq dist_branch infra_access"
   actual="$(sudo -n ovs-vsctl list-br | sort | xargs)"
   [[ "$actual" == "$expected" ]] || {
@@ -69,14 +73,14 @@ runtime_checks() {
     exit 1
   }
 
-  run "$PYTHON_BIN" "$ROOT_DIR/scripts/mininet_dashboard_preflight.py"
+  run "$PYTHON_BIN" scripts/mininet_dashboard_preflight.py
   run curl -fsS http://127.0.0.1:8000/api/health
 }
 
 case "$MODE" in
   preflight)
-    run "$PYTHON_BIN" "$ROOT_DIR/scripts/validate_vars.py"
-    run "$PYTHON_BIN" "$ROOT_DIR/scripts/validate_redesigned_topology.py"
+    run "$PYTHON_BIN" scripts/validate_vars.py
+    run "$PYTHON_BIN" scripts/validate_redesigned_topology.py
     ;;
   source|static|automation) static_checks ;;
   frontend) frontend_checks ;;
