@@ -40,8 +40,7 @@ RUNTIME_BACKBONE_LINK_MAP = {
         ("ce_branch1", "dist_branch", "ceb1-lan", "bd-eth93p", 200, "2ms"),
     ),
 
-    # VLAN 93 backup path. The topology builder administratively keeps the
-    # customer attachment segments down until explicit failover to avoid an L2 loop.
+    # VLAN 93 backup path. The customer attachment segments stay down until failover.
     frozenset(("core_hq", "ce_hq2")): (
         ("core_hq", "ce_hq2", "core-eth93b", "ceh2-lan", 200, "2ms"),
     ),
@@ -55,22 +54,25 @@ RUNTIME_BACKBONE_LINK_MAP = {
         ("ce_branch2", "dist_branch", "ceb2-lan", "bd-eth93b", 200, "2ms"),
     ),
 
-    # Routed corporate intersite path. ipsec_l3 is a routed tunnel abstraction;
-    # it is not evidence of IKE/ESP/XFRM cryptographic IPsec.
-    frozenset(("core_hq", "ipsec_l3")): (
+    # Core/Distribution to firewall inside links.
+    frozenset(("core_hq", "fw_hq")): (
         ("core_hq", "hq_l3_gateway", "core-eth03", "hq_l3-eth0", 1000, "1ms"),
-        ("hq_l3_gateway", "ipsec_l3", "hq_l3-eth1", "ipsec-hq", 200, "8ms"),
+        ("hq_l3_gateway", "fw_hq", "hq_l3-eth1", "fw_hq-eth0", 200, "2ms"),
     ),
-    frozenset(("ipsec_l3", "dist_branch")): (
-        ("ipsec_l3", "telesale_l3_gateway", "ipsec-br", "tele_l3-eth1", 200, "8ms"),
+    frozenset(("fw_telesale", "dist_branch")): (
+        ("fw_telesale", "telesale_l3_gateway", "fw_tel-eth0", "tele_l3-eth1", 200, "2ms"),
         ("telesale_l3_gateway", "dist_branch", "tele_l3-eth0", "bd-eth02", 1000, "1ms"),
     ),
-    frozenset(("core_hq", "fw_hq")): (
-        ("hq_l3_gateway", "fw_hq", "hq_l3-eth2", "fw_hq-eth0", 200, "2ms"),
+
+    # Routed IPsec abstraction terminates on the two firewall namespaces.
+    frozenset(("fw_hq", "ipsec_l3")): (
+        ("fw_hq", "ipsec_l3", "fw_hq-eth2", "ipsec-hq", 200, "8ms"),
     ),
-    frozenset(("dist_branch", "fw_telesale")): (
-        ("telesale_l3_gateway", "fw_telesale", "tele_l3-eth2", "fw_tel-eth0", 200, "2ms"),
+    frozenset(("ipsec_l3", "fw_telesale")): (
+        ("ipsec_l3", "fw_telesale", "ipsec-br", "fw_tel-eth2", 200, "8ms"),
     ),
+
+    # Site-local Internet breakout.
     frozenset(("fw_hq", "internet_zone")): (
         ("fw_hq", "internet_zone", "fw_hq-eth1", "inet-eth0", 100, "5ms"),
     ),
