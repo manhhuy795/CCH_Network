@@ -1,37 +1,55 @@
-# Ke hoach VLAN Enterprise
+# Kế hoạch VLAN Enterprise v7
 
-VLAN 10 danh cho Management va khong duoc tai su dung cho zone enterprise.
+## VLAN chốt theo sơ đồ logic
 
-| VLAN | Zone | Subnet | Gateway | Switch |
+| VLAN | Zone | Subnet | Gateway | Phạm vi |
 |---:|---|---|---|---|
-| 100 | Infrastructure Services | `172.16.100.0/24` | `172.16.100.1` | `infra_access` |
-| 110 | IoT HQ / UPS HQ | `172.16.110.0/24` | `172.16.110.1` | `access_floor1` |
-| 111 | IoT Branch / UPS Branch | `172.16.111.0/24` | `172.16.111.1` | `access_branch` |
-| 120 | Guest HQ Floor 1 | `172.16.120.0/24` | `172.16.120.1` | `access_floor1` |
+| 50 | Branch IoT | `10.20.50.0/24` | `10.20.50.1` | Branch only |
+| 93 | Project 2 Shared | `10.10.93.0/24` | `10.10.93.1` tại HQ | HQ + Branch, MPLS L2VPN |
+| 101 | Project 1 | `10.10.101.0/24` | `10.10.101.1` | HQ |
+| 103 | Project 3 | `10.10.103.0/24` | `10.10.103.1` | HQ |
+| 104 | Project 4 | `10.10.104.0/24` | `10.10.104.1` | HQ |
 
-VLAN 110 va 111 cung role `iot` nhung la hai subnet routed rieng. Khong co
-L2 VLAN stretching IoT qua MPLS. Guest chi o HQ Floor 1.
+## VLAN implementation choice trong lab
 
-## Endpoint
+Sơ đồ v7 không chốt ID cụ thể cho Server Farm, Office/IT, Guest và HQ IoT. Runtime chọn các VLAN sau để mô phỏng nhất quán; đây là **implementation choice**, không phải yêu cầu business bắt buộc:
 
-- Guest: `guest_01`, `guest_02`.
-- IoT HQ: `iot_cam_01`, `iot_cam_02`, `ups_floor1`, `ups_core_1`, `ups_core_2`.
-- IoT Branch: `iot_branch_cam_01`, `ups_branch_1`.
-- Infrastructure: `hdhcp`, `hdns`, `hntp`, `hmonitor`, `hnvr`, `hrecording`,
-  `hdialer`, `hbackup`, `had` tren VLAN 100.
+| VLAN | Zone | Subnet | Gateway |
+|---:|---|---|---|
+| 10 | Management | `10.10.10.0/24` | `10.10.10.1` |
+| 100 | Server / Infrastructure | `10.10.100.0/24` | `10.10.100.1` |
+| 110 | Office / IT Support | `10.10.110.0/24` | `10.10.110.1` |
+| 120 | Guest HQ | `10.10.120.0/24` | `10.10.120.1` |
+| 140 | HQ IoT / Camera / Printer / UPS | `10.10.140.0/24` | `10.10.140.1` |
 
-Tong inventory: 110 user + 5 public/service endpoint + 9 Guest/IoT/UPS + 9
-infrastructure endpoint.
+## Quy tắc VLAN 93
+
+- VLAN 93 là VLAN duy nhất được stretch Layer 2 giữa HQ và Branch.
+- Branch **không có SVI VLAN 93**.
+- Default gateway duy nhất là `10.10.93.1` tại HQ.
+- Primary path dùng CE-HQ1 / MPLS L2VPN Primary / CE-BR1.
+- Backup path dùng CE-HQ2 / MPLS L2VPN Backup / CE-BR2.
+- Backup ở trạng thái standby để tránh L2 loop trong lab.
+
+## Infrastructure service
+
+VLAN 100 chứa:
+
+- `hdhcp` — DHCP Server.
+- `hdns` — DNS Server.
+- `had` — Active Directory.
+- `hfile` — File Server.
+- `hmonitor` — NMS / Monitoring.
+- `hbackup` — Backup Server.
+- `hntp` — NTP phụ trợ cho lab.
+
+CRM và PBX/Contact Center **không** nằm trong VLAN 100; chúng là partner services bên ngoài internal Server Farm.
 
 ## Least privilege
 
-- Guest duoc DHCP/DNS/NTP va General Internet; internal access bi deny.
-- IoT/UPS chi duoc bootstrap va monitoring/NVR da khai bao; khong truy cap
-  user, Guest, Voice hoac Internet.
-- IT Support remote user theo policy, khong bypass Social Media.
-- Internet/service inbound unsolicited bi firewall stateful chan.
-
-Runtime Mininet hien giu IP reservation/static cho endpoint de test deterministic.
-DHCP relay contract duoc khai bao tai `sdn_mpls_demo/policy.yml`; lease live chi
-duoc ket luan khi `scripts/test_dhcp_runtime.py` tim thay DHCP daemon va lease
-evidence that.
+- Các Project VLAN bị cách ly lẫn nhau ở SDN enforcement point.
+- Guest chỉ được bootstrap service cần thiết và General Internet.
+- IoT chỉ được bootstrap/monitoring service đã khai báo.
+- IT Support có quyền hỗ trợ có kiểm soát, không phải full bypass.
+- Social Media vẫn bị chặn bởi firewall policy.
+- Unsolicited Internet/Partner inbound bị stateful nftables firewall chặn.
