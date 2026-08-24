@@ -30,14 +30,17 @@ firewall_policy:
       site: hq
       inside_node: core_hq
       outside_node: internet_zone
+      tunnel_node: ipsec_l3
       design_redundancy: active_standby
       design_members: [fw_hq1, fw_hq2]
       outside_circuits: [primary, backup]
-      runtime_note: "One nftables namespace represents the active firewall HA cluster in Mininet."
+      runtime_note: "One nftables namespace represents the active firewall HA cluster in Mininet. The tunnel interface is a routed IPsec abstraction, not cryptographic evidence."
       inside_interface: inside
       outside_interface: outside
-      runtime_interfaces: {inside: fw_hq-eth0, outside: fw_hq-eth1}
+      tunnel_interface: tunnel
+      runtime_interfaces: {inside: fw_hq-eth0, outside: fw_hq-eth1, tunnel: fw_hq-eth2}
       owned_subnets: [10.10.93.0/24, 10.10.100.0/24, 10.10.101.0/24, 10.10.103.0/24, 10.10.104.0/24, 10.10.110.0/24, 10.10.120.0/24, 10.10.140.0/24]
+      remote_subnets: [10.20.50.0/24]
       policies:
         - {name: allow-partner-pbx, action: allow, sources: [93, 101, 103, 104, 110], destinations: [internet], applications: [partner_pbx], enable_flag: allow_voice, log: true}
         - {name: allow-call-app, action: allow, sources: [93, 101, 103, 104, 110], destinations: [internet], applications: [partner_crm], enable_flag: allow_call_app, log: true}
@@ -50,13 +53,16 @@ firewall_policy:
       site: branch
       inside_node: dist_branch
       outside_node: internet_zone
+      tunnel_node: ipsec_l3
       design_redundancy: active_standby
       design_members: [fw_br1, fw_br2]
       outside_circuits: [primary, backup]
       runtime_note: "One nftables namespace represents the active firewall HA cluster in Mininet. VLAN 93 uses its HQ gateway and therefore exits through HQ, not this firewall."
       inside_interface: inside
       outside_interface: outside
-      runtime_interfaces: {inside: fw_tel-eth0, outside: fw_tel-eth1}
+      tunnel_interface: tunnel
+      runtime_interfaces: {inside: fw_tel-eth0, outside: fw_tel-eth1, tunnel: fw_tel-eth2}
       owned_subnets: [10.20.50.0/24]
+      remote_subnets: [10.10.100.0/24, 10.10.101.0/24, 10.10.103.0/24, 10.10.104.0/24, 10.10.110.0/24, 10.10.120.0/24, 10.10.140.0/24]
       policies:
         - {name: deny-social-media, action: deny, sources: [50], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
