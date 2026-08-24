@@ -48,8 +48,13 @@ def validate() -> list[str]:
         errors.append("VLAN 93 must use L2VPN, not IPsec")
 
     routed_path = engine.decide("iot_branch_cam_01", "hmonitor").get("path", [])
-    if "ipsec_l3" not in routed_path or "l2vpn_primary" in routed_path:
-        errors.append("Branch routed traffic must use ipsec_l3, not L2VPN")
+    required = ["dist_branch", "fw_telesale", "ipsec_l3", "fw_hq", "core_hq"]
+    try:
+        indexes = [routed_path.index(node) for node in required]
+    except ValueError:
+        indexes = []
+    if not indexes or indexes != sorted(indexes) or "l2vpn_primary" in routed_path:
+        errors.append("Branch routed traffic must traverse Branch firewall -> ipsec_l3 -> HQ firewall")
     return errors
 
 
