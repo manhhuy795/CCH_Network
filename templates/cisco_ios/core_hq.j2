@@ -1,5 +1,6 @@
 ! Generated candidate config for {{ device.name }}
-! Review vendor syntax in lab before production deploy.
+! Enterprise v7 logical collapsed Core/Distribution pair.
+! This candidate does not invent FHRP/StackWise/VSS/MLAG syntax for an unknown platform.
 hostname {{ device.name }}
 ip routing
 !
@@ -25,7 +26,7 @@ interface {{ trunk.name }}
  description {{ trunk.description }}
  switchport mode trunk
  switchport trunk allowed vlan {{ trunk.allowed_vlans | join(',') }}
- spanning-tree portfast trunk
+ no shutdown
 !
 {% endfor %}
 {% for iface in interfaces.routed %}
@@ -38,13 +39,13 @@ interface {{ iface.name }}
 {% endfor %}
 ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_HQ_FIREWALL
 {% for route in routes.intersite_routes %}
-ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name MPLS_TO_CE
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name IPSEC_INTERSITE
 {% endfor %}
 !
 {% for policy in config.hq_project_isolation %}
 {% set src = vlans_by_id[policy.source_vlan] %}
 ip access-list extended {{ policy.name }}
- remark Inbound policy for VLAN {{ policy.source_vlan }} - isolate BPO projects
+ remark Inbound project segmentation for VLAN {{ policy.source_vlan }}
 {% for dst_id in policy.deny_destination_vlans %}
 {% set dst = vlans_by_id[dst_id] %}
  deny ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }} log
@@ -58,10 +59,12 @@ ip access-list extended {{ policy.name }}
 !
 {% endfor %}
 ip access-list extended {{ config.management_policy.name }}
- remark Placeholder: permit only admin/jump hosts from management VLAN
+ remark Permit only approved IT/jump sources
 {% for source in config.admin_allowed_sources %}
  permit ip {{ source | prefix_to_acl }} any
 {% endfor %}
  deny ip any any log
 !
+! VLAN 93 gateway 10.10.93.1 exists only at HQ.
+! Dual CE handoffs are Layer-2 attachment circuits; no provider pseudowire syntax is invented here.
 end
