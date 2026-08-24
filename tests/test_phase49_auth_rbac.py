@@ -58,7 +58,7 @@ def test_role_matrix_is_enforced_server_side(monkeypatch, tmp_path):
     assert client.get("/api/topology").status_code == 200
     assert client.post(
         "/api/test/ping",
-        json={"source": "h20_01", "destination": "h90"},
+        json={"source": "h101_01", "destination": "h90"},
         headers={"X-CCH-CSRF": csrf},
     ).status_code == 403
     assert client.get("/api/admin/users").status_code == 403
@@ -71,7 +71,7 @@ def test_auditor_can_read_audit_but_cannot_run_runtime(monkeypatch, tmp_path):
     assert client.get("/api/admin/audit").status_code == 200
     assert client.post(
         "/api/test/ping",
-        json={"source": "h20_01", "destination": "h90"},
+        json={"source": "h101_01", "destination": "h90"},
         headers={"X-CCH-CSRF": csrf},
     ).status_code == 403
 
