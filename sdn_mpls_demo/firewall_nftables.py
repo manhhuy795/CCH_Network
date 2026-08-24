@@ -60,10 +60,7 @@ def build_firewall_plans(
     defaults = firewall_policy["runtime_defaults"]
     sites = firewall_policy["sites"]
     applications = firewall_policy["shared_objects"]["applications"]
-    vlan_subnets = {
-        int(vlan["id"]): str(vlan["subnet"])
-        for vlan in config["vlans"]
-    }
+    vlan_subnets = {int(vlan["id"]): str(vlan["subnet"]) for vlan in config["vlans"]}
 
     plans: dict[str, dict[str, Any]] = {}
     for site_name in sorted(sites):
@@ -72,6 +69,7 @@ def build_firewall_plans(
         runtime_interfaces = site["runtime_interfaces"]
         inside_interface = _safe_identifier(runtime_interfaces["inside"], "inside interface")
         outside_interface = _safe_identifier(runtime_interfaces["outside"], "outside interface")
+        tunnel_interface = _safe_identifier(runtime_interfaces["tunnel"], "tunnel interface")
         rules: list[dict[str, Any]] = []
 
         for policy in site.get("policies", []):
@@ -99,13 +97,7 @@ def build_firewall_plans(
                 })
 
         identities = [
-            (
-                rule["firewall"],
-                rule["action"],
-                rule["source_subnets"],
-                rule["destination_ip"],
-                rule["comment"],
-            )
+            (rule["firewall"], rule["action"], rule["source_subnets"], rule["destination_ip"], rule["comment"])
             for rule in rules
         ]
         if len(identities) != len(set(identities)):
@@ -125,9 +117,12 @@ def build_firewall_plans(
             "counter_enabled": bool(defaults["counter_enabled"]),
             "inside_interface": inside_interface,
             "outside_interface": outside_interface,
+            "tunnel_interface": tunnel_interface,
             "inside_logical_interface": str(site["inside_interface"]),
             "outside_logical_interface": str(site["outside_interface"]),
+            "tunnel_logical_interface": str(site["tunnel_interface"]),
             "owned_subnets": tuple(sorted(str(prefix) for prefix in site["owned_subnets"])),
+            "remote_subnets": tuple(sorted(str(prefix) for prefix in site["remote_subnets"])),
             "nat": dict(defaults["nat"]),
             "rules": tuple(rules),
         }
@@ -150,15 +145,22 @@ def render_nftables_ruleset(plan: dict[str, Any]) -> str:
     firewall = _safe_identifier(plan["firewall_name"], "firewall")
     inside = _safe_identifier(plan["inside_interface"], "inside interface")
     outside = _safe_identifier(plan["outside_interface"], "outside interface")
+    tunnel = _safe_identifier(plan["tunnel_interface"], "tunnel interface")
     priority = int(plan["chain_priority"])
     counter = "counter " if plan["counter_enabled"] else ""
     internal_subnets = _set_literal(list(plan["owned_subnets"]))
+    remote_subnets = _set_literal(list(plan["remote_subnets"]))
     lines = [
         f"table {family} {table} {{",
         "  set internal_subnets {",
         "    type ipv4_addr",
         "    flags interval",
         f"    elements = {internal_subnets}",
+        "  }",
+        "  set remote_subnets {",
+        "    type ipv4_addr",
+        "    flags interval",
+        f"    elements = {remote_subnets}",
         "  }",
         "",
         "  chain input {",
@@ -188,10 +190,22 @@ def render_nftables_ruleset(plan: dict[str, Any]) -> str:
         lines.append(
             f'    ct state established,related {counter}accept comment "cch:{firewall}:forward-established"'
         )
-    lines.append(
-        f'    iifname "{outside}" oifname "{inside}" ip daddr @internal_subnets '
-        f'ct state new {counter}drop comment "cch:{firewall}:deny-inbound-new"'
-    )
+
+    # The routed intersite overlay is allowed only between declared local and remote prefixes.
+    lines.extend([
+        (
+            f'    iifname "{inside}" oifname "{tunnel}" ip saddr @internal_subnets '
+            f'ip daddr @remote_subnets {counter}accept comment "cch:{firewall}:allow-ipsec-overlay-out"'
+        ),
+        (
+            f'    iifname "{tunnel}" oifname "{inside}" ip saddr @remote_subnets '
+            f'ip daddr @internal_subnets {counter}accept comment "cch:{firewall}:allow-ipsec-overlay-in"'
+        ),
+        (
+            f'    iifname "{outside}" oifname "{inside}" ip daddr @internal_subnets '
+            f'ct state new {counter}drop comment "cch:{firewall}:deny-inbound-new"'
+        ),
+    ])
     for rule in plan["rules"]:
         sources = _set_literal(list(rule["source_subnets"]))
         verdict = "accept" if rule["action"] == "allow" else "drop"
@@ -231,45 +245,24 @@ def write_rulesets(
 
 
 def _node_command(node: Any, command: str) -> tuple[int, str]:
-    """Run a command and reliably extract its exit status.
-
-    Mininet executes node commands through a pseudo-terminal. Its output may
-    therefore use LF or CRLF line endings. The exit marker must be parsed
-    independently from the terminal line-ending convention.
-    """
+    """Run a command and reliably extract its exit status from Mininet PTY output."""
     marker = "__CCH_NFT_EXIT__="
-
-    output = node.cmd(
-        f"{command}; printf '\\n{marker}%s\\n' $?"
-    )
-
-    marker_pattern = re.compile(
-        rf"[ \t]*{re.escape(marker)}(\d+)[ \t]*"
-    )
-
+    output = node.cmd(f"{command}; printf '\\n{marker}%s\\n' $?")
+    marker_pattern = re.compile(rf"[ \t]*{re.escape(marker)}(\d+)[ \t]*")
     exit_code: int | None = None
     cleaned_lines: list[str] = []
-
     for line in output.splitlines():
         match = marker_pattern.fullmatch(line)
-
         if match is not None:
-            # The marker belongs to this command invocation. When more than
-            # one marker is unexpectedly emitted, use the final marker.
             exit_code = int(match.group(1))
             continue
-
         cleaned_lines.append(line)
-
     if exit_code is None:
         raise FirewallPolicyError(
             "Khong doc duoc exit code nftables "
             f"tren {node.name}: {output}"
         )
-
-    cleaned = "\n".join(cleaned_lines).strip()
-
-    return exit_code, cleaned
+    return exit_code, "\n".join(cleaned_lines).strip()
 
 
 def apply_to_mininet(net: Any, output_dir: Path = RUNTIME_RULESET_DIR) -> dict[str, dict[str, Any]]:
