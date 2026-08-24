@@ -38,11 +38,20 @@ def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
         for expected in (
             "interface Vlan93",
             "ip address 10.10.93.1 255.255.255.0",
+            "ip helper-address 10.10.100.10",
             "ip route 0.0.0.0 0.0.0.0 10.10.254.2",
             "ACL_VLAN93_IN",
+            "ACL_GUEST_IN",
+            "ACL_IOT_HQ_IN",
+            "host 10.10.100.12",
+            "host 10.10.100.13",
         ):
             if expected not in hq_core:
                 errors.append(f"HQ Core-Dist missing: {expected}")
+        if "Port-channel" in hq_core:
+            errors.append("HQ candidate config must not invent Port-channel before physical HA technology is confirmed")
+        if "deny ip 10.10.101.0 0.0.0.255 10.10.0.0 0.0.255.255 log" not in hq_core:
+            errors.append("Project 1 ACL must deny other internal HQ destinations after explicit service allows")
 
     if br_core:
         if "interface Vlan93" in br_core:
@@ -50,10 +59,13 @@ def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
         for expected in (
             "interface Vlan50",
             "ip address 10.20.50.1 255.255.255.0",
+            "ip helper-address 10.10.100.10",
             "ip route 0.0.0.0 0.0.0.0 10.20.254.2",
         ):
             if expected not in br_core:
                 errors.append(f"Branch Core-Dist missing: {expected}")
+        if "Port-channel" in br_core:
+            errors.append("Branch candidate config must not invent Port-channel before physical HA technology is confirmed")
 
     for name in ("hq-ce1.cfg", "hq-ce2.cfg", "br-ce1.cfg", "br-ce2.cfg"):
         text = _read_required(config_dir, name, errors)
@@ -64,6 +76,11 @@ def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
         for forbidden in ("xconnect ", "mpls ip", "pseudowire-class"):
             if forbidden in text.lower():
                 errors.append(f"{name} invents provider MPLS syntax: {forbidden.strip()}")
+
+    for name in ("hq-firewall-ha.policy.txt", "br-firewall-ha.policy.txt"):
+        text = _read_required(config_dir, name, errors)
+        if text and "tunnel:" not in text:
+            errors.append(f"{name} must expose the logical firewall-to-firewall tunnel attachment")
 
     return errors
 
