@@ -5,14 +5,14 @@ Simulation boundaries:
 - one controlled OVS represents each collapsed Core/Distribution HA pair;
 - one nftables namespace represents the active firewall HA cluster per site;
 - CE and MPLS L2VPN nodes are transparent Linux bridges, not provider PE/P MPLS;
-- ipsec_l3 is routed tunnel behavior only, not IKE/ESP/XFRM cryptography.
+- ipsec_l3 is routed tunnel behavior between firewall namespaces only, not
+  IKE/ESP/XFRM cryptography.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import json
-import os
 import time
 from pathlib import Path
 
@@ -87,16 +87,16 @@ BACKUP_L2_SEGMENTS = [
     ("ce_branch2", "dist_branch"),
 ]
 
-# Reuse the mature socket control agent but give it the v7 composed-link map.
+# Reuse the mature socket control agent with the v7 composed-link map.
 legacy.LOGICAL_LINK_SEGMENTS = {
-    "core_hq-ipsec_l3": [("core_hq", "hq_l3_gateway"), ("hq_l3_gateway", "ipsec_l3")],
-    "ipsec_l3-core_hq": [("ipsec_l3", "hq_l3_gateway"), ("hq_l3_gateway", "core_hq")],
-    "ipsec_l3-dist_branch": [("ipsec_l3", "telesale_l3_gateway"), ("telesale_l3_gateway", "dist_branch")],
-    "dist_branch-ipsec_l3": [("dist_branch", "telesale_l3_gateway"), ("telesale_l3_gateway", "ipsec_l3")],
-    "core_hq-fw_hq": [("hq_l3_gateway", "fw_hq")],
-    "fw_hq-core_hq": [("fw_hq", "hq_l3_gateway")],
-    "dist_branch-fw_telesale": [("telesale_l3_gateway", "fw_telesale")],
-    "fw_telesale-dist_branch": [("fw_telesale", "telesale_l3_gateway")],
+    "core_hq-fw_hq": [("core_hq", "hq_l3_gateway"), ("hq_l3_gateway", "fw_hq")],
+    "fw_hq-core_hq": [("fw_hq", "hq_l3_gateway"), ("hq_l3_gateway", "core_hq")],
+    "fw_hq-ipsec_l3": [("fw_hq", "ipsec_l3")],
+    "ipsec_l3-fw_hq": [("ipsec_l3", "fw_hq")],
+    "ipsec_l3-fw_telesale": [("ipsec_l3", "fw_telesale")],
+    "fw_telesale-ipsec_l3": [("fw_telesale", "ipsec_l3")],
+    "fw_telesale-dist_branch": [("fw_telesale", "telesale_l3_gateway"), ("telesale_l3_gateway", "dist_branch")],
+    "dist_branch-fw_telesale": [("dist_branch", "telesale_l3_gateway"), ("telesale_l3_gateway", "fw_telesale")],
     "fw_hq-internet_zone": [("fw_hq", "internet_zone")],
     "internet_zone-fw_hq": [("internet_zone", "fw_hq")],
     "fw_telesale-internet_zone": [("fw_telesale", "internet_zone")],
@@ -193,8 +193,7 @@ def _configure_vlan_switching(switches: dict) -> None:
     switches["core_hq"].cmd("ovs-vsctl set port core-eth03 vlan_mode=trunk trunks=93,100,101,103,104,110,120,140")
     switches["dist_branch"].cmd("ovs-vsctl set port bd-eth02 vlan_mode=trunk trunks=50")
 
-    # L2VPN attachment circuits. OVS access ports remove/add the customer tag;
-    # CE and provider bridges forward transparent Ethernet frames.
+    # L2VPN attachment circuits. OVS access ports remove/add the customer tag.
     for port in ("core-eth93p", "core-eth93b"):
         switches["core_hq"].cmd(f"ovs-vsctl set port {port} tag=93")
     for port in ("bd-eth93p", "bd-eth93b"):
@@ -229,16 +228,27 @@ def _add_route(node, prefix: str, next_hop: str) -> None:
 
 
 def configure_declared_routes(net: Mininet) -> None:
+    routes = ROUTING["routes"]
     hq = net.get("hq_l3_gateway")
     branch = net.get("telesale_l3_gateway")
+    fw_hq = net.get("fw_hq")
+    fw_br = net.get("fw_telesale")
     ipsec = net.get("ipsec_l3")
-    routes = ROUTING["routes"]
-    _add_route(hq, "0.0.0.0/0", routes["hq_l3_gateway"]["default_route"]["next_hop"])
-    for route in routes["hq_l3_gateway"].get("user_routes", []):
-        _add_route(hq, route["prefix"], route["next_hop"])
-    _add_route(branch, "0.0.0.0/0", routes["telesale_l3_gateway"]["default_route"]["next_hop"])
-    for route in routes["telesale_l3_gateway"].get("user_routes", []):
-        _add_route(branch, route["prefix"], route["next_hop"])
+
+    for node, key in ((hq, "hq_l3_gateway"), (branch, "telesale_l3_gateway")):
+        route_set = routes[key]
+        _add_route(node, "0.0.0.0/0", route_set["default_route"]["next_hop"])
+        for route in route_set.get("user_routes", []):
+            _add_route(node, route["prefix"], route["next_hop"])
+
+    for node, key in ((fw_hq, "fw_hq"), (fw_br, "fw_telesale")):
+        route_set = routes[key]
+        _add_route(node, "0.0.0.0/0", route_set["default_route"]["next_hop"])
+        for prefix in route_set.get("inside_routes", []):
+            _add_route(node, prefix, route_set["inside_next_hop"])
+        for prefix in route_set.get("tunnel_routes", []):
+            _add_route(node, prefix, route_set["tunnel_next_hop"])
+
     ipsec_routes = routes["ipsec_l3"]
     for prefix in ipsec_routes["hq_routes"]:
         _add_route(ipsec, prefix, ipsec_routes["hq_next_hop"])
@@ -261,13 +271,13 @@ def _configure_routing(net: Mininet, policy: dict) -> None:
     ])
     _configure_vlan_router_interface(branch, "tele_l3-eth0", [(50, "10.20.50.1/24")])
 
-    _configure_router_interface(hq, "hq_l3-eth1", _link_cidr("hq_l3_to_ipsec", "endpoint_a"))
-    _configure_router_interface(ipsec, "ipsec-hq", _link_cidr("hq_l3_to_ipsec", "endpoint_b"))
-    _configure_router_interface(ipsec, "ipsec-br", _link_cidr("ipsec_to_branch_l3", "endpoint_a"))
-    _configure_router_interface(branch, "tele_l3-eth1", _link_cidr("ipsec_to_branch_l3", "endpoint_b"))
-    _configure_router_interface(hq, "hq_l3-eth2", _link_cidr("hq_l3_to_fw_hq", "endpoint_a"))
+    _configure_router_interface(hq, "hq_l3-eth1", _link_cidr("hq_l3_to_fw_hq", "endpoint_a"))
     _configure_router_interface(fw_hq, "fw_hq-eth0", _link_cidr("hq_l3_to_fw_hq", "endpoint_b"))
-    _configure_router_interface(branch, "tele_l3-eth2", _link_cidr("branch_l3_to_fw_branch", "endpoint_a"))
+    _configure_router_interface(fw_hq, "fw_hq-eth2", _link_cidr("fw_hq_to_ipsec", "endpoint_a"))
+    _configure_router_interface(ipsec, "ipsec-hq", _link_cidr("fw_hq_to_ipsec", "endpoint_b"))
+    _configure_router_interface(ipsec, "ipsec-br", _link_cidr("ipsec_to_fw_branch", "endpoint_a"))
+    _configure_router_interface(fw_br, "fw_tel-eth2", _link_cidr("ipsec_to_fw_branch", "endpoint_b"))
+    _configure_router_interface(branch, "tele_l3-eth1", _link_cidr("branch_l3_to_fw_branch", "endpoint_a"))
     _configure_router_interface(fw_br, "fw_tel-eth0", _link_cidr("branch_l3_to_fw_branch", "endpoint_b"))
     _configure_router_interface(fw_hq, "fw_hq-eth1", _link_cidr("fw_hq_to_internet_zone", "endpoint_a"))
     _configure_router_interface(internet, "inet-eth0", _link_cidr("fw_hq_to_internet_zone", "endpoint_b"))
@@ -276,23 +286,20 @@ def _configure_routing(net: Mininet, policy: dict) -> None:
     _configure_router_interface(internet, "inet-eth2", "10.255.30.1/24")
 
     configure_declared_routes(net)
-    _add_route(fw_hq, "10.255.30.0/24", "10.255.10.2")
-    for prefix in ("10.10.93.0/24", "10.10.100.0/24", "10.10.101.0/24", "10.10.103.0/24", "10.10.104.0/24", "10.10.110.0/24", "10.10.120.0/24", "10.10.140.0/24"):
-        _add_route(fw_hq, prefix, "10.10.254.1")
-        _add_route(internet, prefix, "10.255.10.1")
-    _add_route(fw_br, "10.255.30.0/24", "10.255.10.6")
-    _add_route(fw_br, "10.20.50.0/24", "10.20.254.1")
-    _add_route(internet, "10.20.50.0/24", "10.255.10.5")
 
-    for service in policy["services"].values():
-        host = net.get(next(name for name, data in policy["services"].items() if data is service))
+    # The Internet/Partner service zone returns traffic through each local firewall.
+    for prefix in ROUTING["routes"]["fw_hq"]["inside_routes"]:
+        _add_route(internet, prefix, "10.255.10.1")
+    for prefix in ROUTING["routes"]["fw_telesale"]["inside_routes"]:
+        _add_route(internet, prefix, "10.255.10.5")
+
+    for name, service in policy["services"].items():
+        host = net.get(name)
         interface = str(host.defaultIntf())
         host.cmd(f"ip addr flush dev {interface}")
         host.cmd(f"ip addr add {service['ip']}/32 dev {interface}")
         host.cmd(f"ip addr add {service['interface_cidr']} dev {interface}")
         _add_route(host, "0.0.0.0/0", service["gateway"])
-        _add_route(fw_hq, f"{service['ip']}/32", "10.255.10.2")
-        _add_route(fw_br, f"{service['ip']}/32", "10.255.10.6")
         internet.cmd(f"ip route replace {service['ip']}/32 dev inet-eth2")
 
     for name, service in policy["infrastructure_services"].items():
@@ -355,7 +362,7 @@ class EnterpriseV7ControlAgent(legacy.MininetControlAgent):
         return {"ok": True, "available": True, "message": f"Set {link_id} {state}.", "link_id": link_id, "status": state, "changed": changed, "links": self._link_status()["links"]}
 
 
-def _write_inventory(net: Mininet, policy: dict, duration: float) -> None:
+def _write_inventory(net: Mininet, duration: float) -> None:
     inventory = build_host_inventory(NETWORK_MODEL)
     payload = {
         "schema": "enterprise-v7",
@@ -367,7 +374,7 @@ def _write_inventory(net: Mininet, policy: dict, duration: float) -> None:
         "firewall_namespaces": ["fw_hq", "fw_telesale"],
         "ce_bridges": list(CE_DPIDS),
         "l2vpn_bridges": list(L2VPN_DPIDS),
-        "ipsec_runtime": {"node": "ipsec_l3", "mode": "routed_tunnel_abstraction", "cryptographic_ipsec": False},
+        "ipsec_runtime": {"node": "ipsec_l3", "path": ["fw_hq", "ipsec_l3", "fw_telesale"], "mode": "routed_tunnel_abstraction", "cryptographic_ipsec": False},
         "vlan93": {"gateway": "10.10.93.1", "gateway_site": "hq", "active_path": "primary", "backup_state": "standby"},
         "runtime_scale_note": NETWORK_MODEL["metadata"]["runtime_scale_note"],
         "mininet_nodes": sorted(net.nameToNode),
@@ -381,7 +388,7 @@ class EnterpriseV7CLI(CLI):
         info("\nCCH Enterprise v7\n")
         info("  VLAN 93 gateway: HQ 10.10.93.1\n")
         info("  L2VPN: primary active, backup standby\n")
-        info("  Routed intersite: ipsec_l3 abstraction (no IKE/ESP proof)\n")
+        info("  Routed intersite: Firewall HQ -> ipsec_l3 -> Firewall Branch abstraction\n")
         info("  Partner CRM/PBX: outside internal server farm\n")
 
     def do_firewallrules(self, _line):
@@ -455,10 +462,10 @@ def build_topology() -> None:
             control_agent.link_state[item] = "down"
         control_agent.start()
         duration = time.monotonic() - started
-        _write_inventory(net, policy, duration)
+        _write_inventory(net, duration)
         info(f"*** Ready: {len(group_hosts)} runtime user/enterprise endpoints; {len(DPIDS)} controlled OVS\n")
         info("*** VLAN 93: Primary L2VPN active; Backup standby; gateway 10.10.93.1 only at HQ\n")
-        info("*** Routed intersite: ipsec_l3 behavior abstraction; no cryptographic IPsec claim\n")
+        info("*** Routed intersite: firewall-to-firewall ipsec_l3 behavior abstraction; no cryptographic IPsec claim\n")
         info("*** Firewall: one nftables namespace per HA pair abstraction\n")
         info("*** nftables: " + ", ".join(f"{name}={item['rule_count']} rules" for name, item in firewall_status.items()) + "\n")
         EnterpriseV7CLI(net)
