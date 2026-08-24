@@ -1,13 +1,11 @@
 metadata:
-  name: sdn-edge-policy-callcenter-bpo
-  description: "Policy ke thua policy cu, bo sung Guest/IoT/Infrastructure va WAN primary-backup."
+  name: sdn-edge-policy-callcenter-v7
+  description: "Enterprise v7 policy: Project 2 VLAN 93 L2 stretch, routed IPsec abstraction for other intersite traffic, local firewall breakout."
   default_action: deny
-  enforcement_note: "DROP inter-project tai core_hq; DROP Branch/IoT tai dist_branch; firewall chi xu ly local Internet breakout."
+  enforcement_note: "Project isolation is enforced on controlled OVS. Partner/Internet access is enforced by local nftables firewall abstractions."
 
 policies:
   isolate_hq_projects: true
-  isolate_telesale_backoffice: true
-  isolate_hq_users_from_telesale: true
   allow_voice: true
   voice_flow_priority: true
   allow_zalo: true
@@ -16,66 +14,72 @@ policies:
   allow_guest_general_internet: true
   block_social_media: true
   allow_it_support_controlled_access: true
-  intersite_via_mpls_l3vpn: true
-  mpls_primary_metric: 10
-  mpls_backup_metric: 100
+  intersite_via_ipsec_l3: true
+  vlan93_l2vpn_primary_active: true
+  vlan93_l2vpn_backup_standby: true
   it_support_controlled_access:
     enabled: true
     source_group: it_support
     allow_icmp_to_managed_users: true
-    managed_user_groups: [project_a, project_b, project_c, telesale, backoffice, iot_hq, iot_branch]
-    allowed_services: [h90, hdialer, hnvr, hmonitor, hzalo, hcall, hinternet]
+    managed_user_groups: [project_1, project_2, project_3, project_4, iot_hq, iot_branch]
+    allowed_services: [h90, hcall, hzalo, hinternet, hdhcp, hdns, hntp, hmonitor]
     denied_services: [hsocial]
     management_tcp_ports: [22, 443, 3389, 5985, 5986]
   enterprise_zones:
     guest:
       vlan: 120
-      subnet: 172.16.120.0/24
+      subnet: 10.10.120.0/24
       access_switch: access_floor1
       addressing: dhcp
       allow_infrastructure_services: [hdhcp, hdns, hntp]
       allow_services: [hinternet]
       deny_internal: true
     iot_hq:
-      vlan: 110
-      subnet: 172.16.110.0/24
+      vlan: 140
+      subnet: 10.10.140.0/24
       access_switch: access_floor1
       addressing: reservation
-      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor, hnvr]
+      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
       deny_by_default: true
     iot_branch:
-      vlan: 111
-      subnet: 172.16.111.0/24
+      vlan: 50
+      subnet: 10.20.50.0/24
       access_switch: access_branch
       addressing: reservation
-      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor, hnvr]
+      allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
+      transport_to_hq: ipsec_l3_logic
       deny_by_default: true
     infrastructure_services:
       vlan: 100
-      subnet: 172.16.100.0/24
+      subnet: 10.10.100.0/24
       access_switch: infra_access
       deny_unsolicited_inbound: true
   softphone_model:
-    note: "Cfone/Gphone/softphone chay tren VLAN Project/Telesale/BackOffice; agent chi di toi PBX/SBC va CRM theo port."
-    voice_quality_note: "UDP iperf chi la uoc luong; khong thay the SIP/RTP, NAT/SBC va QoS production."
+    note: "Agent softphone runs in the project VLAN. PBX/Contact Center and CRM are partner services outside the internal server farm."
+    voice_quality_note: "UDP iperf is only a lab estimate; it is not a SIP/RTP, SBC or production QoS proof."
+
 dhcp:
   server: hdhcp
   relay_gateways: [core_hq, dist_branch]
   scopes:
-    project_a: {network: 172.16.20.0/24, range: 172.16.20.100-172.16.20.199, gateway: 172.16.20.1, dns: 172.16.100.11}
-    project_b: {network: 172.16.30.0/24, range: 172.16.30.100-172.16.30.199, gateway: 172.16.30.1, dns: 172.16.100.11}
-    project_c: {network: 172.16.40.0/24, range: 172.16.40.100-172.16.40.199, gateway: 172.16.40.1, dns: 172.16.100.11}
-    telesale: {network: 172.16.50.0/24, range: 172.16.50.100-172.16.50.199, gateway: 172.16.50.1, dns: 172.16.100.11}
-    backoffice: {network: 172.16.60.0/24, range: 172.16.60.100-172.16.60.199, gateway: 172.16.60.1, dns: 172.16.100.11}
-    it_support: {network: 172.16.70.0/24, range: 172.16.70.100-172.16.70.199, gateway: 172.16.70.1, dns: 172.16.100.11}
-    iot_hq: {network: 172.16.110.0/24, range: 172.16.110.200-172.16.110.220, gateway: 172.16.110.1, dns: 172.16.100.11}
-    iot_branch: {network: 172.16.111.0/24, range: 172.16.111.200-172.16.111.220, gateway: 172.16.111.1, dns: 172.16.100.11}
-    guest: {network: 172.16.120.0/24, range: 172.16.120.100-172.16.120.199, gateway: 172.16.120.1, dns: 172.16.100.11}
+    project_1: {network: 10.10.101.0/24, range: 10.10.101.100-10.10.101.199, gateway: 10.10.101.1, dns: 10.10.100.11}
+    project_2: {network: 10.10.93.0/24, range: 10.10.93.100-10.10.93.199, gateway: 10.10.93.1, dns: 10.10.100.11, gateway_site: hq}
+    project_3: {network: 10.10.103.0/24, range: 10.10.103.100-10.10.103.199, gateway: 10.10.103.1, dns: 10.10.100.11}
+    project_4: {network: 10.10.104.0/24, range: 10.10.104.100-10.10.104.199, gateway: 10.10.104.1, dns: 10.10.100.11}
+    it_support: {network: 10.10.110.0/24, range: 10.10.110.100-10.10.110.199, gateway: 10.10.110.1, dns: 10.10.100.11}
+    iot_hq: {network: 10.10.140.0/24, range: 10.10.140.200-10.10.140.220, gateway: 10.10.140.1, dns: 10.10.100.11}
+    iot_branch: {network: 10.20.50.0/24, range: 10.20.50.200-10.20.50.220, gateway: 10.20.50.1, dns: 10.10.100.11}
+    guest: {network: 10.10.120.0/24, range: 10.10.120.100-10.10.120.199, gateway: 10.10.120.1, dns: 10.10.100.11}
 
 runtime:
   controller: 127.0.0.1:6653
   installed_flows_file: runtime/installed_flows.json
   events_file: runtime/events.jsonl
-  wan_paths:
-    primary: [ce_hq, mpls_primary, ce_telesale]
-    backup: [ce_hq, mpls_backup, ce_telesale]
+  l2vpn_vlan93:
+    primary: [ce_hq1, l2vpn_primary, ce_branch1]
+    backup: [ce_hq2, l2vpn_backup, ce_branch2]
+    active_path: primary
+  ipsec_l3:
+    path: [core_hq, ipsec_l3, dist_branch]
+    cryptographic_ipsec: false
+    note: "Routed tunnel abstraction only; no IKE/ESP/XFRM claim."
