@@ -29,7 +29,7 @@ def healthy_runtime():
         "agent_alive": True,
         "ovs_bridge": True,
         "bridges": {"core_hq": True, "dist_branch": True},
-        "user_hosts_online": 110,
+        "user_hosts_online": 90,
         "mnexec": True,
     }
 
@@ -37,11 +37,7 @@ def healthy_runtime():
 def test_backend_online_but_agent_offline_is_not_healthy(monkeypatch):
     snapshot = runtime_health.system_health(
         probe=online_probe,
-        agent_health=lambda: {
-            "ok": False,
-            "error_code": "MININET_NOT_RUNNING",
-            "message": "socket missing",
-        },
+        agent_health=lambda: {"ok": False, "error_code": "MININET_NOT_RUNNING", "message": "socket missing"},
         live_status=healthy_runtime,
         include_flow_inventory=False,
     )
@@ -54,11 +50,7 @@ def test_backend_online_but_agent_offline_is_not_healthy(monkeypatch):
 def test_agent_timeout_and_controller_offline_are_separate_components():
     snapshot = runtime_health.system_health(
         probe=offline_controller_probe,
-        agent_health=lambda: {
-            "ok": False,
-            "error_code": "AGENT_TIMEOUT",
-            "message": "timeout",
-        },
+        agent_health=lambda: {"ok": False, "error_code": "AGENT_TIMEOUT", "message": "timeout"},
         include_flow_inventory=False,
     )
     assert snapshot["components"]["controller"]["error_code"] == "CONTROLLER_OFFLINE"
@@ -74,7 +66,7 @@ def test_ovs_unavailable_is_reported_without_backend_crash():
             "ok": True,
             "ovs_bridge": False,
             "bridges": {"core_hq": False, "dist_branch": False},
-            "user_hosts_online": 110,
+            "user_hosts_online": 90,
             "mnexec": True,
         },
         include_flow_inventory=False,
@@ -109,27 +101,10 @@ def test_stale_socket_maps_to_agent_disconnected(monkeypatch, tmp_path):
 
 
 def test_operation_error_mapping_is_stable():
-    assert api._normalize_operation_error({
-        "ok": False,
-        "error_code": "IPERF_DESTINATION_BUSY",
-        "message": "busy",
-    })["error_code"] == "IPERF_BUSY"
-    assert api._normalize_operation_error({
-        "ok": False,
-        "error_code": "IPERF_JSON_INVALID",
-        "message": "parse",
-    })["error_code"] == "IPERF_PARSE_FAILED"
-    assert api._normalize_operation_error({
-        "ok": False,
-        "decision": {"action": "deny"},
-        "message": "policy",
-    })["error_code"] == "POLICY_DENIED"
-    assert api._normalize_operation_error({
-        "ok": False,
-        "error_code": "AGENT_DISCONNECTED",
-        "decision": {"action": "deny"},
-        "message": "agent down",
-    })["error_code"] == "AGENT_DISCONNECTED"
+    assert api._normalize_operation_error({"ok": False, "error_code": "IPERF_DESTINATION_BUSY", "message": "busy"})["error_code"] == "IPERF_BUSY"
+    assert api._normalize_operation_error({"ok": False, "error_code": "IPERF_JSON_INVALID", "message": "parse"})["error_code"] == "IPERF_PARSE_FAILED"
+    assert api._normalize_operation_error({"ok": False, "decision": {"action": "deny"}, "message": "policy"})["error_code"] == "POLICY_DENIED"
+    assert api._normalize_operation_error({"ok": False, "error_code": "AGENT_DISCONNECTED", "decision": {"action": "deny"}, "message": "agent down"})["error_code"] == "AGENT_DISCONNECTED"
 
 
 def test_completed_voice_measurement_is_http_success_even_when_quality_is_poor():
@@ -150,10 +125,10 @@ def test_auth_error_codes_and_http_status(monkeypatch):
     from app.main import app
 
     client = TestClient(app)
-    missing = client.post("/api/test/ping", json={"source": "h20_01", "destination": "h90"})
+    missing = client.post("/api/test/ping", json={"source": "h101_01", "destination": "h90"})
     wrong = client.post(
         "/api/test/ping",
-        json={"source": "h20_01", "destination": "h90"},
+        json={"source": "h101_01", "destination": "h90"},
         headers={"X-CCH-Operator-Token": "wrong"},
     )
     assert missing.status_code == 401
@@ -172,35 +147,17 @@ def test_busy_timeout_and_parse_fail_use_expected_http_status(monkeypatch):
     client = TestClient(app)
     headers = {"X-CCH-Operator-Token": "health-secret"}
 
-    monkeypatch.setattr(api, "run_iperf", lambda *_args: {
-        "ok": False,
-        "error_code": "IPERF_DESTINATION_BUSY",
-        "message": "busy",
-    })
-    busy = client.post("/api/test/iperf", json={
-        "source": "h30_01", "destination": "h90", "protocol": "udp", "seconds": 5,
-    }, headers=headers)
+    monkeypatch.setattr(api, "run_iperf", lambda *_args: {"ok": False, "error_code": "IPERF_DESTINATION_BUSY", "message": "busy"})
+    busy = client.post("/api/test/iperf", json={"source": "h101_01", "destination": "h90", "protocol": "udp", "seconds": 5}, headers=headers)
     assert busy.status_code == 409
     assert busy.json()["error_code"] == "IPERF_BUSY"
 
-    monkeypatch.setattr(api, "run_iperf", lambda *_args: {
-        "ok": False,
-        "error_code": "AGENT_TIMEOUT",
-        "message": "timeout",
-    })
-    timeout = client.post("/api/test/iperf", json={
-        "source": "h30_01", "destination": "h90", "protocol": "udp", "seconds": 5,
-    }, headers=headers)
+    monkeypatch.setattr(api, "run_iperf", lambda *_args: {"ok": False, "error_code": "AGENT_TIMEOUT", "message": "timeout"})
+    timeout = client.post("/api/test/iperf", json={"source": "h101_01", "destination": "h90", "protocol": "udp", "seconds": 5}, headers=headers)
     assert timeout.status_code == 504
 
-    monkeypatch.setattr(api, "run_iperf", lambda *_args: {
-        "ok": False,
-        "error_code": "IPERF_JSON_INVALID",
-        "message": "parse",
-    })
-    parse = client.post("/api/test/iperf", json={
-        "source": "h30_01", "destination": "h90", "protocol": "udp", "seconds": 5,
-    }, headers=headers)
+    monkeypatch.setattr(api, "run_iperf", lambda *_args: {"ok": False, "error_code": "IPERF_JSON_INVALID", "message": "parse"})
+    parse = client.post("/api/test/iperf", json={"source": "h101_01", "destination": "h90", "protocol": "udp", "seconds": 5}, headers=headers)
     assert parse.status_code == 502
     assert parse.json()["error_code"] == "IPERF_PARSE_FAILED"
 
@@ -217,11 +174,11 @@ def test_policy_deny_is_200_but_agent_unavailable_is_503(monkeypatch):
         "ok": False,
         "error_code": "POLICY_DENIED",
         "message": "policy deny",
-        "decision": {"action": "deny", "path": ["h20_01", "core_hq"]},
+        "decision": {"action": "deny", "path": ["h101_01", "core_hq"]},
     })
     denied = client.post(
         "/api/test/ping",
-        json={"source": "h20_01", "destination": "h30_01"},
+        json={"source": "h101_01", "destination": "h103_01"},
         headers=headers,
     )
     assert denied.status_code == 200
@@ -235,7 +192,7 @@ def test_policy_deny_is_200_but_agent_unavailable_is_503(monkeypatch):
     })
     unavailable = client.post(
         "/api/test/ping",
-        json={"source": "h20_01", "destination": "h30_01"},
+        json={"source": "h101_01", "destination": "h103_01"},
         headers=headers,
     )
     assert unavailable.status_code == 503
@@ -257,14 +214,8 @@ def test_health_and_live_status_expose_all_components(monkeypatch):
             "technical_detail": None,
         }
         for name in (
-            "frontend",
-            "backend",
-            "controller",
-            "mininet_topology",
-            "mininet_control_agent",
-            "openvswitch",
-            "websocket",
-            "flow_inventory",
+            "frontend", "backend", "controller", "mininet_topology",
+            "mininet_control_agent", "openvswitch", "websocket", "flow_inventory",
         )
     }
     payload = {
