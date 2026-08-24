@@ -14,6 +14,9 @@ vlan {{ vlan.id }}
 interface Vlan{{ vlan.id }}
  description SVI {{ vlan.name }} - {{ vlan.description }}
  ip address {{ vlan.gateway }} {{ vlan.subnet | dotted_netmask }}
+{% if vlan.id in config.dhcp_relay.branch_vlans %}
+ ip helper-address {{ config.dhcp_relay.server_ip }}
+{% endif %}
 {% set acl_name = acl_name_for_vlan(config, vlan.id) %}
 {% if acl_name %}
  ip access-group {{ acl_name }} in
@@ -42,7 +45,7 @@ interface {{ iface.name }}
 {% endfor %}
 ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_BRANCH_FIREWALL
 {% for route in routes.user_routes %}
-ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name IPSEC_INTERSITE
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name FIREWALL_IPSEC_INTERSITE
 {% endfor %}
 !
 {% for policy in config.branch_policies %}
