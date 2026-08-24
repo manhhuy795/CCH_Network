@@ -16,11 +16,12 @@ firewall_policy:
       enabled: false
       mode: routed_lab
       runtime_verification_required: true
-      reason: "Routed simulation; NAT production design requires separate approval."
+      reason: "Mininet uses routed service simulators. Production NAT depends on the real ISP/firewall design."
   shared_objects:
     applications:
-      zalo: {runtime_service: hzalo, type: placeholder, ports: [tcp/443]}
-      call_app: {runtime_service: hcall, type: placeholder, ports: [tcp/443, udp/10000-20000]}
+      partner_pbx: {runtime_service: h90, type: partner_service, ports: [tcp/5060, tcp/5061, udp/10000-20000]}
+      partner_crm: {runtime_service: hcall, type: partner_service, ports: [tcp/443]}
+      internet_app: {runtime_service: hzalo, type: internet_placeholder, ports: [tcp/443]}
       social_media: {runtime_service: hsocial, type: category}
       general_internet: {runtime_service: hinternet, type: simulation}
   sites:
@@ -30,33 +31,32 @@ firewall_policy:
       inside_node: core_hq
       outside_node: internet_zone
       design_redundancy: active_standby
-      design_members: [fw_hq_primary, fw_hq_backup]
+      design_members: [fw_hq1, fw_hq2]
       outside_circuits: [primary, backup]
-      runtime_note: "One firewall namespace in Mininet; Primary/Backup are logical design members."
+      runtime_note: "One nftables namespace represents the active firewall HA cluster in Mininet."
       inside_interface: inside
       outside_interface: outside
       runtime_interfaces: {inside: fw_hq-eth0, outside: fw_hq-eth1}
-      owned_subnets: [172.16.20.0/24, 172.16.30.0/24, 172.16.40.0/24, 172.16.60.0/24, 172.16.70.0/24, 172.16.90.0/24, 172.16.100.0/24, 172.16.110.0/24, 172.16.120.0/24]
+      owned_subnets: [10.10.93.0/24, 10.10.100.0/24, 10.10.101.0/24, 10.10.103.0/24, 10.10.104.0/24, 10.10.110.0/24, 10.10.120.0/24, 10.10.140.0/24]
       policies:
-        - {name: allow-zalo, action: allow, sources: [20, 30, 40, 60, 70], destinations: [internet], applications: [zalo], enable_flag: allow_zalo, log: true}
-        - {name: allow-call-app, action: allow, sources: [20, 30, 40, 60, 70], destinations: [internet], applications: [call_app], enable_flag: allow_call_app, log: true}
-        - {name: deny-social-media, action: deny, sources: [20, 30, 40, 60, 70, 120], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
-        - {name: allow-general-internet, action: allow, sources: [20, 30, 40, 60, 70], destinations: [internet], applications: [general_internet], enable_flag: allow_general_internet, log: true}
+        - {name: allow-partner-pbx, action: allow, sources: [93, 101, 103, 104, 110], destinations: [internet], applications: [partner_pbx], enable_flag: allow_voice, log: true}
+        - {name: allow-call-app, action: allow, sources: [93, 101, 103, 104, 110], destinations: [internet], applications: [partner_crm], enable_flag: allow_call_app, log: true}
+        - {name: allow-zalo, action: allow, sources: [93, 101, 103, 104, 110], destinations: [internet], applications: [internet_app], enable_flag: allow_zalo, log: true}
+        - {name: deny-social-media, action: deny, sources: [93, 101, 103, 104, 110, 120], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
+        - {name: allow-general-internet, action: allow, sources: [93, 101, 103, 104, 110], destinations: [internet], applications: [general_internet], enable_flag: allow_general_internet, log: true}
         - {name: allow-guest-internet, action: allow, sources: [120], destinations: [internet], applications: [general_internet], enable_flag: allow_guest_general_internet, log: true}
-    branch_telesale:
+    branch:
       firewall_name: fw_telesale
-      site: branch_telesale
+      site: branch
       inside_node: dist_branch
       outside_node: internet_zone
-      design_redundancy: single_firewall_simulation
+      design_redundancy: active_standby
+      design_members: [fw_br1, fw_br2]
       outside_circuits: [primary, backup]
-      runtime_note: "One firewall namespace in Mininet; production should deploy an HA pair."
+      runtime_note: "One nftables namespace represents the active firewall HA cluster in Mininet. VLAN 93 uses its HQ gateway and therefore exits through HQ, not this firewall."
       inside_interface: inside
       outside_interface: outside
       runtime_interfaces: {inside: fw_tel-eth0, outside: fw_tel-eth1}
-      owned_subnets: [172.16.50.0/24, 172.16.111.0/24]
+      owned_subnets: [10.20.50.0/24]
       policies:
-        - {name: allow-zalo, action: allow, sources: [50], destinations: [internet], applications: [zalo], enable_flag: allow_zalo, log: true}
-        - {name: allow-call-app, action: allow, sources: [50], destinations: [internet], applications: [call_app], enable_flag: allow_call_app, log: true}
-        - {name: deny-social-media, action: deny, sources: [50, 111], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
-        - {name: allow-general-internet, action: allow, sources: [50], destinations: [internet], applications: [general_internet], enable_flag: allow_general_internet, log: true}
+        - {name: deny-social-media, action: deny, sources: [50], destinations: [internet], applications: [social_media], enable_flag: block_social_media, log: true}
