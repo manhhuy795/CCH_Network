@@ -1,8 +1,4 @@
-"""Small, honest runtime helpers for the redesigned Mininet lab.
-
-These helpers never manufacture a result. Every PASS comes from an OVS query,
-the live control-agent socket, or a real command executed in a Mininet host.
-"""
+"""Small, evidence-first runtime helpers for the enterprise v7 Mininet lab."""
 
 from __future__ import annotations
 
@@ -19,10 +15,18 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SOCKET_PATH = Path(os.getenv("CCH_MININET_CONTROL_SOCKET", "/tmp/cch_mininet_control.sock"))
 TOKEN = os.getenv("CCH_MININET_CONTROL_TOKEN", "cch-local-mininet-token")
-SWITCHES = (
-    "access_floor1", "access_floor2", "dist_hq_1", "dist_hq_2",
-    "core_hq", "access_branch", "dist_branch", "infra_access",
-)
+
+
+def _expected_switches() -> tuple[str, ...]:
+    from scripts.network_model import controlled_switches, load_network_model
+
+    return tuple(controlled_switches(load_network_model()))
+
+
+def _expected_user_count() -> int:
+    from scripts.network_model import load_network_model, user_count
+
+    return int(user_count(load_network_model()))
 
 
 def require_linux_root() -> None:
@@ -75,12 +79,13 @@ def model_hosts() -> dict[str, dict[str, Any]]:
 
 
 def verify_fabric() -> dict[str, Any]:
+    switches = _expected_switches()
     bridges = command(["ovs-vsctl", "list-br"]).stdout.splitlines()
-    missing = sorted(set(SWITCHES) - set(bridges))
+    missing = sorted(set(switches) - set(bridges))
     if missing:
         raise RuntimeError(f"OVS_UNAVAILABLE:{','.join(missing)}")
     flow_counts: dict[str, int] = {}
-    for switch in SWITCHES:
+    for switch in switches:
         result = command(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch])
         if result.returncode != 0:
             raise RuntimeError(f"OPENFLOW_UNAVAILABLE:{switch}")
@@ -91,8 +96,11 @@ def verify_fabric() -> dict[str, Any]:
     if health.get("ok") is not True or health.get("agent_alive") is not True:
         raise RuntimeError("AGENT_NOT_READY")
     live = agent_request("LIVE_STATUS")
-    if live.get("ok") is not True or int(live.get("user_hosts_online", 0)) != 110:
-        raise RuntimeError("MININET_TOPOLOGY_INVALID")
+    expected_users = _expected_user_count()
+    if live.get("ok") is not True or int(live.get("user_hosts_online", 0)) != expected_users:
+        raise RuntimeError(
+            f"MININET_TOPOLOGY_INVALID:expected_users={expected_users},observed={live.get('user_hosts_online')}"
+        )
     return {"bridges": bridges, "flow_counts": flow_counts, "agent": health, "live": live}
 
 
