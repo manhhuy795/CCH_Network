@@ -15,6 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "sdn_mpls_demo" / "policy.yml"
 
 
+def _has_config_line(text: str, expected: str) -> bool:
+    return any(line.strip() == expected for line in text.splitlines())
+
+
 def test_v7_source_of_truth_is_internally_consistent():
     model = load_network_model()
     config = load_vars()
@@ -161,11 +165,11 @@ def test_generated_candidate_configs_match_v7_contract(tmp_path: Path):
 
     hq_core = (tmp_path / "hq-core-dist.cfg").read_text(encoding="utf-8")
     branch_core = (tmp_path / "br-core-dist.cfg").read_text(encoding="utf-8")
-    assert "interface Vlan93" in hq_core
+    assert _has_config_line(hq_core, "interface Vlan93")
     assert "ip address 10.10.93.1 255.255.255.0" in hq_core
     assert "ip helper-address 10.10.100.10" in hq_core
-    assert "interface Vlan93" not in branch_core
-    assert "interface Vlan50" in branch_core
+    assert not _has_config_line(branch_core, "interface Vlan93")
+    assert _has_config_line(branch_core, "interface Vlan50")
     assert "ip helper-address 10.10.100.10" in branch_core
     assert "Port-channel" not in hq_core
     assert "Port-channel" not in branch_core
