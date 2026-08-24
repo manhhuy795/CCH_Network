@@ -6,22 +6,22 @@ hq_project_isolation:
   - name: ACL_VLAN101_IN
     source_vlan: 101
     deny_destination_vlans: [93, 103, 104]
-    allow_destination_vlans: [100]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
     allow_internet: true
   - name: ACL_VLAN93_IN
     source_vlan: 93
     deny_destination_vlans: [101, 103, 104]
-    allow_destination_vlans: [100]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
     allow_internet: true
   - name: ACL_VLAN103_IN
     source_vlan: 103
     deny_destination_vlans: [93, 101, 104]
-    allow_destination_vlans: [100]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
     allow_internet: true
   - name: ACL_VLAN104_IN
     source_vlan: 104
     deny_destination_vlans: [93, 101, 103]
-    allow_destination_vlans: [100]
+    allow_service_hosts: [10.10.100.10, 10.10.100.11, 10.10.100.12, 10.10.100.13, 10.10.100.16]
     allow_internet: true
 
 management_policy:
