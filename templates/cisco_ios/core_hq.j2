@@ -51,11 +51,13 @@ ip access-list extended {{ policy.name }}
  deny ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }} log
 {% endfor %}
  deny ip {{ src.subnet | prefix_to_acl }} {{ vlans_by_id[10].subnet | prefix_to_acl }} log
-{% for dst_id in policy.allow_destination_vlans %}
-{% set dst = vlans_by_id[dst_id] %}
- permit ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }}
+{% for host in policy.allow_service_hosts %}
+ permit ip {{ src.subnet | prefix_to_acl }} host {{ host }}
 {% endfor %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ vlans_by_id[100].subnet | prefix_to_acl }} log
+{% if policy.allow_internet %}
  permit ip {{ src.subnet | prefix_to_acl }} any
+{% endif %}
 !
 {% endfor %}
 ip access-list extended {{ config.management_policy.name }}
