@@ -1,44 +1,42 @@
 sites:
   hq:
     name: "HQ - Tru so chinh"
-    description: "Hai tang: Access Floor 1/2, Distribution, Core, Infrastructure Access, Firewall HQ HA logical pair"
+    description: "Mo hinh 2-tier: access dual-uplink toi cap Core/Distribution logic; firewall HA va hai CE cho MPLS L2VPN VLAN 93."
     kind: physical
     devices:
-      - {name: hq-access-floor1, model_node: access_floor1, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.11, access_vlans: [20, 30, 110, 120]}
-      - {name: hq-access-floor2, model_node: access_floor2, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.12, access_vlans: [30, 40, 60, 70]}
-      - {name: hq-dist-1, model_node: dist_hq_1, role: distribution_hq, site: hq, platform: cisco_ios, template: cisco_ios/distribution_hq.j2, management_ip: 192.0.2.13, svi_vlans: [20, 30, 110, 120, 100]}
-      - {name: hq-dist-2, model_node: dist_hq_2, role: distribution_hq, site: hq, platform: cisco_ios, template: cisco_ios/distribution_hq.j2, management_ip: 192.0.2.14, svi_vlans: [30, 40, 60, 70]}
-      - {name: hq-core-l3, model_node: core_hq, role: core_hq_logical_ha_pair, site: hq, platform: cisco_ios, template: cisco_ios/core_hq.j2, management_ip: 192.0.2.10, svi_vlans: [20, 30, 40, 60, 70, 90, 100, 110, 120]}
-      - {name: hq-infra-access, model_node: infra_access, role: infrastructure_access, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.15, access_vlans: [90, 100]}
-      - {name: hq-ce-router, model_node: ce_hq, role: ce_router, site: hq, platform: cisco_ios, template: cisco_ios/ce_router.j2, management_ip: 192.0.2.16}
-      - {name: hq-firewall, model_node: fw_hq, role: firewall, site: hq, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.17, design_role: firewall_ha_logical_pair, redundancy: active_standby, design_members: [fw_hq_primary, fw_hq_backup], outside_circuits: [primary, backup]}
+      - {name: hq-access-a, model_node: access_floor1, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.11, access_vlans: [93, 101, 120, 140]}
+      - {name: hq-access-b, model_node: access_floor2, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.12, access_vlans: [103, 104, 110]}
+      - {name: hq-core-dist, model_node: core_hq, role: collapsed_core_distribution, site: hq, platform: cisco_ios, template: cisco_ios/core_hq.j2, management_ip: 192.0.2.10, svi_vlans: [93, 100, 101, 103, 104, 110, 120, 140], design_members: [core_dist_hq1, core_dist_hq2], fhrp: true}
+      - {name: hq-infra-access, model_node: infra_access, role: infrastructure_access, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.15, access_vlans: [100]}
+      - {name: hq-ce1, model_node: ce_hq1, role: ce_l2vpn_edge, site: hq, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.16, customer_vlan: 93, path_role: primary}
+      - {name: hq-ce2, model_node: ce_hq2, role: ce_l2vpn_edge, site: hq, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.18, customer_vlan: 93, path_role: backup}
+      - {name: hq-firewall-ha, model_node: fw_hq, role: firewall, site: hq, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.17, design_role: firewall_ha_pair, redundancy: active_standby, design_members: [fw_hq1, fw_hq2], outside_circuits: [primary, backup]}
 
-  branch_telesale:
-    name: "Branch Telesale"
-    description: "Chi nhanh co Telesale, IoT va 10 Project C endpoint tren VLAN 40 stretched; Project C dung gateway tap trung tai HQ"
+  branch:
+    name: "Branch"
+    description: "Mo hinh 2-tier; Project 2 VLAN 93 duoc bridge Layer 2 ve HQ va khong co SVI VLAN 93 tai Branch."
     kind: physical
     devices:
-      - {name: br-access, model_node: access_branch, role: access_switch, site: branch_telesale, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.50, access_vlans: [40, 50, 111]}
-      - {name: br-dist-l3, model_node: dist_branch, role: distribution_branch, site: branch_telesale, platform: cisco_ios, template: cisco_ios/distribution_branch.j2, management_ip: 192.0.2.51, svi_vlans: [50, 111]}
-      - {name: br-ce-router, model_node: ce_telesale, role: ce_router, site: branch_telesale, platform: cisco_ios, template: cisco_ios/ce_router.j2, management_ip: 192.0.2.52}
-      - {name: br-firewall, model_node: fw_telesale, role: firewall, site: branch_telesale, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.53, redundancy: single_node_simulation, outside_circuits: [primary, backup]}
+      - {name: br-access, model_node: access_branch, role: access_switch, site: branch, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.50, access_vlans: [50, 93]}
+      - {name: br-core-dist, model_node: dist_branch, role: collapsed_core_distribution, site: branch, platform: cisco_ios, template: cisco_ios/distribution_branch.j2, management_ip: 192.0.2.51, svi_vlans: [50], no_svi_vlans: [93], design_members: [core_dist_br1, core_dist_br2], fhrp: true}
+      - {name: br-ce1, model_node: ce_branch1, role: ce_l2vpn_edge, site: branch, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.52, customer_vlan: 93, path_role: primary}
+      - {name: br-ce2, model_node: ce_branch2, role: ce_l2vpn_edge, site: branch, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.54, customer_vlan: 93, path_role: backup}
+      - {name: br-firewall-ha, model_node: fw_telesale, role: firewall, site: branch, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.53, design_role: firewall_ha_pair, redundancy: active_standby, design_members: [fw_br1, fw_br2], outside_circuits: [primary, backup]}
 
   wan:
-    name: "MPLS L3VPN Primary/Backup + L2VPN VPWS Logic"
-    description: "L3 transport routed va transparent E-Line VLAN 40; khong mo phong PE/P label/control plane"
+    name: "WAN Services"
+    description: "MPLS L2VPN Primary/Backup chi cho VLAN 93 va IPsec L3 VPN logic qua Internet cho routed corporate traffic."
     kind: logical
     devices: []
   internet:
-    name: "Internet va service simulators"
-    description: "ISP handoff va service zone logic; khong phai OpenFlow device"
+    name: "Internet / Partner Services"
+    description: "CRM va PBX/Contact Center la dich vu doi tac, khong nam trong server farm noi bo."
     kind: logical
     devices: []
 
 deployment_order:
   - access_switch
-  - distribution_hq
   - infrastructure_access
-  - core_hq_logical_ha_pair
-  - distribution_branch
-  - ce_router
+  - collapsed_core_distribution
+  - ce_l2vpn_edge
   - firewall
