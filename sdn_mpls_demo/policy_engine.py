@@ -218,14 +218,17 @@ class PolicyEngine:
         if source["kind"] == "service":
             return self._result("deny", "Service external khong duoc chu dong truy cap service khac.", [source_name, self._internet_node()], self._internet_node())
 
-        if destination["kind"] == "service":
-            return self._service_decision(source, destination)
-        if destination["kind"] == "infrastructure_service":
-            return self._infrastructure_service_decision(source, destination)
+        # Source-zone policy has precedence over broad service allow flags.
+        # This prevents Guest/IoT from inheriting Project/IT Internet permissions.
         if source["kind"] in {"guest", "iot"}:
             return self._enterprise_source_decision(source, destination)
         if source["kind"] == "infrastructure_service":
             return self._result("deny", "Infrastructure service khong duoc chu dong lateral movement.", [], None)
+
+        if destination["kind"] == "service":
+            return self._service_decision(source, destination)
+        if destination["kind"] == "infrastructure_service":
+            return self._infrastructure_service_decision(source, destination)
 
         source_group = str(source["group"])
         destination_group = str(destination["group"])
