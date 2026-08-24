@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Collect a small, repeatable Mininet evidence set for the dashboard.
-
-The report only contains observations from the live control-agent socket and
-Open vSwitch.  It deliberately avoids synthetic time-series data so the UI can
-show what was actually measured when the demo started.
-"""
+"""Collect live acceptance evidence for the enterprise v7 Mininet demo."""
 
 from __future__ import annotations
 
@@ -24,46 +19,60 @@ from scripts.redesign_runtime_common import agent_request, model_hosts, ping, re
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_FILE = ROOT / "runtime_reports" / "dashboard_preflight.json"
+BACKUP_L2_LINKS = {
+    "core_hq-ce_hq2",
+    "ce_hq2-l2vpn_backup",
+    "l2vpn_backup-ce_branch2",
+    "ce_branch2-dist_branch",
+}
 CASES = (
     {
-        "id": "vlan40_hq_to_branch",
-        "label": "VLAN 40 · HQ → Branch",
-        "source": "h40_01",
-        "destination": "h40_11",
+        "id": "vlan93_hq_to_branch",
+        "label": "VLAN 93 · HQ -> Branch",
+        "source": "h93_01",
+        "destination": "h93_11",
         "expected": True,
-        "evidence": "VPWS/E-Line forward path",
+        "evidence": "MPLS L2VPN Primary forward path",
     },
     {
-        "id": "vlan40_branch_to_hq",
-        "label": "VLAN 40 · Branch → HQ",
-        "source": "h40_11",
-        "destination": "h40_01",
+        "id": "vlan93_branch_to_hq",
+        "label": "VLAN 93 · Branch -> HQ",
+        "source": "h93_11",
+        "destination": "h93_01",
         "expected": True,
-        "evidence": "VPWS/E-Line return path",
-    },
-    {
-        "id": "branch_voice_to_pbx",
-        "label": "Telesale → PBX/SBC",
-        "source": "h50_01",
-        "destination": "h90",
-        "expected": True,
-        "evidence": "Voice service reachability",
+        "evidence": "MPLS L2VPN Primary return path",
     },
     {
         "id": "project_segmentation",
-        "label": "Project C ↛ Project B",
-        "source": "h40_01",
-        "destination": "h30_01",
+        "label": "Project 1 !-> Project 3",
+        "source": "h101_01",
+        "destination": "h103_01",
         "expected": False,
-        "evidence": "Inter-project isolation",
+        "evidence": "Inter-project SDN isolation",
+    },
+    {
+        "id": "partner_pbx",
+        "label": "Project 1 -> Partner PBX",
+        "source": "h101_01",
+        "destination": "h90",
+        "expected": True,
+        "evidence": "Partner service through HQ firewall",
+    },
+    {
+        "id": "branch_iot_monitoring",
+        "label": "Branch IoT -> HQ Monitoring",
+        "source": "iot_branch_cam_01",
+        "destination": "hmonitor",
+        "expected": True,
+        "evidence": "Routed intersite path via ipsec_l3 abstraction",
     },
     {
         "id": "guest_isolation",
-        "label": "Guest ↛ Project C",
+        "label": "Guest !-> Project 2",
         "source": "guest_01",
-        "destination": "h40_01",
+        "destination": "h93_01",
         "expected": False,
-        "evidence": "Guest isolation",
+        "evidence": "Guest least-privilege isolation",
     },
 )
 
@@ -75,8 +84,7 @@ def utc_now() -> str:
 def parse_ping_output(raw: str) -> dict[str, float | None]:
     loss_match = re.search(r"([0-9]+(?:\.[0-9]+)?)% packet loss", raw)
     rtt_match = re.search(
-        r"(?:rtt|round-trip) min/avg/max/(?:mdev|stddev) = "
-        r"[0-9.]+/([0-9.]+)/[0-9.]+/[0-9.]+ ms",
+        r"(?:rtt|round-trip) min/avg/max/(?:mdev|stddev) = [0-9.]+/([0-9.]+)/[0-9.]+/[0-9.]+ ms",
         raw,
     )
     return {
@@ -96,40 +104,48 @@ def collect_report() -> dict[str, Any]:
     started = time.monotonic()
     fabric = verify_fabric()
     link_response = agent_request("GET_LINK_STATUS")
+    if link_response.get("ok") is not True:
+        raise RuntimeError("LINK_STATUS_UNAVAILABLE")
     link_states = dict(link_response.get("links") or {})
-    down_links = sorted(name for name, state in link_states.items() if state != "up")
-    if link_response.get("ok") is not True or down_links:
-        raise RuntimeError(f"LINK_STATE_INVALID:{','.join(down_links) or 'unavailable'}")
+    invalid_links = sorted(
+        name
+        for name, state in link_states.items()
+        if (name in BACKUP_L2_LINKS and state != "down") or (name not in BACKUP_L2_LINKS and state != "up")
+    )
+    if invalid_links:
+        raise RuntimeError(f"LINK_STATE_INVALID:{','.join(invalid_links)}")
+
     inventory = model_hosts()
     case_results: list[dict[str, Any]] = []
-
     for case in CASES:
         response = ping(str(case["source"]), str(case["destination"]), count=2)
         reachable = bool(response.get("ok"))
         expected = bool(case["expected"])
-        measurements = parse_ping_output(str(response.get("raw") or ""))
         case_results.append({
             **case,
             "expectation": "allow" if expected else "deny",
             "observed": "reachable" if reachable else "blocked",
             "passed": reachable is expected,
             "duration_seconds": response.get("duration_seconds"),
-            **measurements,
+            **parse_ping_output(str(response.get("raw") or "")),
         })
 
-    flow_counts = {
-        str(name): int(count)
-        for name, count in dict(fabric.get("flow_counts") or {}).items()
-    }
+    flow_counts = {str(name): int(count) for name, count in dict(fabric.get("flow_counts") or {}).items()}
     live = dict(fabric.get("live") or {})
     hosts = dict(live.get("hosts") or {})
     passed = sum(bool(item["passed"]) for item in case_results)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
+        "topology": "enterprise-v7",
         "status": "passed" if passed == len(case_results) else "failed",
         "checked_at": utc_now(),
         "duration_seconds": round(time.monotonic() - started, 3),
         "source": "Mininet Control Agent + ovs-ofctl OpenFlow13",
+        "simulation_boundaries": {
+            "firewall_ha": "one active nftables namespace per logical HA pair",
+            "ipsec": "routed tunnel abstraction; no IKE/ESP/XFRM claim",
+            "mpls_l2vpn": "transparent Ethernet bridges; no PE/P label/control plane",
+        },
         "summary": {
             "checks_passed": passed,
             "checks_total": len(case_results),
@@ -137,12 +153,14 @@ def collect_report() -> dict[str, Any]:
             "endpoints_total": len(inventory),
             "user_hosts_online": int(live.get("user_hosts_online") or 0),
             "switches_ready": len(flow_counts),
-            "switches_expected": len(flow_counts),
+            "switches_expected": 6,
             "flow_entries": sum(flow_counts.values()),
-            "links_up": sum(state == "up" for state in link_states.values()),
+            "links_active": sum(state == "up" for state in link_states.values()),
+            "links_standby": sum(state == "down" for state in link_states.values()),
             "links_total": len(link_states),
         },
         "flow_counts": flow_counts,
+        "links": link_states,
         "cases": case_results,
     }
 
@@ -153,7 +171,8 @@ def main() -> int:
         report = collect_report()
     except Exception as exc:
         report = {
-            "schema_version": 1,
+            "schema_version": 2,
+            "topology": "enterprise-v7",
             "status": "failed",
             "checked_at": utc_now(),
             "duration_seconds": 0,
@@ -173,8 +192,7 @@ def main() -> int:
     print(
         "PREFLIGHT "
         f"{report['status'].upper()} · checks {summary['checks_passed']}/{summary['checks_total']} · "
-        f"endpoints {summary['endpoints_online']}/{summary['endpoints_total']} · "
-        f"flows {summary['flow_entries']}"
+        f"endpoints {summary['endpoints_online']}/{summary['endpoints_total']} · flows {summary['flow_entries']}"
     )
     return 0 if report["status"] == "passed" else 1
 
