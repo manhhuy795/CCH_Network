@@ -39,15 +39,13 @@ def _topology_contract() -> dict:
     routing_handoffs = deepcopy(SOURCE_TRUTH.get("provider_handoff_paths", {}))
     design_nodes: list[dict] = []
     for key, circuit in edge.get("provider_domain", {}).get("circuits", {}).items():
-        design_nodes.append(_design_node(str(circuit.get("id", key)), str(circuit.get("label", key)), "provider_circuit", "wan"))
+        site = str((circuit.get("sites") or ["wan"])[0])
+        design_nodes.append(_design_node(str(circuit.get("id", key)), str(circuit.get("label", key)), "provider_circuit", site))
     for site, firewall in edge.get("firewalls", {}).items():
         for key in ("primary_member", "backup_member"):
             member = firewall.get(key)
             if member:
                 design_nodes.append(_design_node(str(member), str(member), "firewall_peer", site, str(firewall.get("runtime_node"))))
-    for site, pair in edge.get("ce_pairs", {}).items():
-        for member in pair.get("members", []):
-            design_nodes.append(_design_node(str(member), str(member), "ce_design_member", site, str(member)))
     return {
         "source_of_truth": [
             "vars/network_model.yml",
@@ -66,7 +64,7 @@ def _topology_contract() -> dict:
             "collapsed_core": "one controlled OVS represents each Core/Distribution HA pair",
             "firewall_ha": "one nftables namespace represents the active HA cluster per site",
             "mpls_l2vpn": "transparent Ethernet bridge abstraction; no PE/P label/control plane",
-            "ipsec": "routed tunnel abstraction; no IKE/ESP/XFRM evidence",
+            "ipsec": "firewall-to-firewall routed tunnel abstraction; no IKE/ESP/XFRM evidence",
         },
     }
 
@@ -162,10 +160,7 @@ def get_topology() -> dict:
         nodes.append(device)
 
     for name, item in model.get("infrastructure", {}).items():
-        if name == "c0":
-            node_type = "controller"
-        else:
-            node_type = item.get("type", "infrastructure")
+        node_type = "controller" if name == "c0" else item.get("type", "infrastructure")
         device = {
             "id": name,
             "logical_name": name,
@@ -215,7 +210,7 @@ def get_topology() -> dict:
             "source": source,
             "target": target,
             "type": kind,
-            "status": runtime_links.get(f"{source}-{target}", "unknown" if link_status.get("ok") else "unknown"),
+            "status": runtime_links.get(f"{source}-{target}", "unknown"),
         }
         for source, target, kind in model.get("links", [])
     ]
@@ -233,6 +228,7 @@ def get_topology() -> dict:
 
     contract = _topology_contract()
     l2 = deepcopy(model["l2vpn_services"]["vlan93_project_2"])
+    ipsec = deepcopy(model["edge_design"]["ipsec"])
     return {
         "nodes": nodes,
         "groups": groups,
@@ -269,9 +265,10 @@ def get_topology() -> dict:
         },
         "ipsec": {
             "id": "ipsec_l3",
-            "runtime_mode": "routed_tunnel_abstraction",
+            "runtime_path": deepcopy(ipsec.get("runtime_path", [])),
+            "runtime_mode": ipsec.get("runtime_mode"),
             "cryptographic_ipsec": False,
-            "simulation_scope": "Route/path behavior only; no IKE/ESP/XFRM proof",
+            "simulation_scope": "Firewall-to-firewall routed path behavior only; no IKE/ESP/XFRM proof",
         },
         "internet_zone": {"id": "internet_zone", "status": "logical_runtime", "controller_managed": False},
         "phase44_runtime": phase44_runtime_status(),
