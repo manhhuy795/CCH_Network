@@ -4,28 +4,30 @@ transit_addressing:
 
 provider_handoff_paths:
   primary:
-    provider_id: isp_1
+    provider_id: site_local_primary_role
     handoff_id: wan_handoff_primary
-    label: "ISP 1 - Primary"
+    label: "Site-local ISP Primary role"
     state: active
     color: blue
     representation: design_only
     runtime_node: null
     runtime_state: design_only
     controller_managed: false
+    note: "HQ va Branch co circuit Primary rieng; object nay chi la role chung, khong phai mot circuit vat ly dung chung."
     site_firewalls:
       hq: {firewall: fw_hq, runtime_link: fw_hq_to_internet_zone}
       branch: {firewall: fw_telesale, runtime_link: fw_branch_to_internet_zone}
   backup:
-    provider_id: isp_2
+    provider_id: site_local_backup_role
     handoff_id: wan_handoff_backup
-    label: "ISP 2 - Backup"
+    label: "Site-local ISP Backup role"
     state: standby
     color: purple
     representation: design_only
     runtime_node: null
     runtime_state: design_only
     controller_managed: false
+    note: "HQ va Branch co circuit Backup rieng; object nay chi la role chung, khong phai mot circuit vat ly dung chung."
     site_firewalls:
       hq: {firewall: fw_hq, runtime_link: fw_hq_to_internet_zone}
       branch: {firewall: fw_telesale, runtime_link: fw_branch_to_internet_zone}
