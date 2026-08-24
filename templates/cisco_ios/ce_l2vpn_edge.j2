@@ -1,0 +1,23 @@
+! Generated candidate config for {{ device.name }}
+hostname {{ device.name }}
+!
+vlan {{ device.customer_vlan }}
+ name PROJECT_2_SHARED
+!
+! Customer-facing attachment circuit. Provider-facing pseudowire/service
+! configuration is carrier-specific and intentionally not invented here.
+{% set mapping = interfaces.l2vpn %}
+interface {{ mapping.customer.name }}
+ description {{ mapping.customer.description }}
+ switchport mode access
+ switchport access vlan {{ device.customer_vlan }}
+ no shutdown
+!
+interface {{ mapping.provider.name }}
+ description {{ mapping.provider.description }}
+ no shutdown
+!
+! Path role: {{ device.path_role }}
+! MPLS L2VPN signaling/labels are owned by the provider and are not generated
+! by this lab template without an approved carrier/device-specific contract.
+end
