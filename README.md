@@ -1,24 +1,243 @@
-# Hybrid MPLS L3VPN + SDN Edge Policy Demo cho Call Center BPO
+# CCH Network — Enterprise v7 + SDN Runtime Demo
 
-> **Nâng cấp VLAN 40:** Project C được chia 10 endpoint tại HQ và 10 endpoint tại Branch Telesale, giữ cùng subnet `172.16.40.0/24` qua MPLS L2VPN VPWS/E-Line mô phỏng logic. Gateway `172.16.40.1` chỉ đặt tại HQ; các VLAN khác tiếp tục dùng MPLS L3VPN logic.
+Repository này mô tả và mô phỏng kiến trúc mạng Call Center/BPO gồm **HQ + 1 Branch** theo sơ đồ logic v7.
 
-Xem thiết kế, giới hạn mô phỏng và ma trận nghiệm thu tại [docs/vlan40_mpls_l2vpn_vpws_vi.md](docs/vlan40_mpls_l2vpn_vpws_vi.md).
+Sơ đồ chuẩn:
 
-> **Demo chinh thuc dung cho bao ve:** `sdn_mpls_demo/`.
-> `sdn_demo/` la demo legacy, khong dung trong buoi bao ve chinh de tranh nham entry point.
+- `docs/assets/enterprise_logical_topology_v7.svg`
 
-## Xác Thực Và Phân Quyền Phase 49
+Tài liệu topology chi tiết:
 
-Dashboard dùng xác thực người dùng bằng session cookie phía server và CSRF token. Operator token là credential máy dành riêng cho runtime script/API; token không được đưa vào frontend, không hiển thị trên dashboard và không ghi vào report.
+- `docs/topology.md`
 
-| Vai trò | Quyền chính |
-|---|---|
-| `admin` | Quản lý user/role, xem audit, dashboard và runtime |
-| `operator` | Dashboard, ping/iperf/voice quality, link/policy runtime và activity |
-| `viewer` | Chỉ xem dashboard/topology/trạng thái |
-| `auditor` | Xem dashboard và audit event |
+## Kiến trúc v7
 
-Không có mật khẩu mặc định trong repository. Tạo admin lần đầu bằng cách nhập mật khẩu qua stdin, không đặt mật khẩu trên command line:
+Thiết kế mục tiêu dùng **2-tier Collapsed Core / Distribution** tại cả HQ và Branch.
+
+Các điểm bắt buộc:
+
+- Dự án 1: VLAN 101.
+- Dự án 2: VLAN 93, dùng chung giữa HQ và Branch.
+- Dự án 3: VLAN 103.
+- Dự án 4: VLAN 104.
+- VLAN 93 dùng subnet `10.10.93.0/24`.
+- Gateway VLAN 93 là `10.10.93.1` và **chỉ nằm tại HQ**.
+- Branch **không có SVI/gateway VLAN 93**.
+- VLAN 93 là VLAN duy nhất được mở rộng Layer 2 giữa hai site.
+- MPLS L2VPN có Primary và Backup; CE1 ưu tiên Primary, CE2 dùng Backup.
+- Các mạng routed khác đi liên site qua IPsec L3 VPN trong thiết kế.
+- Mỗi site có local Internet breakout qua firewall HA.
+- CRM và PBX/Contact Center là hệ thống đối tác, không nằm trong Server Farm nội bộ.
+- Server Farm HQ gồm AD, DNS, DHCP, File, NMS/Monitoring, Backup và NTP phụ trợ.
+
+## Simulation honesty
+
+Mininet/OVS không giả lập đầy đủ thiết bị production. Runtime chủ động ghi rõ các abstraction sau:
+
+- `core_hq` và `dist_branch` là một logical OVS đại diện cho từng cặp collapsed Core/Distribution HA.
+- `fw_hq` và `fw_telesale` là một namespace nftables đại diện cho active firewall HA cluster tại mỗi site.
+- `ce_hq1`, `ce_hq2`, `ce_branch1`, `ce_branch2` là transparent bridge abstraction cho CE L2 handoff.
+- `l2vpn_primary` và `l2vpn_backup` là transparent Ethernet bridge abstraction; không có PE/P, label stack, LDP, RSVP hay provider control plane.
+- `ipsec_l3` chỉ mô phỏng **routed tunnel behavior**. Lab không có IKE, ESP, XFRM hay bằng chứng mã hóa IPsec thật.
+
+Vì vậy trong báo cáo không được dùng runtime này để tuyên bố đã chứng minh MPLS provider control plane, cryptographic IPsec, firewall appliance HA hay FHRP/MLAG production behavior.
+
+## Source of truth
+
+Các file chính:
+
+```text
+vars/network_model.yml
+vars/vlans.yml
+vars/sites.yml
+vars/routing.yml
+vars/firewall_policies.yml
+vars/acl_policies.yml
+vars/interface_mapping.yml
+vars/sdn.yml
+sdn_mpls_demo/policy.yml
+```
+
+Luồng dữ liệu:
+
+```text
+Source of truth
+-> validation / policy engine
+-> Mininet + Open vSwitch + OS-Ken
+-> FastAPI backend
+-> React dashboard
+```
+
+## Runtime scale
+
+Sơ đồ logic thể hiện khoảng `~70 Agent` cho Dự án 2 tại Branch. Runtime cố ý scale-down để VM demo ổn định:
+
+| Nhóm | VLAN | Runtime user | Vị trí |
+|---|---:|---:|---|
+| Dự án 1 | 101 | 20 | HQ |
+| Dự án 2 | 93 | 20 | 10 HQ + 10 Branch |
+| Dự án 3 | 103 | 20 | HQ |
+| Dự án 4 | 104 | 20 | HQ |
+| IT Support | 110 | 10 | HQ |
+
+Tổng corporate user runtime: **90**.
+
+Ngoài ra lab có Guest, IoT/UPS, 7 infrastructure service và 5 external/partner service simulator.
+
+## VLAN 93 L2VPN
+
+Primary path:
+
+```text
+Project 2 Branch
+-> Branch Access
+-> CORE-DIST Branch
+-> CE-BR1
+-> MPLS L2VPN Primary
+-> CE-HQ1
+-> CORE-DIST HQ
+-> gateway 10.10.93.1
+```
+
+Backup path:
+
+```text
+CORE-DIST Branch
+-> CE-BR2
+-> MPLS L2VPN Backup
+-> CE-HQ2
+-> CORE-DIST HQ
+```
+
+Backup attachment path được giữ `standby/down` trong runtime khi Primary hoạt động để tránh tạo L2 loop. Control agent có thể chuyển sang Backup khi Primary bị fail.
+
+## Routed intersite traffic
+
+Branch IoT VLAN 50 và các mạng routed khác không được kéo Layer 2. Chúng đi qua:
+
+```text
+Branch Core-Dist
+-> ipsec_l3
+-> HQ Core-Dist
+```
+
+`ipsec_l3` là abstraction logic. Nó chứng minh route/path behavior, không chứng minh mã hóa IPsec.
+
+## Firewall và Partner services
+
+Internet breakout là local tại từng site.
+
+Project 2 Branch là ngoại lệ về hướng gateway: vì VLAN 93 có gateway tại HQ, traffic Internet/Partner của Project 2 Branch đi L2 về HQ rồi mới qua `fw_hq`.
+
+Partner services:
+
+- `h90`: Partner PBX / Contact Center.
+- `hcall`: Partner CRM.
+
+Internet/service simulators:
+
+- `hzalo`: Internet App simulator.
+- `hsocial`: Social Media simulator.
+- `hinternet`: General Internet test service.
+
+## SDN boundary
+
+OS-Ken chỉ điều khiển 6 OVS:
+
+```text
+access_floor1
+access_floor2
+core_hq
+access_branch
+dist_branch
+infra_access
+```
+
+CE bridges, L2VPN bridges, firewall namespaces, `ipsec_l3` và Internet/Partner service zone không phải OpenFlow target.
+
+## Cài đặt Ubuntu
+
+Ubuntu 24.04 được khuyến nghị cho runtime chính.
+
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip mininet openvswitch-switch iperf3 nftables tcpdump curl
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+chmod +x sdn_mpls_demo/*.sh scripts/*.sh
+./sdn_mpls_demo/setup_ubuntu_24_04.sh
+cd dashboard/frontend
+npm install
+cd ../..
+```
+
+## Chạy chương trình
+
+Terminal 1 — topology:
+
+```bash
+cd ~/Downloads/CCH_Network
+sudo mn -c
+sudo ./sdn_mpls_demo/run_topology.sh
+```
+
+Entry point chính thức hiện là:
+
+```text
+sdn_mpls_demo/topology_enterprise_v7.py
+```
+
+`topology_hybrid_sdn.py` vẫn được giữ để tái sử dụng helper/control-agent đã ổn định và làm lịch sử migration, nhưng không còn là topology executable chính.
+
+Terminal 2 — dashboard:
+
+```bash
+cd ~/Downloads/CCH_Network
+./scripts/start_demo.sh
+```
+
+Lần đầu nếu chưa có dependency dashboard:
+
+```bash
+./scripts/start_demo.sh --install
+```
+
+Dashboard:
+
+```text
+http://127.0.0.1:5173
+```
+
+Backend:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Preflight v7
+
+`start_demo.sh` chạy `scripts/mininet_dashboard_preflight.py` và lưu evidence tại:
+
+```text
+runtime_reports/dashboard_preflight.json
+```
+
+Các case tối thiểu:
+
+- VLAN 93 HQ -> Branch: ALLOW.
+- VLAN 93 Branch -> HQ: ALLOW.
+- Project 1 -> Project 3: DENY.
+- Project 1 -> Partner PBX: ALLOW.
+- Branch IoT -> HQ Monitoring: ALLOW qua `ipsec_l3` abstraction.
+- Guest -> Project 2: DENY.
+
+L2VPN Backup ở trạng thái `down/standby` trong preflight là trạng thái thiết kế bình thường.
+
+## Xác thực dashboard
+
+Dashboard dùng session cookie phía server, CSRF và RBAC. Không có mật khẩu mặc định hard-code trong repository.
+
+Tạo admin lần đầu:
 
 ```bash
 cd ~/Downloads/CCH_Network
@@ -27,401 +246,32 @@ printf '%s\n' "$ADMIN_PASSWORD" | ./scripts/phase49_bootstrap_admin.py --usernam
 unset ADMIN_PASSWORD
 ```
 
-Frontend điền sẵn username `admin` để giảm thao tác trong buổi demo nhưng không
-đóng gói mật khẩu. Không dùng credential hard-code 8 ký tự: cách đó vi phạm
-policy tối thiểu 12 ký tự và sẽ bị secret scan đánh lỗi.
-
-
-## Simulation Honesty
-
-- `fw_hq` va `fw_telesale` trong SDN/Mininet demo la **stateful nftables firewall** chay trong hai Linux network namespace rieng.
-- Hai firewall thuc thi Internet service policy, inbound default-deny, conntrack return traffic va counter that; chung van la lab, khong thay the firewall production.
-- MPLS trong demo la **MPLS L3VPN Logic Cloud**, khong phai PE/P provider core hoan chinh.
-
-Dự án gồm hai phần:
-
-- **Network Automation**: dùng YAML, Jinja2, Python và Ansible để sinh, kiểm tra, backup/deploy/rollback cấu hình mạng.
-- **SDN runtime demo**: dùng Mininet, Open vSwitch, OS-Ken Controller và OpenFlow 1.3 để demo SDN Edge Policy cho Call Center BPO.
-
-MPLS L3VPN trong module SDN là **MPLS L3VPN Logic Cloud**: mô phỏng logic WAN transport giữa HQ và Branch, không phải MPLS provider-grade hoàn chỉnh. Internet breakout được kiểm soát thật bằng nftables tại `fw_hq` và `fw_telesale`.
-
-Phân biệt rõ hai track:
-
-- **Network Automation track**: mô tả kiến trúc doanh nghiệp có CE/MPLS L3VPN ở mức thiết kế và cấu hình mẫu.
-- **SDN Mininet track**: mô phỏng logic WAN transport; không triển khai PE/P core, VRF, RD/RT, MP-BGP, LDP hoặc MPLS label forwarding thật.
-
-## Source Of Truth
-
-Topology, VLAN, subnet, gateway, host inventory, service, switch mapping và link nằm tại:
-
-```text
-vars/network_model.yml
-```
-
-Policy chỉ chứa luật mạng tại:
-
-```text
-sdn_mpls_demo/policy.yml
-```
-
-Luồng dữ liệu:
-
-```text
-vars/network_model.yml
-→ validation/test
-→ Mininet topology
-→ FastAPI backend
-→ React dashboard
-```
-
-## Mô Hình Mạng
-
-| Nhóm | VLAN | Subnet | Vị trí | Số user |
-|---|---:|---|---|---:|
-| Dự án A | 20 | 172.16.20.0/24 | HQ | 20 |
-| Dự án B | 30 | 172.16.30.0/24 | HQ Floor 1 + 2 | 20 |
-| Dự án C | 40 | 172.16.40.0/24 | 10 HQ + 10 Branch qua VPWS | 20 |
-| IT Support | 70 | 172.16.70.0/24 | HQ | 10 |
-| Telesale | 50 | 172.16.50.0/24 | Branch | 20 |
-| BackOffice | 60 | 172.16.60.0/24 | HQ | 20 |
-| PBX/SBC Voice Service | 90 | 172.16.90.10 | HQ | service |
-
-Tổng user thật trong Mininet: **110**.
-
-Service mô phỏng:
-
-- `h90`: PBX/SBC Voice Service, `172.16.90.10`
-- `hzalo`: Zalo Service, `172.16.200.10`
-- `hcall`: Call App / CRM, `172.16.201.10`
-- `hsocial`: Social Media, `172.16.202.10`
-- `hinternet`: General Internet Test Service, `172.16.203.10`
-
-## VLAN Tagging
-
-Runtime cấu hình access VLAN và trunk 802.1Q thật trên OVS. VLAN 40 được gắn tag tại hai access switch, đi tới Distribution tương ứng, rồi qua hai attachment circuit được trình bày tại CE HQ/CE Branch trước khi vào bridge VPWS logic. Runtime rút gọn service instance CE vào hai cổng bridge; các SVI nằm trên gateway L3 và Branch không có SVI VLAN 40.
-
-## Kiến Trúc
-
-Đường liên site bắt buộc:
-
-```text
-HQ Core SDN
-→ CE Router HQ
-→ MPLS L3VPN Logic Cloud
-→ CE Router Telesale
-→ Telesale Distribution SDN
-```
-
-Internet HQ:
-
-```text
-HQ Core SDN → Firewall HQ → Internet Zone → Service
-```
-
-Internet Branch:
-
-```text
-Telesale Distribution SDN → Firewall Telesale → Internet Zone → Service
-```
-
-Controller chi dieu khien 8 Open vSwitch:
-
-- `access_floor1`
-- `access_floor2`
-- `dist_hq_1`
-- `dist_hq_2`
-- `core_hq`
-- `access_branch`
-- `dist_branch`
-- `infra_access`
-
-Controller không điều khiển CE Router, Firewall hoặc MPLS L3VPN Logic Cloud.
-
-## Policy
-
-- Project A/B/C bị cách ly tại `core_hq`.
-- Telesale VLAN 50 ↔ BackOffice VLAN 60 bị chặn tại `dist_branch`/`core_hq` theo chiều vào.
-- BackOffice nằm tại HQ Floor 2; không còn BackOffice tại Branch.
-- Social Media bị drop tại firewall local `fw_hq` hoặc `fw_telesale`.
-- User thường được truy cập Voice, Zalo, Call App và General Internet nếu policy cho phép.
-- IT Support có quyền remote/support có kiểm soát theo policy.
-- Internet/service bên ngoài không được chủ động ping vào user nội bộ.
-
-Voice Flow Priority là nhận diện và áp dụng flow policy ưu tiên cho luồng voice. Đây chưa phải QoS hoàn chỉnh nếu chưa có DSCP, OVS Queue, HTB hoặc bandwidth guarantee.
-
-## Cài Đặt Ubuntu VM
-
-Ubuntu 24.04 được khuyến nghị cho module `sdn_mpls_demo`.
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip mininet openvswitch-switch iperf3 nftables tcpdump curl
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v
-git clone https://github.com/manhhuy795/CCH_Network.git
-cd CCH_Network
-chmod +x sdn_mpls_demo/*.sh scripts/*.sh
-./sdn_mpls_demo/setup_ubuntu_24_04.sh
-cd dashboard/frontend
-npm install
-cd ../..
-```
-
-## Chạy Nhanh
-
-Terminal 1:
-
-```bash
-cd ~/Downloads/CCH_Network
-sudo mn -c
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Terminal 2:
-
-```bash
-cd ~/Downloads/CCH_Network
-./scripts/start_demo.sh --install
-```
-
-Các lần sau, nếu dependency đã có:
-
-```bash
-./scripts/start_demo.sh
-```
-
-Trong mỗi lần khởi động, `start_demo.sh` chạy
-`scripts/mininet_dashboard_preflight.py` trước khi công bố dashboard sẵn sàng.
-Preflight đo hai chiều VLAN 40 HQ ↔ Branch, voice reachability, project/guest
-isolation, số endpoint namespace, bridge OVS và flow OpenFlow. Evidence được lưu
-tại `runtime_reports/dashboard_preflight.json` và hiển thị trên trang Tổng quan.
-
-Script không tái sử dụng backend/frontend không do lần chạy hiện tại quản lý.
-Nếu cổng `8000` hoặc `5173` đang bị tiến trình cũ chiếm, kiểm tra rồi dừng đúng
-tiến trình trước khi chạy lại:
-
-```bash
-sudo fuser -v 8000/tcp 5173/tcp
-sudo fuser -k 8000/tcp 5173/tcp
-./scripts/start_demo.sh
-```
-
-`start_demo.sh` chỉ tạo/đọc operator token cho các script runtime và lưu token trong `logs/operator.token`; giá trị token không được in ra. Người dùng truy cập dashboard bằng tài khoản Phase 49, không dán operator token vào giao diện.
-
-Mở dashboard:
-
-```text
-http://localhost:5173
-```
-
-Nếu mở từ máy host:
-
-```text
-http://<IP_VM>:5173
-```
-
-## Chạy Thủ Công
-
-Controller:
-
-```bash
-./sdn_mpls_demo/run_controller.sh
-```
-
-Topology:
-
-```bash
-sudo ./sdn_mpls_demo/run_topology.sh
-```
-
-Backend:
-
-```bash
-python3 -m uvicorn dashboard.backend.app.main:app --host 0.0.0.0 --port 8000
-```
-
-Frontend:
-
-```bash
-cd dashboard/frontend
-npm run dev -- --host 0.0.0.0 --port 5173
-```
-
-## Dashboard
-
-React Dashboard là giao diện chính cho IT Support và Network Administrator:
-
-- **Tổng quan**: trạng thái từng thành phần, số user/host, cảnh báo và quick action.
-- **Topology**: sơ đồ HQ, MPLS logic, Telesale, BackOffice và Internet/Services; packet path lấy từ backend runtime.
-- **Kiểm tra kết nối**: Ping thật, TCP throughput, UDP jitter và Voice Quality.
-- **Chính sách & OpenFlow**: policy, enforcement point, cookie, priority, match/action và flow runtime.
-- **Hiệu năng**: metrics, session iperf và kết quả đo có session ID.
-- **Sự kiện & nhật ký**: activity event, audit event, allow/deny, lỗi và request ID.
-
-Navigation và thao tác được giới hạn theo role. `viewer` không thấy thao tác runtime; `auditor` chỉ xem audit; `admin` mới quản lý user/role. Dashboard không hiển thị token máy.
-
-Real-time metrics:
-
-- Throughput Mbps từ delta OpenFlow byte counter.
-- Delay từ ping định kỳ.
-- Packet Loss từ ping.
-- Jitter từ ping/UDP probe trong phép đo chủ động.
-- Iperf3 chỉ dùng cho đo throughput chủ động, không chạy liên tục mỗi 1-2 giây.
-
-## Kiểm Thử Runtime Chi Tiết Phase 49
-
-Sau khi topology, backend và frontend đang chạy, dùng script dưới đây để kiểm tra toàn bộ status và event bằng dữ liệu thật:
-
-```bash
-cd ~/Downloads/CCH_Network
-.venv/bin/python scripts/phase49_detailed_status_event_test.py
-```
-
-Script kiểm tra:
-
-- port controller/backend/frontend, Mininet Control Agent, Open vSwitch và OpenFlow flow tại `core_hq`;
-- toàn bộ component trong `/api/health` và `/api/live/status`;
-- unauthenticated `401`, RBAC `403`, operator token không có quyền admin;
-- login đúng/sai, `/api/auth/me`, refresh, logout và session hết hiệu lực;
-- tạo user `admin/operator/viewer/auditor`, disable/reenable và đổi role;
-- ping thật ALLOW, ping thật POLICY DENIED và quyền runtime của từng role;
-- activity event, audit event, request history và kiểm tra report không chứa token/mật khẩu.
-
-Kết quả được lưu tại `runtime_reports/phase49_detailed_status_events_<timestamp>/summary.json` và `runtime.log`. Script không ghi operator token hoặc mật khẩu test vào console hay artifact.
-
-Gate regression đầy đủ:
-
-```bash
-./scripts/phase49_auth_rbac_gate.sh full --reuse-running
-sudo -n -E bash scripts/phase44_45_combined_acceptance.sh
-```
-
-Chỉ kết luận PASS khi command trả exit code `0` và artifact có đầy đủ case PASS.
-
-
-## Ranh Gioi Network Automation Va SDN Runtime
-
-Du an co hai track rieng, khong tron lan:
-
-- **Network Automation**: dung `vars/`, `templates/`, `inventories/`, `playbooks/`, `scripts/`, `generated_configs/` va `tests/` de quan ly YAML, validation, Jinja2, Ansible, generated Cisco/firewall config, backup/deploy/verify.
-- **SDN runtime**: dung `sdn_mpls_demo/` de chay Mininet, Open vSwitch, OS-Ken va OpenFlow 1.3 cho demo runtime.
-- **Source of truth chung**: ca hai track cung tham chieu `vars/network_model.yml` de giu nhat quan ve vai tro node, link logic, switch, firewall, CE va MPLS logic cloud.
-
-Luu y quan trong: generated Cisco config khong duoc load vao OVS va khong dung de dung Mininet. Mininet topology duoc tao bang Python trong `sdn_mpls_demo/topology_hybrid_sdn.py`; Cisco/firewall config la artifact automation de review, lab, backup/deploy tren thiet bi that hoac emulator phu hop.
-
-## Test Trong Mininet
-
-Checkpoint nftables Phase 44: `docs/phase_44_ubuntu_firewall_validation_vi.md`.
-
-Trong prompt `mininet>`:
-
-```text
-testpolicy
-isolationflows
-h20_01 ping -c 2 h30_01
-h20_01 ping -c 2 hcall
-h20_01 ping -c 2 hsocial
-h50_01 ping -c 2 hcall
-h50_01 ping -c 2 hsocial
-h70_01 ping -c 2 h20_01
-hinternet ping -c 2 h20_01
-```
-
-Kỳ vọng:
-
-- `h20_01 → h30_01`: fail tại `core_hq`.
-- `h20_01 → hcall`: pass qua `fw_hq`.
-- `h20_01 → hsocial`: fail tại `fw_hq` bằng nftables.
-- `h50_01 → hcall`: pass qua `fw_telesale`.
-- `h50_01 → hsocial`: fail tại `fw_telesale` bằng nftables.
-- `h70_01 → h20_01`: pass theo policy IT Support.
-- `hinternet → h20_01`: fail inbound từ Internet.
-
-## Health Check Và Cleanup
-
-```bash
-./scripts/check_demo_health.sh
-./scripts/stop_demo.sh
-./sdn_mpls_demo/cleanup.sh
-sudo mn -c
-```
+Các role hiện có:
+
+| Role | Quyền chính |
+|---|---|
+| `admin` | Quản lý user/role, dashboard, runtime, audit |
+| `operator` | Dashboard và thao tác runtime được cho phép |
+| `viewer` | Chỉ xem |
+| `auditor` | Xem audit |
 
 ## Network Automation
 
-Các lệnh offline vẫn giữ nguyên:
+Các thư mục automation vẫn được giữ:
 
-```bash
-python scripts/validate_vars.py
-python scripts/generate_configs.py
-python scripts/verify_network.py
-python scripts/generate_sdn_policies.py
-pytest
+```text
+vars/
+templates/
+inventories/
+playbooks/
+scripts/
+generated_configs/
 ```
 
-## Lỗi Thường Gặp
+`templates/cisco_ios/ce_l2vpn_edge.j2` chỉ tạo candidate config ở phía customer attachment circuit. Nó **không tự bịa** cấu hình pseudowire/provider MPLS khi chưa có vendor/carrier contract cụ thể.
 
-- Không thấy controller port 6653: chạy `./sdn_mpls_demo/run_controller.sh` hoặc `./scripts/start_demo.sh`.
-- Không ping được dù policy allow: kiểm tra `sdn_mpls_demo/runtime/controller.log`, `testpolicy`, `isolationflows`.
-- Dashboard không kết nối WebSocket: kiểm tra backend port 8000 và URL API trong frontend.
-- Không chạy được Mininet: chạy `sudo mn -c` rồi khởi động lại topology.
+## Legacy
 
-## Giới Hạn Mô Phỏng
+Các tài liệu, test hoặc generated config chứa VLAN 20/30/40/50/60/70 hoặc tên Project A/B/C thuộc mô hình trước v7 phải được xem là legacy cho đến khi được cập nhật/xóa khỏi nhánh migration.
 
-- MPLS Cloud chỉ là WAN transport logic.
-- Social/Internet inbound bị chặn tại `fw_hq` hoặc `fw_telesale`; Project và cross-site isolation vẫn bị chặn bằng OpenFlow.
-- Firewall dùng nftables/conntrack thật trong namespace Mininet, nhưng vẫn là firewall lab chứ không phải appliance production.
-- Voice Flow Priority chưa phải QoS hoàn chỉnh.
-- Softphone như Cfono/Gphone cần kiểm thử thật thêm SIP registration, call setup, RTP media, one-way audio, NAT/SBC và QoS.
-- Lab không mở ping ngang giữa Project/Telesale/BackOffice chỉ vì máy agent có cài softphone.
-
-
-## Phase 46: Automation, Documentation Va Ubuntu Gate
-
-Phase 46 gom mot gate cho automation, tai lieu va runtime Ubuntu. Gate khong tu coi port dang listen la healthy, khong coi socket stale la agent online, khong ghi token vao artifact va khong tu khoi dong topology khi chua co tuy chon ro rang.
-
-~~~bash
-bash scripts/phase46_automation_docs_gate.sh preflight --reuse-running
-bash scripts/phase46_automation_docs_gate.sh static --reuse-running
-bash scripts/phase46_automation_docs_gate.sh automation --reuse-running
-bash scripts/phase46_automation_docs_gate.sh docs --reuse-running
-sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1 bash scripts/phase46_automation_docs_gate.sh runtime --reuse-running
-~~~
-
-Report tao tai runtime_reports/phase46_automation_docs_<UTC>/; xem summary.json va NEXT_ACTION.md neu FAIL/BLOCKED. Tai lieu chi tiet nam trong docs/architecture.md, docs/installation_ubuntu.md, docs/runtime_operations.md, docs/troubleshooting.md, docs/testing_and_acceptance.md va docs/security_notes.md.
-
-## Topology redesign va data flow
-
-Mo hinh hien tai dung 3 lop Access -> Distribution -> Core tai HQ va Access ->
-Distribution -> CE tai Branch. BackOffice nam tai HQ Floor 2; Branch chi co
-Telesale va IoT Branch. Voice/PBX nam tai `infra_access` VLAN 90. IoT HQ VLAN
-110 va IoT Branch VLAN 111 la hai subnet routed rieng, khong stretch L2 qua MPLS.
-
-MPLS Primary metric 10 duoc uu tien; MPLS Backup metric 100 chi active khi
-Primary down. Internet HQ/Branch breakout tai firewall local, khong hairpin qua
-MPLS. UPS la endpoint monitoring, khong nam tren user packet path.
-
-Static gate va runtime test:
-
-```bash
-python scripts/validate_redesigned_topology.py
-pytest -q tests/test_three_layer_topology.py tests/test_data_flow_contract.py
-sudo -E .venv/bin/python scripts/test_redesigned_topology_runtime.py
-sudo -E .venv/bin/python scripts/test_data_flows_runtime.py
-```
-
-Chi tiet xem `docs/topology_three_layer_dataflows_vi.md` va
-`docs/redesigned_topology_test_commands_vi.md`.
-
-## Enterprise VLAN Zones
-
-Enterprise extension dùng các VLAN chưa có trong mô hình cũ để tránh xung đột với VLAN 10 Management:
-
-| VLAN | Zone | Subnet | Chính sách chính |
-|---:|---|---|---|
-| 120 | Guest HQ Floor 1 | 172.16.120.0/24 | DHCP/DNS/NTP và General Internet; chặn mạng nội bộ |
-| 100 | Infrastructure Services | 172.16.100.0/24 | DHCP, DNS, NTP, Monitoring |
-| 110 | IoT HQ | 172.16.110.0/24 | Camera và UPS HQ; chỉ monitoring/bootstrap |
-| 111 | IoT Branch | 172.16.111.0/24 | Camera và UPS Branch; monitoring qua MPLS |
-
-VLAN 10 vẫn dành cho Management. Mô hình runtime có 110 user doanh nghiệp, 5 service, 9 endpoint Guest/IoT/UPS, 9 infrastructure service và 8 OVS. Chi tiết xem `docs/topology_three_layer_dataflows_vi.md`.
+Source of truth v7 mới là chuẩn để phát triển tiếp.
