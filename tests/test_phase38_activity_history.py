@@ -32,7 +32,7 @@ def test_record_operation_keeps_task_timing_and_result(monkeypatch, tmp_path):
         user_action="Ping",
         event_type="ping",
         component="mininet_control_agent",
-        source="h30_01",
+        source="h101_01",
         destination="h90",
         started_at=started,
         started_monotonic=time.monotonic(),
@@ -46,7 +46,7 @@ def test_record_operation_keeps_task_timing_and_result(monkeypatch, tmp_path):
     assert result["duration_ms"] >= 0
     assert history["tasks"][0]["user_action"] == "Ping"
     assert history["tasks"][0]["result_summary"] == "Ping thành công"
-    assert history["events"][0]["source"] == "h30_01"
+    assert history["events"][0]["source"] == "h101_01"
 
 
 def test_activity_api_returns_real_tracked_ping_without_token_leak(monkeypatch, tmp_path):
@@ -60,14 +60,14 @@ def test_activity_api_returns_real_tracked_ping_without_token_leak(monkeypatch, 
     monkeypatch.setattr(api_module, "run_ping", lambda *_args: {
         "ok": True,
         "message": "Ping runtime PASS",
-        "decision": {"action": "allow", "path": ["project_b", "core_hq", "h90"]},
+        "decision": {"action": "allow", "path": ["project_1", "core_hq", "fw_hq", "h90"]},
         "result": {"rtt_avg_ms": 8, "packet_loss_percent": 0},
         "raw": "0% packet loss",
     })
     client = TestClient(app)
     headers = {"X-CCH-Operator-Token": "phase38-secret"}
 
-    response = client.post("/api/test/ping", json={"source": "h30_01", "destination": "h90"}, headers=headers)
+    response = client.post("/api/test/ping", json={"source": "h101_01", "destination": "h90"}, headers=headers)
     history = client.get("/api/activity", headers=headers)
 
     assert response.status_code == 200
