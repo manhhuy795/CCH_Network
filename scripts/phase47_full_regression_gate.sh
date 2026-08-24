@@ -41,13 +41,21 @@ run() {
 static_checks() {
   run "$PYTHON_BIN" scripts/validate_vars.py
   run "$PYTHON_BIN" scripts/validate_redesigned_topology.py
+  run "$PYTHON_BIN" -c 'from scripts.phase46_automation_docs_gate import ROOT_DIR, docs_reference_errors; errors=docs_reference_errors(ROOT_DIR); print("\n".join(errors)); raise SystemExit(bool(errors))'
+  run "$PYTHON_BIN" -c 'from scripts.phase46_automation_docs_gate import ROOT_DIR, secret_scan; errors=secret_scan(ROOT_DIR); print("\n".join(errors)); raise SystemExit(bool(errors))'
+
   local tmp_dir
   tmp_dir="$(mktemp -d)"
   run "$PYTHON_BIN" scripts/generate_configs.py --output-dir "$tmp_dir"
   run "$PYTHON_BIN" scripts/verify_network.py --config-dir "$tmp_dir"
   rm -rf "$tmp_dir"
+
   run "$PYTHON_BIN" -m pytest -q
   run git diff --check
+  if git ls-files | grep -Eq '(^|/)(runtime_reports|logs|\.venv|node_modules)/|\.pid$|\.sock$|operator\.token$|\.pem$|\.key$'; then
+    echo "FAIL: runtime artifact or secret-like file is tracked by git." >&2
+    exit 1
+  fi
 }
 
 frontend_checks() {
