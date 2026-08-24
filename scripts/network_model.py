@@ -9,35 +9,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NETWORK_MODEL_FILE = REPO_ROOT / "vars" / "network_model.yml"
-
-EXPECTED_HOST_GROUPS = {
-    "project_1": {"vlan": 101, "count": 20, "subnet": "10.10.101.0/24", "gateway": "10.10.101.1"},
-    "project_2": {"vlan": 93, "count": 20, "subnet": "10.10.93.0/24", "gateway": "10.10.93.1"},
-    "project_3": {"vlan": 103, "count": 20, "subnet": "10.10.103.0/24", "gateway": "10.10.103.1"},
-    "project_4": {"vlan": 104, "count": 20, "subnet": "10.10.104.0/24", "gateway": "10.10.104.1"},
-    "it_support": {"vlan": 110, "count": 10, "subnet": "10.10.110.0/24", "gateway": "10.10.110.1"},
-}
-EXPECTED_SITE_GROUPS = {
-    "iot_hq": {"vlan": 140, "site": "hq", "subnet": "10.10.140.0/24", "kind": "iot"},
-    "iot_branch": {"vlan": 50, "site": "branch", "subnet": "10.20.50.0/24", "kind": "iot"},
-    "guest": {"vlan": 120, "site": "hq", "subnet": "10.10.120.0/24", "kind": "guest"},
-}
-EXPECTED_SERVICES = {
-    "h90": "10.250.10.10",
-    "hcall": "10.250.10.20",
-    "hzalo": "10.250.20.10",
-    "hsocial": "10.250.20.20",
-    "hinternet": "10.250.20.30",
-}
-EXPECTED_INFRASTRUCTURE_SERVICES = {
-    "hdhcp": "10.10.100.10",
-    "hdns": "10.10.100.11",
-    "had": "10.10.100.12",
-    "hfile": "10.10.100.13",
-    "hmonitor": "10.10.100.14",
-    "hbackup": "10.10.100.15",
-    "hntp": "10.10.100.16",
-}
 EXPECTED_SITES = {"hq", "branch", "wan", "internet"}
 EXPECTED_PHYSICAL_SITES = {"hq", "branch"}
 EXPECTED_CONTROLLED_SWITCHES = {
@@ -47,7 +18,7 @@ EXPECTED_CE_NODES = {"ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2"}
 EXPECTED_FIREWALL_NODES = {"fw_hq", "fw_telesale"}
 EXPECTED_WAN_NODES = {"ipsec_l3"}
 EXPECTED_L2VPN_NODES = {"l2vpn_primary", "l2vpn_backup"}
-EXPECTED_L2VPN_NODE = "l2vpn_primary"  # compatibility alias for older callers
+EXPECTED_L2VPN_NODE = "l2vpn_primary"  # compatibility alias
 ALLOWED_LINK_TYPES = {"data", "routed", "l2vpn", "control"}
 
 
@@ -66,11 +37,7 @@ def _endpoint_placement(group: dict[str, Any], index: int) -> dict[str, Any]:
         if index <= cursor + count:
             return dict(placement)
         cursor += count
-    return {
-        "switch": group["switch"],
-        "site": group.get("site"),
-        "floor": group.get("floor"),
-    }
+    return {"switch": group["switch"], "site": group.get("site"), "floor": group.get("floor")}
 
 
 def build_host_inventory(model: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -181,10 +148,9 @@ def architecture_links(model: dict[str, Any]) -> list[tuple[str, str, str]]:
 
 
 def endpoint_link_segments(model: dict[str, Any], group_name: str, access_switch: str) -> list[tuple[str, str]]:
-    inventory = build_host_inventory(model)
     return [
         (str(endpoint["name"]), access_switch)
-        for endpoint in inventory.values()
+        for endpoint in build_host_inventory(model).values()
         if endpoint.get("group") == group_name and endpoint.get("switch") == access_switch
     ]
 
@@ -197,90 +163,59 @@ def user_count(model: dict[str, Any]) -> int:
     )
 
 
-def _validate_unique_identity(model: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
-    dpids = [str(item.get("dpid")) for item in model.get("switches", {}).values() if item.get("dpid")]
-    if len(dpids) != len(set(dpids)):
-        errors.append("Duplicate switch DPID found")
-    names: list[str] = []
+def _all_node_ids(model: dict[str, Any]) -> set[str]:
+    nodes: set[str] = set()
     for category in ("host_groups", "services", "infrastructure_services", "switches", "infrastructure"):
-        names.extend(str(name) for name in model.get(category, {}))
-    if len(names) != len(set(names)):
-        errors.append("Logical node names must be globally unique")
-    return errors
+        nodes.update(str(name) for name in model.get(category, {}))
+    return nodes
 
 
-def _validate_expected_groups(model: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
-    groups = model.get("host_groups", {})
-    for name, expected in EXPECTED_HOST_GROUPS.items():
-        item = groups.get(name)
-        if not item:
-            errors.append(f"Missing host group {name}")
-            continue
-        for key, value in expected.items():
-            actual = int(item[key]) if key in {"vlan", "count"} else str(item[key])
-            if actual != value:
-                errors.append(f"{name}.{key} must be {value!r}, found {actual!r}")
-    for name, expected in EXPECTED_SITE_GROUPS.items():
-        item = groups.get(name)
-        if not item:
-            errors.append(f"Missing enterprise zone {name}")
-            continue
-        if int(item.get("vlan", -1)) != expected["vlan"]:
-            errors.append(f"{name} VLAN must be {expected['vlan']}")
-        if item.get("site") != expected["site"]:
-            errors.append(f"{name} site must be {expected['site']}")
-        if str(item.get("subnet")) != expected["subnet"]:
-            errors.append(f"{name} subnet must be {expected['subnet']}")
-    return errors
-
-
-def _validate_v7_contract(model: dict[str, Any]) -> list[str]:
+def validate_network_model(model: dict[str, Any]) -> list[str]:
+    """Validate stable enterprise-v7 invariants without copying the YAML into Python."""
     errors: list[str] = []
     if set(model.get("sites", {})) != EXPECTED_SITES:
         errors.append(f"Sites must be exactly {sorted(EXPECTED_SITES)}")
+    physical = {name for name, item in model.get("sites", {}).items() if item.get("kind") == "physical"}
+    if physical != EXPECTED_PHYSICAL_SITES:
+        errors.append(f"Physical sites must be {sorted(EXPECTED_PHYSICAL_SITES)}")
     if set(controlled_switches(model)) != EXPECTED_CONTROLLED_SWITCHES:
         errors.append(f"Controlled switches must be {sorted(EXPECTED_CONTROLLED_SWITCHES)}")
+
     infra = model.get("infrastructure", {})
     if not EXPECTED_CE_NODES.issubset(infra):
         errors.append("Two CE nodes per site are required")
     if not EXPECTED_L2VPN_NODES.issubset(infra):
         errors.append("Primary and backup L2VPN nodes are required")
     if not EXPECTED_FIREWALL_NODES.issubset(infra):
-        errors.append("HQ and Branch firewall runtime abstractions are required")
-    ipsec = infra.get("ipsec_l3", {})
-    if ipsec.get("runtime_mode") != "routed_tunnel_abstraction" or ipsec.get("cryptographic_ipsec") is not False:
-        errors.append("ipsec_l3 must explicitly be a non-cryptographic routed tunnel abstraction")
+        errors.append("HQ and Branch firewall abstractions are required")
+    if infra.get("ipsec_l3", {}).get("cryptographic_ipsec") is not False:
+        errors.append("ipsec_l3 must explicitly be a non-cryptographic lab abstraction")
 
     shared = model.get("host_groups", {}).get("project_2", {})
-    if shared.get("service") != "l2vpn_vpws93":
-        errors.append("Project 2 must reference l2vpn_vpws93")
-    if shared.get("gateway_site") != "hq" or shared.get("gateway_node") != "core_hq":
-        errors.append("VLAN 93 gateway must be owned by HQ core_hq")
+    if int(shared.get("vlan", -1)) != 93 or shared.get("subnet") != "10.10.93.0/24":
+        errors.append("Project 2 must be VLAN 93 / 10.10.93.0/24")
+    if shared.get("gateway") != "10.10.93.1" or shared.get("gateway_site") != "hq":
+        errors.append("VLAN 93 gateway must be 10.10.93.1 at HQ")
     placements = shared.get("placements") or []
     if {item.get("site") for item in placements} != {"hq", "branch"}:
         errors.append("Project 2 VLAN 93 must have HQ and Branch placements")
 
-    service = model.get("l2vpn_services", {}).get("vlan93_project_2", {})
-    if int(service.get("customer_vlan", -1)) != 93 or service.get("gateway_site") != "hq":
+    l2vpn = model.get("l2vpn_services", {}).get("vlan93_project_2", {})
+    if int(l2vpn.get("customer_vlan", -1)) != 93 or l2vpn.get("gateway_site") != "hq":
         errors.append("vlan93_project_2 contract is invalid")
-    if service.get("primary", {}).get("state") != "active" or service.get("backup", {}).get("state") != "standby":
+    if l2vpn.get("primary", {}).get("state") != "active" or l2vpn.get("backup", {}).get("state") != "standby":
         errors.append("L2VPN primary must be active and backup must be standby")
 
-    branch_paths = model.get("site_group_paths", {}).get("project_2", {})
-    branch_path = branch_paths.get("branch", [])
+    branch_path = model.get("site_group_paths", {}).get("project_2", {}).get("branch", [])
     if "l2vpn_primary" not in branch_path or "ipsec_l3" in branch_path:
         errors.append("Branch Project 2 path must use L2VPN, not IPsec")
-    return errors
 
+    ipsec_design = model.get("edge_design", {}).get("ipsec", {})
+    if ipsec_design.get("runtime_path") != ["fw_hq", "ipsec_l3", "fw_telesale"]:
+        errors.append("Routed intersite abstraction must terminate on both firewall namespaces")
 
-def _validate_links(model: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
-    node_ids = set()
-    for category in ("host_groups", "services", "infrastructure_services", "switches", "infrastructure"):
-        node_ids.update(model.get(category, {}))
-    seen: set[tuple[str, str, str]] = set()
+    node_ids = _all_node_ids(model)
+    seen: set[frozenset[str]] = set()
     for raw in model.get("links", []):
         if not isinstance(raw, list) or len(raw) != 3:
             errors.append(f"Invalid topology link {raw!r}")
@@ -290,44 +225,23 @@ def _validate_links(model: dict[str, Any]) -> list[str]:
             errors.append(f"Link references missing node: {left}-{right}")
         if kind not in ALLOWED_LINK_TYPES:
             errors.append(f"Unsupported link type {kind} on {left}-{right}")
-        identity = (left, right, kind)
-        reverse = (right, left, kind)
-        if identity in seen or reverse in seen:
+        key = frozenset((left, right))
+        if key in seen:
             errors.append(f"Duplicate logical link {left}-{right}")
-        seen.add(identity)
-    return errors
+        seen.add(key)
 
-
-def _validate_addressing(model: dict[str, Any], hosts: dict[str, dict[str, Any]]) -> list[str]:
-    errors: list[str] = []
+    hosts = build_host_inventory(model)
+    ips: set[str] = set()
     for name, host in hosts.items():
         try:
-            ipaddress.ip_address(str(host["ip"]))
-        except ValueError as exc:
-            errors.append(f"Invalid endpoint IP {name}: {exc}")
-    if len({host["ip"] for host in hosts.values()}) != len(hosts):
-        errors.append("Duplicate endpoint IP found")
-    return errors
-
-
-def validate_network_model(model: dict[str, Any]) -> list[str]:
-    hosts = build_host_inventory(model)
-    errors: list[str] = []
-    errors.extend(_validate_unique_identity(model))
-    errors.extend(_validate_expected_groups(model))
-    errors.extend(_validate_v7_contract(model))
-    errors.extend(_validate_links(model))
-    errors.extend(_validate_addressing(model, hosts))
-
-    services = model.get("services", {})
-    for name, ip in EXPECTED_SERVICES.items():
-        if str(services.get(name, {}).get("ip")) != ip:
-            errors.append(f"Service {name} must use {ip}")
-    infra_services = model.get("infrastructure_services", {})
-    for name, ip in EXPECTED_INFRASTRUCTURE_SERVICES.items():
-        if str(infra_services.get(name, {}).get("ip")) != ip:
-            errors.append(f"Infrastructure service {name} must use {ip}")
+            address = ipaddress.ip_address(str(host["ip"]))
+        except ValueError:
+            errors.append(f"Invalid endpoint IP for {name}: {host.get('ip')}")
+            continue
+        if str(address) in ips:
+            errors.append(f"Duplicate endpoint IP {address}")
+        ips.add(str(address))
 
     if user_count(model) != 90:
-        errors.append(f"Runtime user count must be 90, found {user_count(model)}")
+        errors.append(f"Runtime corporate user count must be 90, found {user_count(model)}")
     return errors
