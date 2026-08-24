@@ -1,156 +1,140 @@
 metadata:
-  name: "Hybrid MPLS L3VPN + VLAN 40 L2VPN Logic Simulation for Call Center BPO"
-  description: "Mo hinh doanh nghiep ba lop; L3VPN cho cac mang routed va VPWS/E-Line logic de keo dai VLAN 40 giua HQ va Branch Telesale."
-  architecture: "Core Layer / Distribution Layer / Access Layer"
+  name: "CCH Enterprise Logical Topology v7"
+  description: "HQ + 1 Branch, collapsed Core/Distribution, VLAN 93 stretched by MPLS L2VPN, local Internet breakout and logical IPsec L3 intersite transport."
+  architecture: "2-tier Collapsed Core / Distribution"
   openflow_version: "1.3"
   controller: "127.0.0.1:6653"
-  migration_note: "BackOffice da o HQ Floor 2. Cac ten access_hq_a/access_hq_b/access_hq_c/access_hq_it/voice_access/access_backoffice/access_iot/access_guest/branch_backoffice/dist_backoffice/ce_backoffice/fw_backoffice la ten legacy, khong phai active topology."
-  limitations: "core_hq la node runtime dai dien cho Core HQ Logical HA Pair; khong fake HSRP/VRRP/MLAG. mpls_primary/mpls_backup chi mo phong L3 transport. l2vpn_vpws40 la OVS/Linux bridge trong suot nam giua hai attachment circuit CE de mo phong dich vu VPWS, khong phai MPLS label forwarding hay PE/P router that."
+  design_diagram: "docs/assets/enterprise_logical_topology_v7.svg"
+  runtime_note: "Mininet keeps one logical OVS per HA Core/Distribution pair and one nftables namespace per firewall HA pair. IPsec is a routed tunnel abstraction without IKE/XFRM encryption. MPLS L2VPN primary/backup is Ethernet transport logic, not a provider PE/P control plane."
+  runtime_scale_note: "User counts are intentionally scaled for the lab. The approved drawing shows about 70 Project 2 agents at Branch; runtime uses 10 Branch Project 2 endpoints to keep the VM deterministic."
 
 sites:
   hq:
     label: "HQ - Tru so chinh"
     kind: physical
-    floors: [floor1, floor2]
-  branch_telesale:
-    label: "Branch Telesale"
+  branch:
+    label: "Branch"
     kind: physical
   wan:
-    label: "WAN / MPLS L3 + L2VPN Logic"
+    label: "WAN / Provider Services"
     kind: logical
   internet:
-    label: "Internet / Service Zone"
+    label: "Internet / Partner Services"
     kind: logical
 
 host_groups:
-  project_a:
-    label: "Project A - HQ Floor 1"
-    vlan: 20
+  project_1:
+    label: "Du an 1 - HQ"
+    vlan: 101
     site: hq
-    floor: floor1
     count: 20
-    prefix: h20
-    subnet: 172.16.20.0/24
-    gateway: 172.16.20.1
+    prefix: h101
+    subnet: 10.10.101.0/24
+    gateway: 10.10.101.1
     gateway_node: core_hq
     first_host: 11
     switch: access_floor1
-  project_b:
-    label: "Project B - HQ Floor 1 + Floor 2"
-    vlan: 30
+  project_2:
+    label: "Du an 2 - VLAN 93 shared HQ + Branch"
+    vlan: 93
     site: hq
     count: 20
-    prefix: h30
-    subnet: 172.16.30.0/24
-    gateway: 172.16.30.1
-    gateway_node: core_hq
-    first_host: 11
-    switch: access_floor1
-    placements:
-      - {floor: floor1, switch: access_floor1, count: 10}
-      - {floor: floor2, switch: access_floor2, count: 10}
-  project_c:
-    label: "Project C - VLAN 40 stretched HQ + Branch"
-    vlan: 40
-    site: hq
-    floor: floor2
-    count: 20
-    prefix: h40
-    subnet: 172.16.40.0/24
-    gateway: 172.16.40.1
+    design_branch_users_approx: 70
+    prefix: h93
+    subnet: 10.10.93.0/24
+    gateway: 10.10.93.1
     gateway_node: core_hq
     gateway_site: hq
     first_host: 11
-    switch: access_floor2
-    service: l2vpn_vpws40
+    switch: access_floor1
+    service: l2vpn_vpws93
     placements:
-      - {site: hq, floor: floor2, switch: access_floor2, count: 10}
-      - {site: branch_telesale, switch: access_branch, count: 10}
-  telesale:
-    label: "Telesale - Branch"
-    vlan: 50
-    site: branch_telesale
-    count: 20
-    prefix: h50
-    subnet: 172.16.50.0/24
-    gateway: 172.16.50.1
-    gateway_node: dist_branch
-    first_host: 11
-    switch: access_branch
-  backoffice:
-    label: "BackOffice - HQ Floor 2"
-    vlan: 60
+      - {site: hq, switch: access_floor1, count: 10}
+      - {site: branch, switch: access_branch, count: 10}
+  project_3:
+    label: "Du an 3 - HQ"
+    vlan: 103
     site: hq
-    floor: floor2
     count: 20
-    prefix: h60
-    subnet: 172.16.60.0/24
-    gateway: 172.16.60.1
+    prefix: h103
+    subnet: 10.10.103.0/24
+    gateway: 10.10.103.1
+    gateway_node: core_hq
+    first_host: 11
+    switch: access_floor2
+  project_4:
+    label: "Du an 4 - HQ"
+    vlan: 104
+    site: hq
+    count: 20
+    prefix: h104
+    subnet: 10.10.104.0/24
+    gateway: 10.10.104.1
     gateway_node: core_hq
     first_host: 11
     switch: access_floor2
   it_support:
-    label: "IT Support - HQ Floor 2"
-    vlan: 70
+    label: "Office / IT Support - HQ"
+    vlan: 110
     site: hq
-    floor: floor2
     count: 10
-    prefix: h70
-    subnet: 172.16.70.0/24
-    gateway: 172.16.70.1
+    prefix: h110
+    subnet: 10.10.110.0/24
+    gateway: 10.10.110.1
     gateway_node: core_hq
     first_host: 11
     switch: access_floor2
+    implementation_choice: true
   iot_hq:
-    label: "IoT HQ + UPS - Floor 1"
-    vlan: 110
+    label: "HQ IoT / Camera / Printer / UPS"
+    vlan: 140
     site: hq
-    floor: floor1
     count: 5
     prefix: iot
     host_kind: iot
-    subnet: 172.16.110.0/24
-    gateway: 172.16.110.1
+    subnet: 10.10.140.0/24
+    gateway: 10.10.140.1
     gateway_node: core_hq
     switch: access_floor1
     addressing: reservation
+    implementation_choice: true
     endpoints:
-      - {name: iot_cam_01, label: "Camera Floor 1", role: camera, ip: 172.16.110.101}
-      - {name: iot_cam_02, label: "Camera Entrance", role: camera, ip: 172.16.110.102}
-      - {name: ups_floor1, label: "UPS Floor 1", role: ups, ip: 172.16.110.103}
-      - {name: ups_core_1, label: "UPS Core 1", role: ups, ip: 172.16.110.104}
-      - {name: ups_core_2, label: "UPS Core 2", role: ups, ip: 172.16.110.105}
+      - {name: iot_cam_01, label: "Camera HQ 01", role: camera, ip: 10.10.140.101}
+      - {name: iot_printer_01, label: "Printer HQ 01", role: printer, ip: 10.10.140.102}
+      - {name: ups_hq_01, label: "UPS HQ 01", role: ups, ip: 10.10.140.103}
+      - {name: ups_hq_02, label: "UPS HQ 02", role: ups, ip: 10.10.140.104}
+      - {name: iot_cam_02, label: "Camera HQ 02", role: camera, ip: 10.10.140.105}
   iot_branch:
-    label: "IoT Branch + UPS - Telesale"
-    vlan: 111
-    site: branch_telesale
+    label: "Mang IoT - Branch"
+    vlan: 50
+    site: branch
     count: 2
     prefix: iotb
     host_kind: iot
-    subnet: 172.16.111.0/24
-    gateway: 172.16.111.1
+    subnet: 10.20.50.0/24
+    gateway: 10.20.50.1
     gateway_node: dist_branch
     switch: access_branch
     addressing: reservation
     endpoints:
-      - {name: iot_branch_cam_01, label: "Camera Branch", role: camera, ip: 172.16.111.101}
-      - {name: ups_branch_1, label: "UPS Branch 1", role: ups, ip: 172.16.111.102}
+      - {name: iot_branch_cam_01, label: "Camera Branch", role: camera, ip: 10.20.50.101}
+      - {name: ups_branch_01, label: "UPS Branch", role: ups, ip: 10.20.50.102}
   guest:
-    label: "Guest HQ - Floor 1"
+    label: "Guest HQ"
     vlan: 120
     site: hq
-    floor: floor1
     count: 2
     prefix: guest
     host_kind: guest
-    subnet: 172.16.120.0/24
-    gateway: 172.16.120.1
+    subnet: 10.10.120.0/24
+    gateway: 10.10.120.1
     gateway_node: core_hq
     switch: access_floor1
     addressing: dhcp
+    implementation_choice: true
     endpoints:
-      - {name: guest_01, label: "Guest Client 01", ip: 172.16.120.101}
-      - {name: guest_02, label: "Guest Client 02", ip: 172.16.120.102}
+      - {name: guest_01, label: "Guest Client 01", ip: 10.10.120.101}
+      - {name: guest_02, label: "Guest Client 02", ip: 10.10.120.102}
 
 service_addressing:
   model: interface_plus_service_vip
@@ -162,238 +146,228 @@ service_addressing:
 
 services:
   h90:
-    label: "PBX / SBC Voice Service"
-    ip: 172.16.90.10
-    subnet: 172.16.90.0/24
-    gateway: 172.16.90.1
-    gateway_node: core_hq
-    vlan: 90
-    site: hq
-    switch: infra_access
-  hzalo:
-    label: "Zalo Service Simulator"
-    ip: 172.16.200.10
-    subnet: 172.16.200.10/32
+    label: "Partner PBX / Contact Center"
+    ip: 10.250.10.10
+    subnet: 10.250.10.10/32
     interface_ip: 10.255.30.10
     interface_cidr: 10.255.30.10/24
     transit_ip: 10.255.30.10
     gateway: 10.255.30.1
     site: internet
+    zone: partner
   hcall:
-    label: "Call App Service Simulator"
-    ip: 172.16.201.10
-    subnet: 172.16.201.10/32
+    label: "Partner CRM"
+    ip: 10.250.10.20
+    subnet: 10.250.10.20/32
     interface_ip: 10.255.30.11
     interface_cidr: 10.255.30.11/24
     transit_ip: 10.255.30.11
     gateway: 10.255.30.1
     site: internet
-  hsocial:
-    label: "Social Media Service Simulator"
-    ip: 172.16.202.10
-    subnet: 172.16.202.10/32
+    zone: partner
+  hzalo:
+    label: "Internet App Simulator"
+    ip: 10.250.20.10
+    subnet: 10.250.20.10/32
     interface_ip: 10.255.30.12
     interface_cidr: 10.255.30.12/24
     transit_ip: 10.255.30.12
     gateway: 10.255.30.1
     site: internet
-  hinternet:
-    label: "General Internet Test Service"
-    ip: 172.16.203.10
-    subnet: 172.16.203.10/32
+    zone: internet
+  hsocial:
+    label: "Social Media Simulator"
+    ip: 10.250.20.20
+    subnet: 10.250.20.20/32
     interface_ip: 10.255.30.13
     interface_cidr: 10.255.30.13/24
     transit_ip: 10.255.30.13
     gateway: 10.255.30.1
     site: internet
+    zone: internet
+  hinternet:
+    label: "General Internet Test Service"
+    ip: 10.250.20.30
+    subnet: 10.250.20.30/32
+    interface_ip: 10.255.30.14
+    interface_cidr: 10.255.30.14/24
+    transit_ip: 10.255.30.14
+    gateway: 10.255.30.1
+    site: internet
+    zone: internet
 
 infrastructure_services:
-  hdhcp: {label: "DHCP Server", ip: 172.16.100.10, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: dhcp}
-  hdns: {label: "DNS Server", ip: 172.16.100.11, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: dns}
-  hntp: {label: "NTP Server", ip: 172.16.100.12, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: ntp}
-  hmonitor: {label: "Monitoring / Syslog", ip: 172.16.100.13, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: monitoring}
-  hnvr: {label: "NVR / VMS", ip: 172.16.100.14, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: nvr}
-  hrecording: {label: "Call Recording", ip: 172.16.100.15, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: recording}
-  hdialer: {label: "Dialer / CRM", ip: 172.16.100.16, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: crm}
-  hbackup: {label: "Backup Server", ip: 172.16.100.17, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: backup}
-  had: {label: "Auth / AD", ip: 172.16.100.18, subnet: 172.16.100.0/24, gateway: 172.16.100.1, site: hq, vlan: 100, switch: infra_access, role: auth}
+  hdhcp: {label: "DHCP Server", ip: 10.10.100.10, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: dhcp}
+  hdns: {label: "DNS Server", ip: 10.10.100.11, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: dns}
+  had: {label: "Active Directory", ip: 10.10.100.12, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: auth}
+  hfile: {label: "File Server", ip: 10.10.100.13, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: file}
+  hmonitor: {label: "NMS / Monitoring", ip: 10.10.100.14, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: monitoring}
+  hbackup: {label: "Backup Server", ip: 10.10.100.15, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: backup}
+  hntp: {label: "NTP Service", ip: 10.10.100.16, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: ntp, ancillary: true}
 
 switches:
-  access_floor1: {label: "Access HQ Floor 1", role: access, site: hq, floor: floor1, controlled: true, dpid: "0000000000000001"}
-  access_floor2: {label: "Access HQ Floor 2", role: access, site: hq, floor: floor2, controlled: true, dpid: "0000000000000002"}
-  dist_hq_1: {label: "Distribution HQ 1", role: hq_distribution, site: hq, controlled: true, dpid: "0000000000000003"}
-  dist_hq_2: {label: "Distribution HQ 2", role: hq_distribution, site: hq, controlled: true, dpid: "0000000000000004"}
-  core_hq: {label: "Core HQ - Logical HA Pair", role: hq_core, site: hq, controlled: true, dpid: "0000000000000005"}
-  access_branch: {label: "Access Branch Telesale + IoT", role: access, site: branch_telesale, controlled: true, dpid: "0000000000000006"}
-  dist_branch: {label: "Distribution Branch Telesale", role: branch_distribution, site: branch_telesale, controlled: true, dpid: "0000000000000007"}
-  infra_access: {label: "Infrastructure Access", role: infrastructure_access, site: hq, controlled: true, dpid: "0000000000000008"}
+  access_floor1: {label: "HQ Access A", role: access, site: hq, controlled: true, dpid: "0000000000000001"}
+  access_floor2: {label: "HQ Access B", role: access, site: hq, controlled: true, dpid: "0000000000000002"}
+  core_hq: {label: "CORE-DIST HQ - Logical HA Pair", role: collapsed_core_distribution, site: hq, controlled: true, dpid: "0000000000000003"}
+  access_branch: {label: "Branch Access", role: access, site: branch, controlled: true, dpid: "0000000000000004"}
+  dist_branch: {label: "CORE-DIST Branch - Logical HA Pair", role: collapsed_core_distribution, site: branch, controlled: true, dpid: "0000000000000005"}
+  infra_access: {label: "Server / Infrastructure Access", role: infrastructure_access, site: hq, controlled: true, dpid: "0000000000000006"}
 
 infrastructure:
-  c0: {label: "SDN Controller", type: controller, site: hq}
-  ce_hq: {label: "CE Router HQ", type: router, site: hq}
-  ce_telesale: {label: "CE Router Branch Telesale", type: router, site: branch_telesale}
-  mpls_primary: {label: "MPLS Primary", subtitle: "WAN transport - metric 10", type: wan, site: wan, metric: 10}
-  mpls_backup: {label: "MPLS Backup", subtitle: "WAN transport - metric 100", type: wan, site: wan, metric: 100}
-  l2vpn_vpws40: {label: "Carrier L2VPN VPWS - VLAN 40", subtitle: "E-Line logic between CE attachment circuits; no MPLS labels", type: l2vpn, site: wan, runtime_name: l2vpn40, controller_managed: false}
-  fw_hq: {label: "Firewall HQ Internet Edge", subtitle: "Local breakout HQ", type: firewall, site: hq}
-  fw_telesale: {label: "Firewall Branch Internet Edge", subtitle: "Local breakout Branch", type: firewall, site: branch_telesale}
-  internet_zone: {label: "Internet / Service Zone", type: service_edge, site: internet}
+  c0: {label: "OS-Ken SDN Controller", type: controller, site: hq}
+  ce_hq1: {label: "CE-HQ1", type: ce_bridge, site: hq, path_role: primary}
+  ce_hq2: {label: "CE-HQ2", type: ce_bridge, site: hq, path_role: backup}
+  ce_branch1: {label: "CE-BR1", type: ce_bridge, site: branch, path_role: primary}
+  ce_branch2: {label: "CE-BR2", type: ce_bridge, site: branch, path_role: backup}
+  l2vpn_primary: {label: "MPLS L2VPN Primary", type: l2vpn, site: wan, state: active, runtime_name: l2vpn93p}
+  l2vpn_backup: {label: "MPLS L2VPN Backup", type: l2vpn, site: wan, state: standby, runtime_name: l2vpn93b}
+  ipsec_l3: {label: "IPsec L3 VPN Logic", type: ipsec, site: wan, runtime_mode: routed_tunnel_abstraction, cryptographic_ipsec: false}
+  fw_hq: {label: "Firewall HQ HA - Runtime Active Abstraction", type: firewall, site: hq}
+  fw_telesale: {label: "Firewall Branch HA - Runtime Active Abstraction", type: firewall, site: branch}
+  internet_zone: {label: "Internet / Partner Service Zone", type: service_edge, site: internet}
 
-# Design-only edge objects are intentionally separate from topology nodes. They
-# describe the enterprise drawing without pretending that ISP handoffs or a
-# firewall HA peer are OpenFlow/Mininet runtime devices.
+collapsed_core_design:
+  hq:
+    runtime_node: core_hq
+    design_members: [core_dist_hq1, core_dist_hq2]
+    gateway_mode: svi_fhrp
+    representation: design_metadata
+  branch:
+    runtime_node: dist_branch
+    design_members: [core_dist_br1, core_dist_br2]
+    gateway_mode: svi_fhrp_except_vlan93
+    representation: design_metadata
+
 edge_design:
   provider_domain:
-    label: "ISP / Carrier Cloud"
+    label: "Internet ISP / Carrier"
     handoff_layer: "WAN Handoff Layer"
     mode: logical_provider_demarcation
     circuits:
-      primary:
-        id: isp_circuit_a
-        label: "ISP Circuit A - Primary"
-        state: active
-        color: blue
-        sites: [hq, branch_telesale]
-        representation: design_only
-        runtime_node: null
-        runtime_state: design_only
-        controller_managed: false
-      backup:
-        id: isp_circuit_b
-        label: "ISP Circuit B - Backup"
-        state: standby
-        color: purple
-        sites: [hq, branch_telesale]
-        representation: design_only
-        runtime_node: null
-        runtime_state: design_only
-        controller_managed: false
+      primary: {id: isp_1, label: "ISP 1", state: active, color: blue, sites: [hq, branch], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
+      backup: {id: isp_2, label: "ISP 2", state: standby, color: purple, sites: [hq, branch], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
   firewalls:
     hq:
       runtime_node: fw_hq
       design_role: ha_pair
-      primary_member: fw_hq_primary
-      backup_member: fw_hq_backup
+      primary_member: fw_hq1
+      backup_member: fw_hq2
       inside_node: core_hq
       outside_circuits: [primary, backup]
       representation: design_metadata
       controller_managed: false
-      runtime_note: "Mininet dung mot firewall namespace logic; HA peer chi la design representation."
-    branch_telesale:
+      runtime_note: "Mininet uses one nftables namespace as the active HA-cluster abstraction."
+    branch:
       runtime_node: fw_telesale
-      design_role: single_firewall_simulation
+      design_role: ha_pair
+      primary_member: fw_br1
+      backup_member: fw_br2
       inside_node: dist_branch
       outside_circuits: [primary, backup]
       representation: design_metadata
       controller_managed: false
-      runtime_note: "Mininet dung mot firewall namespace logic; production can HA pair."
+      runtime_note: "Mininet uses one nftables namespace as the active HA-cluster abstraction."
+  ce_pairs:
+    hq: {members: [ce_hq1, ce_hq2], primary: ce_hq1, backup: ce_hq2}
+    branch: {members: [ce_branch1, ce_branch2], primary: ce_branch1, backup: ce_branch2}
+  ipsec:
+    runtime_node: ipsec_l3
+    design_path: "Firewall HQ -> Internet -> Firewall Branch"
+    runtime_mode: routed_tunnel_abstraction
+    cryptographic_ipsec: false
+    note: "Lab validates routed intersite reachability, not IKE/IPsec cryptography."
 
-# The SVG separates the enterprise server zone into security roles. The
-# current runtime intentionally keeps a small service inventory, so these
-# mappings document what is represented and what still needs a later runtime
-# implementation instead of inventing hosts or VLANs.
 server_zone_design:
   runtime_switch: infra_access
   components:
-    sdn_controller: {runtime_node: c0, runtime_kind: controller, representation: design_metadata, controller_managed: false}
     dhcp_server: {runtime_node: hdhcp, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
-    sbc_voice_edge: {runtime_node: h90, design_role: dmz_sbc, runtime_state: collapsed_voice_placeholder, representation: design_metadata, controller_managed: false}
-    pbx_voice_inside: {runtime_node: h90, design_role: inside_pbx, runtime_state: collapsed_voice_placeholder, representation: design_metadata, controller_managed: false}
+    dns_server: {runtime_node: hdns, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
+    ad_server: {runtime_node: had, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
+    file_server: {runtime_node: hfile, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
     monitoring_nms: {runtime_node: hmonitor, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
-    database_server: {runtime_node: null, runtime_state: design_only_not_simulated, representation: design_only, controller_managed: false}
-    it_jump_host_aaa: {runtime_node: had, design_role: privileged_management, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
-  notes:
-    voice: "Production should separate SBC DMZ and PBX inside with distinct security zones; h90 is one lab placeholder."
-    database: "Database placement is shown in the design but no database runtime host is created by Mininet."
+    backup_server: {runtime_node: hbackup, runtime_kind: infrastructure_service, representation: design_metadata, controller_managed: false}
+  partner_services:
+    crm: {runtime_node: hcall, representation: partner_external}
+    pbx_contact_center: {runtime_node: h90, representation: partner_external}
 
 links:
-  - [project_a, access_floor1, data]
-  - [project_b, access_floor1, data]
-  - [project_b, access_floor2, data]
-  - [project_c, access_floor2, data]
-  - [project_c, access_branch, data]
-  - [backoffice, access_floor2, data]
+  - [project_1, access_floor1, data]
+  - [project_2, access_floor1, data]
+  - [project_2, access_branch, data]
+  - [project_3, access_floor2, data]
+  - [project_4, access_floor2, data]
   - [it_support, access_floor2, data]
   - [iot_hq, access_floor1, data]
   - [guest, access_floor1, data]
   - [iot_branch, access_branch, data]
-  - [h90, infra_access, data]
-  - [infra_access, hdhcp, data]
-  - [infra_access, hdns, data]
-  - [infra_access, hntp, data]
-  - [infra_access, hmonitor, data]
-  - [infra_access, hnvr, data]
-  - [infra_access, hrecording, data]
-  - [infra_access, hdialer, data]
-  - [infra_access, hbackup, data]
-  - [infra_access, had, data]
-  - [access_floor1, dist_hq_1, data]
-  - [access_floor2, dist_hq_2, data]
-  - [infra_access, dist_hq_1, data]
-  - [dist_hq_1, core_hq, data]
-  - [dist_hq_2, core_hq, data]
+  - [access_floor1, core_hq, data]
+  - [access_floor2, core_hq, data]
+  - [infra_access, core_hq, data]
   - [access_branch, dist_branch, data]
-  - [dist_hq_2, l2vpn_vpws40, l2vpn]
-  - [l2vpn_vpws40, dist_branch, l2vpn]
-  - [core_hq, ce_hq, routed]
-  - [ce_hq, mpls_primary, mpls]
-  - [mpls_primary, ce_telesale, mpls]
-  - [ce_hq, mpls_backup, mpls]
-  - [mpls_backup, ce_telesale, mpls]
-  - [ce_telesale, dist_branch, routed]
+  - [core_hq, ce_hq1, l2vpn]
+  - [ce_hq1, l2vpn_primary, l2vpn]
+  - [l2vpn_primary, ce_branch1, l2vpn]
+  - [ce_branch1, dist_branch, l2vpn]
+  - [core_hq, ce_hq2, l2vpn]
+  - [ce_hq2, l2vpn_backup, l2vpn]
+  - [l2vpn_backup, ce_branch2, l2vpn]
+  - [ce_branch2, dist_branch, l2vpn]
+  - [core_hq, ipsec_l3, routed]
+  - [ipsec_l3, dist_branch, routed]
   - [core_hq, fw_hq, routed]
   - [dist_branch, fw_telesale, routed]
   - [fw_hq, internet_zone, routed]
   - [fw_telesale, internet_zone, routed]
-  - [internet_zone, hzalo, data]
+  - [internet_zone, h90, data]
   - [internet_zone, hcall, data]
+  - [internet_zone, hzalo, data]
   - [internet_zone, hsocial, data]
   - [internet_zone, hinternet, data]
+  - [infra_access, hdhcp, data]
+  - [infra_access, hdns, data]
+  - [infra_access, had, data]
+  - [infra_access, hfile, data]
+  - [infra_access, hmonitor, data]
+  - [infra_access, hbackup, data]
+  - [infra_access, hntp, data]
 
 group_paths:
-  project_a: [project_a, access_floor1, dist_hq_1, core_hq]
-  project_b: [project_b, access_floor1, dist_hq_1, core_hq]
-  project_c: [project_c, access_floor2, dist_hq_2, core_hq]
-  backoffice: [backoffice, access_floor2, dist_hq_2, core_hq]
-  it_support: [it_support, access_floor2, dist_hq_2, core_hq]
-  iot_hq: [iot_hq, access_floor1, dist_hq_1, core_hq]
-  guest: [guest, access_floor1, dist_hq_1, core_hq]
-  telesale: [telesale, access_branch, dist_branch]
+  project_1: [project_1, access_floor1, core_hq]
+  project_2: [project_2, access_floor1, core_hq]
+  project_3: [project_3, access_floor2, core_hq]
+  project_4: [project_4, access_floor2, core_hq]
+  it_support: [it_support, access_floor2, core_hq]
+  iot_hq: [iot_hq, access_floor1, core_hq]
   iot_branch: [iot_branch, access_branch, dist_branch]
+  guest: [guest, access_floor1, core_hq]
 
 site_group_paths:
-  project_c:
-    hq: [project_c, access_floor2, dist_hq_2, core_hq]
-    branch_telesale: [project_c, access_branch, dist_branch, ce_telesale, l2vpn_vpws40, ce_hq, dist_hq_2, core_hq]
+  project_2:
+    hq: [project_2, access_floor1, core_hq]
+    branch: [project_2, access_branch, dist_branch, ce_branch1, l2vpn_primary, ce_hq1, core_hq]
 
 l2vpn_services:
-  vlan40_project_c:
+  vlan93_project_2:
     service_type: vpws
     ethernet_service: e_line
-    customer_vlan: 40
-    subnet: 172.16.40.0/24
-    gateway: 172.16.40.1
+    customer_vlan: 93
+    subnet: 10.10.93.0/24
+    gateway: 10.10.93.1
     gateway_site: hq
     gateway_node: core_hq
-    sites: [hq, branch_telesale]
-    runtime_node: l2vpn_vpws40
+    sites: [hq, branch]
+    primary: {runtime_node: l2vpn_primary, hq_ce: ce_hq1, branch_ce: ce_branch1, state: active}
+    backup: {runtime_node: l2vpn_backup, hq_ce: ce_hq2, branch_ce: ce_branch2, state: standby}
     runtime_mode: transparent_linux_bridge
-    presentation_path: [dist_hq_2, ce_hq, l2vpn_vpws40, ce_telesale, dist_branch]
-    attachment_circuits:
-      hq: {customer_switch: dist_hq_2, ce_node: ce_hq, vlan: 40, interface: d2-eth40, service_port: pw40-hq}
-      branch_telesale: {customer_switch: dist_branch, ce_node: ce_telesale, vlan: 40, interface: bd-eth40, service_port: pw40-br}
-    limitations: "CE trong so do la diem demarcation/attachment circuit. Runtime rut gon moi CE service instance vao dau bridge l2vpn40 de mo phong forwarding Ethernet va su co AC; khong mo phong MPLS label stack, LDP/RSVP/BGP signaling hay PE/P control plane."
+    limitations: "No PE/P routers, labels, LDP/RSVP or provider signaling are simulated. Backup attachment ports stay down until failover is requested."
 
 reference_paths:
-  project_c_l2vpn: [project_c, access_branch, dist_branch, ce_telesale, l2vpn_vpws40, ce_hq, dist_hq_2, core_hq]
-  project_a_internet: [project_a, access_floor1, dist_hq_1, core_hq, fw_hq, internet_zone, hzalo]
-  project_b_floor2: [project_b, access_floor2, dist_hq_2, core_hq]
-  backoffice_voice: [backoffice, access_floor2, dist_hq_2, core_hq, infra_access, h90]
-  telesale_voice_primary: [telesale, access_branch, dist_branch, ce_telesale, mpls_primary, ce_hq, core_hq, infra_access, h90]
-  telesale_voice_backup: [telesale, access_branch, dist_branch, ce_telesale, mpls_backup, ce_hq, core_hq, infra_access, h90]
-  guest_internet: [guest, access_floor1, dist_hq_1, core_hq, fw_hq, internet_zone, hinternet]
-  iot_hq_monitoring: [iot_hq, access_floor1, dist_hq_1, core_hq, infra_access, hmonitor]
-  iot_branch_monitoring: [iot_branch, access_branch, dist_branch, ce_telesale, mpls_primary, ce_hq, core_hq, infra_access, hmonitor]
+  project_2_l2vpn_primary: [project_2, access_branch, dist_branch, ce_branch1, l2vpn_primary, ce_hq1, core_hq, access_floor1, project_2]
+  project_2_l2vpn_backup: [project_2, access_branch, dist_branch, ce_branch2, l2vpn_backup, ce_hq2, core_hq, access_floor1, project_2]
+  branch_iot_to_hq_services: [iot_branch, access_branch, dist_branch, ipsec_l3, core_hq, infra_access, hmonitor]
+  project_1_internet: [project_1, access_floor1, core_hq, fw_hq, internet_zone, hinternet]
+  project_2_partner_pbx: [project_2, access_floor1, core_hq, fw_hq, internet_zone, h90]
+  project_2_partner_crm: [project_2, access_floor1, core_hq, fw_hq, internet_zone, hcall]
 
 service_paths:
-  infrastructure_services: [infra_access, dist_hq_1, core_hq]
+  infrastructure_services: [infra_access, core_hq]
