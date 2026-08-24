@@ -1,13 +1,18 @@
 # Generated vendor-neutral firewall policy for {{ device.name }}
 # Convert to the target firewall vendor syntax and validate before production.
+# IPsec is represented as a logical routed tunnel; no IKE/ESP syntax is invented.
 
 firewall: {{ firewall_site.firewall_name }}
 site: {{ device.site }}
 interfaces:
   inside: {{ firewall_site.inside_interface }}
   outside: {{ firewall_site.outside_interface }}
+  tunnel: {{ firewall_site.tunnel_interface }}
   runtime_inside: {{ firewall_site.runtime_interfaces.inside }}
   runtime_outside: {{ firewall_site.runtime_interfaces.outside }}
+  runtime_tunnel: {{ firewall_site.runtime_interfaces.tunnel }}
+
+remote_subnets: {{ firewall_site.remote_subnets }}
 
 nat:
   enabled: {{ config.firewall_policy.runtime_defaults.nat.enabled }}
@@ -34,6 +39,12 @@ objects:
 {% endfor %}
 
 policies:
+  - name: allow-corporate-ipsec-overlay
+    action: allow
+    source: inside
+    destination: tunnel
+    remote_subnets: {{ firewall_site.remote_subnets }}
+    note: "Routed intersite abstraction only; VLAN 93 is not included in Branch remote routes."
 {% for policy in firewall_site.policies %}
   - name: {{ policy.name }}
     action: {{ policy.action }}
