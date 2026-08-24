@@ -17,7 +17,7 @@ sdn:
     - name: mpls_l2vpn
       rule: "Do not program the provider PE/P core. SDN controls only the enterprise OVS/LAN edge; CE/MPLS bridges are unmanaged transport abstractions."
     - name: ipsec_l3_abstraction
-      rule: "The lab models routed intersite reachability through ipsec_l3 but does not claim IKE, ESP, XFRM or cryptographic IPsec evidence."
+      rule: "The lab models routed intersite reachability between the two firewall abstractions through ipsec_l3 but does not claim IKE, ESP, XFRM or cryptographic IPsec evidence."
     - name: firewall_internet_breakout
       rule: "Internet and partner-service enforcement remains on the local nftables firewall abstraction."
   intents:
@@ -25,28 +25,42 @@ sdn:
       type: segmentation
       source_vlan: 101
       deny_destination_vlans: [93, 103, 104]
-      allow_destination_vlans: [100]
+      allowed_services: [dhcp, dns, ad, file, ntp]
       enforcement: acl_or_group_policy
       log: true
     - name: isolate-project-2
       type: segmentation
       source_vlan: 93
       deny_destination_vlans: [101, 103, 104]
-      allow_destination_vlans: [100]
+      allowed_services: [dhcp, dns, ad, file, ntp]
       enforcement: acl_or_group_policy
       log: true
     - name: isolate-project-3
       type: segmentation
       source_vlan: 103
       deny_destination_vlans: [93, 101, 104]
-      allow_destination_vlans: [100]
+      allowed_services: [dhcp, dns, ad, file, ntp]
       enforcement: acl_or_group_policy
       log: true
     - name: isolate-project-4
       type: segmentation
       source_vlan: 104
       deny_destination_vlans: [93, 101, 103]
-      allow_destination_vlans: [100]
+      allowed_services: [dhcp, dns, ad, file, ntp]
+      enforcement: acl_or_group_policy
+      log: true
+    - name: hq-iot-limited
+      type: segmentation
+      source_vlan: 140
+      allowed_services: [dhcp, dns, ntp, monitoring]
+      deny_internal: true
+      enforcement: acl_or_group_policy
+      log: true
+    - name: guest-internet-only
+      type: segmentation
+      source_vlan: 120
+      allowed_services: [dhcp, dns, ntp, general_internet]
+      deny_internal: true
       enforcement: acl_or_group_policy
       log: true
     - name: branch-iot-limited
