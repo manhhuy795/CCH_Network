@@ -35,7 +35,14 @@ branch_policies:
   - name: ACL_VLAN50_IOT_IN
     source_vlan: 50
     allowed_service_objects: [dhcp, dns, ntp, monitoring]
+    allowed_service_hosts:
+      - {name: DHCP, ip: 10.10.100.10, protocol: udp, port: 67}
+      - {name: DNS_UDP, ip: 10.10.100.11, protocol: udp, port: 53}
+      - {name: DNS_TCP, ip: 10.10.100.11, protocol: tcp, port: 53}
+      - {name: NTP, ip: 10.10.100.16, protocol: udp, port: 123}
+      - {name: MONITORING, ip: 10.10.100.14, protocol: ip}
     deny_destination_vlans: [93]
+    deny_internal_prefixes: [10.10.0.0/16, 10.20.0.0/16]
     default_action: deny_internal_log
 
 l2vpn_policy:
