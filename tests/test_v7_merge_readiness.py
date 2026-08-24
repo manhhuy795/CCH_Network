@@ -6,6 +6,7 @@ from scripts.network_model import build_host_inventory, controlled_switches, loa
 from scripts.validate_redesigned_topology import validate
 from scripts.validate_vars import validate_all
 from scripts.verify_network import verify_generated
+from sdn_mpls_demo.firewall_nftables import build_firewall_plans, render_nftables_ruleset
 from sdn_mpls_demo.policy_engine import PolicyEngine
 from sdn_mpls_demo.runtime_contract import source_truth_runtime_links
 
@@ -76,6 +77,31 @@ def test_ipsec_abstraction_terminates_on_firewalls():
     assert "hq_l3_to_ipsec" not in link_names
     assert "ipsec_to_branch_l3" not in link_names
     source_truth_runtime_links(model)
+
+
+def test_firewall_runtime_enforces_declared_tunnel_prefixes():
+    plans = build_firewall_plans()
+    hq = plans["fw_hq"]
+    branch = plans["fw_telesale"]
+
+    assert hq["tunnel_interface"] == "fw_hq-eth2"
+    assert hq["remote_subnets"] == ("10.20.50.0/24",)
+    assert branch["tunnel_interface"] == "fw_tel-eth2"
+    assert "10.10.93.0/24" not in branch["remote_subnets"]
+    assert set(branch["remote_subnets"]) == {
+        "10.10.100.0/24",
+        "10.10.101.0/24",
+        "10.10.103.0/24",
+        "10.10.104.0/24",
+        "10.10.110.0/24",
+        "10.10.120.0/24",
+        "10.10.140.0/24",
+    }
+    for plan in (hq, branch):
+        ruleset = render_nftables_ruleset(plan)
+        assert "allow-ipsec-overlay-out" in ruleset
+        assert "allow-ipsec-overlay-in" in ruleset
+        assert "forward-default-deny" in ruleset
 
 
 def test_provider_circuits_are_site_local():
