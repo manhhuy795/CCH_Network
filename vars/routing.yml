@@ -78,11 +78,11 @@ service_zone:
 routes:
   hq_l3_gateway:
     default_route: {next_hop: 10.10.254.2, description: "HQ local Internet breakout via firewall HA abstraction"}
-    user_routes:
+    intersite_routes:
       - {prefix: 10.20.50.0/24, next_hop: 10.255.20.2, transport: ipsec_l3_logic}
   telesale_l3_gateway:
     default_route: {next_hop: 10.20.254.2, description: "Branch local Internet breakout via firewall HA abstraction"}
-    user_routes:
+    intersite_routes:
       - {prefix: 10.10.100.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
       - {prefix: 10.10.101.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
       - {prefix: 10.10.103.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
@@ -104,6 +104,10 @@ routes:
     hq_next_hop: 10.255.20.1
     branch_routes: [10.20.50.0/24]
     branch_next_hop: 10.255.20.6
+  fw_hq:
+    default_route: {next_hop: 10.255.10.2}
+  fw_telesale:
+    default_route: {next_hop: 10.255.10.6}
 
 l2vpn_services:
   vlan93_project_2:
@@ -116,21 +120,3 @@ l2vpn_services:
     backup_path: [ce_hq2, l2vpn_backup, ce_branch2]
     primary_state: active
     backup_state: standby
-
-core_hq:
-  default_route: {next_hop: 10.10.254.2}
-  intersite_routes: [{prefix: 10.20.50.0/24, next_hop: 10.255.20.2, transport: ipsec_l3_logic}]
-dist_branch:
-  default_route: {next_hop: 10.20.254.2}
-  intersite_routes:
-    - {prefix: 10.10.100.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-    - {prefix: 10.10.101.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-    - {prefix: 10.10.103.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-    - {prefix: 10.10.104.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-    - {prefix: 10.10.110.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-    - {prefix: 10.10.120.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-    - {prefix: 10.10.140.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-fw_hq:
-  default_route: {next_hop: 10.255.10.2}
-fw_telesale:
-  default_route: {next_hop: 10.255.10.6}
