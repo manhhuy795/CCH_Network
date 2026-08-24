@@ -33,24 +33,24 @@ provider_handoff_paths:
       branch: {firewall: fw_telesale, runtime_link: fw_branch_to_internet_zone}
 
 links:
-  hq_l3_to_ipsec:
-    site: wan
-    role: ipsec_tunnel_inside_hq
-    cidr: 10.255.20.0/30
-    endpoint_a: {node: hq_l3_gateway, interface: hq-ipsec, ip: 10.255.20.1}
-    endpoint_b: {node: ipsec_l3, interface: ipsec-hq, ip: 10.255.20.2}
-  ipsec_to_branch_l3:
-    site: wan
-    role: ipsec_tunnel_inside_branch
-    cidr: 10.255.20.4/30
-    endpoint_a: {node: ipsec_l3, interface: ipsec-br, ip: 10.255.20.5}
-    endpoint_b: {node: telesale_l3_gateway, interface: br-ipsec, ip: 10.255.20.6}
   hq_l3_to_fw_hq:
     site: hq
     role: firewall_inside
     cidr: 10.10.254.0/30
     endpoint_a: {node: hq_l3_gateway, interface: hq-fw, ip: 10.10.254.1}
     endpoint_b: {node: fw_hq, interface: inside, ip: 10.10.254.2}
+  fw_hq_to_ipsec:
+    site: wan
+    role: ipsec_tunnel_hq
+    cidr: 10.255.20.0/30
+    endpoint_a: {node: fw_hq, interface: tunnel, ip: 10.255.20.1}
+    endpoint_b: {node: ipsec_l3, interface: ipsec-hq, ip: 10.255.20.2}
+  ipsec_to_fw_branch:
+    site: wan
+    role: ipsec_tunnel_branch
+    cidr: 10.255.20.4/30
+    endpoint_a: {node: ipsec_l3, interface: ipsec-br, ip: 10.255.20.5}
+    endpoint_b: {node: fw_telesale, interface: tunnel, ip: 10.255.20.6}
   branch_l3_to_fw_branch:
     site: branch
     role: firewall_inside
@@ -77,24 +77,57 @@ service_zone:
   gateway_ip: 10.255.30.1
   service_nodes: [h90, hcall, hzalo, hsocial, hinternet]
 
+dhcp_relay:
+  server_ip: 10.10.100.10
+  hq_vlans: [93, 101, 103, 104, 110, 120, 140]
+  branch_vlans: [50]
+  note: "VLAN 93 relay is configured only on the HQ SVI because Branch has no VLAN 93 SVI."
+
 routes:
   hq_l3_gateway:
     default_route: {next_hop: 10.10.254.2, description: "HQ local Internet breakout via firewall HA abstraction"}
     user_routes:
-      - {prefix: 10.20.50.0/24, next_hop: 10.255.20.2, transport: ipsec_l3_logic}
+      - {prefix: 10.20.50.0/24, next_hop: 10.10.254.2, transport: firewall_ipsec_l3_logic}
   telesale_l3_gateway:
     default_route: {next_hop: 10.20.254.2, description: "Branch local Internet breakout via firewall HA abstraction"}
     user_routes:
-      - {prefix: 10.10.100.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-      - {prefix: 10.10.101.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-      - {prefix: 10.10.103.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-      - {prefix: 10.10.104.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-      - {prefix: 10.10.110.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-      - {prefix: 10.10.120.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
-      - {prefix: 10.10.140.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
+      - {prefix: 10.10.100.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.101.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.103.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.104.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.110.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.120.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+      - {prefix: 10.10.140.0/24, next_hop: 10.20.254.2, transport: firewall_ipsec_l3_logic}
+  fw_hq:
+    default_route: {next_hop: 10.255.10.2}
+    inside_routes:
+      - 10.10.93.0/24
+      - 10.10.100.0/24
+      - 10.10.101.0/24
+      - 10.10.103.0/24
+      - 10.10.104.0/24
+      - 10.10.110.0/24
+      - 10.10.120.0/24
+      - 10.10.140.0/24
+    inside_next_hop: 10.10.254.1
+    tunnel_routes: [10.20.50.0/24]
+    tunnel_next_hop: 10.255.20.2
+  fw_telesale:
+    default_route: {next_hop: 10.255.10.6}
+    inside_routes: [10.20.50.0/24]
+    inside_next_hop: 10.20.254.1
+    tunnel_routes:
+      - 10.10.100.0/24
+      - 10.10.101.0/24
+      - 10.10.103.0/24
+      - 10.10.104.0/24
+      - 10.10.110.0/24
+      - 10.10.120.0/24
+      - 10.10.140.0/24
+    tunnel_next_hop: 10.255.20.5
   ipsec_l3:
     cryptographic_ipsec: false
-    runtime_mode: routed_tunnel_abstraction
+    runtime_mode: routed_tunnel_abstraction_between_firewalls
     hq_routes:
       - 10.10.100.0/24
       - 10.10.101.0/24
@@ -106,10 +139,6 @@ routes:
     hq_next_hop: 10.255.20.1
     branch_routes: [10.20.50.0/24]
     branch_next_hop: 10.255.20.6
-  fw_hq:
-    default_route: {next_hop: 10.255.10.2}
-  fw_telesale:
-    default_route: {next_hop: 10.255.10.6}
 
 l2vpn_services:
   vlan93_project_2:
