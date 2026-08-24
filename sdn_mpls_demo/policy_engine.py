@@ -218,8 +218,6 @@ class PolicyEngine:
         if source["kind"] == "service":
             return self._result("deny", "Service external khong duoc chu dong truy cap service khac.", [source_name, self._internet_node()], self._internet_node())
 
-        # Source-zone policy has precedence over broad service allow flags.
-        # This prevents Guest/IoT from inheriting Project/IT Internet permissions.
         if source["kind"] in {"guest", "iot"}:
             return self._enterprise_source_decision(source, destination)
         if source["kind"] == "infrastructure_service":
@@ -310,15 +308,16 @@ class PolicyEngine:
 
     def _infrastructure_service_decision(self, source: dict[str, Any], destination: dict[str, Any]) -> dict[str, Any]:
         source_group = str(source.get("group"))
+        project_services = {"hdhcp", "hdns", "had", "hfile", "hntp"}
         allowed: dict[str, set[str]] = {
             "guest": {"hdhcp", "hdns", "hntp"},
             "iot_hq": {"hdhcp", "hdns", "hntp", "hmonitor"},
             "iot_branch": {"hdhcp", "hdns", "hntp", "hmonitor"},
             "it_support": set(self.infrastructure_services),
-            "project_1": {"hdhcp", "hdns", "hntp"},
-            "project_2": {"hdhcp", "hdns", "hntp"},
-            "project_3": {"hdhcp", "hdns", "hntp"},
-            "project_4": {"hdhcp", "hdns", "hntp"},
+            "project_1": project_services,
+            "project_2": project_services,
+            "project_3": project_services,
+            "project_4": project_services,
         }
         if destination["name"] in allowed.get(source_group, set()):
             return self._result(
