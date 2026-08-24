@@ -14,6 +14,9 @@ vlan {{ vlan.id }}
 interface Vlan{{ vlan.id }}
  description SVI {{ vlan.name }} - {{ vlan.description }}
  ip address {{ vlan.gateway }} {{ vlan.subnet | dotted_netmask }}
+{% if vlan.id in config.dhcp_relay.hq_vlans %}
+ ip helper-address {{ config.dhcp_relay.server_ip }}
+{% endif %}
 {% set acl_name = acl_name_for_vlan(config, vlan.id) %}
 {% if acl_name %}
  ip access-group {{ acl_name }} in
@@ -39,24 +42,44 @@ interface {{ iface.name }}
 {% endfor %}
 ip route 0.0.0.0 0.0.0.0 {{ routes.default_route.next_hop }} name DEFAULT_TO_HQ_FIREWALL
 {% for route in routes.user_routes %}
-ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name IPSEC_INTERSITE
+ip route {{ route.prefix | prefix_to_ios }} {{ route.next_hop }} name FIREWALL_IPSEC_INTERSITE
 {% endfor %}
 !
 {% for policy in config.hq_project_isolation %}
 {% set src = vlans_by_id[policy.source_vlan] %}
 ip access-list extended {{ policy.name }}
- remark Inbound project segmentation for VLAN {{ policy.source_vlan }}
+ remark Least-privilege inbound policy for Project VLAN {{ policy.source_vlan }}
 {% for dst_id in policy.deny_destination_vlans %}
 {% set dst = vlans_by_id[dst_id] %}
  deny ip {{ src.subnet | prefix_to_acl }} {{ dst.subnet | prefix_to_acl }} log
 {% endfor %}
- deny ip {{ src.subnet | prefix_to_acl }} {{ vlans_by_id[10].subnet | prefix_to_acl }} log
 {% for host in policy.allow_service_hosts %}
  permit ip {{ src.subnet | prefix_to_acl }} host {{ host }}
 {% endfor %}
- deny ip {{ src.subnet | prefix_to_acl }} {{ vlans_by_id[100].subnet | prefix_to_acl }} log
+{% for prefix in policy.deny_internal_prefixes %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ prefix | prefix_to_acl }} log
+{% endfor %}
 {% if policy.allow_internet %}
  permit ip {{ src.subnet | prefix_to_acl }} any
+{% else %}
+ deny ip {{ src.subnet | prefix_to_acl }} any log
+{% endif %}
+!
+{% endfor %}
+{% for policy in config.hq_zone_policies %}
+{% set src = vlans_by_id[policy.source_vlan] %}
+ip access-list extended {{ policy.name }}
+ remark Least-privilege inbound policy for enterprise VLAN {{ policy.source_vlan }}
+{% for host in policy.allow_service_hosts %}
+ permit ip {{ src.subnet | prefix_to_acl }} host {{ host }}
+{% endfor %}
+{% for prefix in policy.deny_internal_prefixes %}
+ deny ip {{ src.subnet | prefix_to_acl }} {{ prefix | prefix_to_acl }} log
+{% endfor %}
+{% if policy.allow_internet %}
+ permit ip {{ src.subnet | prefix_to_acl }} any
+{% else %}
+ deny ip {{ src.subnet | prefix_to_acl }} any log
 {% endif %}
 !
 {% endfor %}
