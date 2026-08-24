@@ -28,9 +28,9 @@ EXPECTED_PROJECT_ISOLATION = {
     104: {93, 101, 103},
 }
 EXPECTED_ROUTING_LINKS = {
-    "hq_l3_to_ipsec": {"hq_l3_gateway", "ipsec_l3"},
-    "ipsec_to_branch_l3": {"ipsec_l3", "telesale_l3_gateway"},
     "hq_l3_to_fw_hq": {"hq_l3_gateway", "fw_hq"},
+    "fw_hq_to_ipsec": {"fw_hq", "ipsec_l3"},
+    "ipsec_to_fw_branch": {"ipsec_l3", "fw_telesale"},
     "branch_l3_to_fw_branch": {"telesale_l3_gateway", "fw_telesale"},
     "fw_hq_to_internet_zone": {"fw_hq", "internet_zone"},
     "fw_branch_to_internet_zone": {"fw_telesale", "internet_zone"},
@@ -40,6 +40,8 @@ EXPECTED_AUTOMATION_NODES = {
     "branch": {"access_branch", "dist_branch", "ce_branch1", "ce_branch2", "fw_telesale"},
 }
 RUNTIME_ONLY_ROUTER_NODES = {"hq_l3_gateway", "telesale_l3_gateway"}
+PROJECT_SERVICE_HOSTS = {"10.10.100.10", "10.10.100.11", "10.10.100.12", "10.10.100.13", "10.10.100.16"}
+INTERNAL_PREFIXES = {"10.10.0.0/16", "10.20.0.0/16"}
 
 
 def _network(value: str) -> ipaddress.IPv4Network:
@@ -175,14 +177,26 @@ def _validate_routing(config: dict[str, Any], model: dict[str, Any], errors: lis
     routes = config.get("routes", {})
     if routes.get("ipsec_l3", {}).get("cryptographic_ipsec") is not False:
         errors.append("ipsec_l3 must explicitly declare cryptographic_ipsec=false")
-    hq_routes = routes.get("hq_l3_gateway", {}).get("user_routes", [])
-    branch_routes = routes.get("telesale_l3_gateway", {}).get("user_routes", [])
-    routed_prefixes = {str(item.get("prefix")) for item in [*hq_routes, *branch_routes]}
+    if routes.get("ipsec_l3", {}).get("runtime_mode") != "routed_tunnel_abstraction_between_firewalls":
+        errors.append("ipsec_l3 must terminate logically on the two firewall abstractions")
+    routed_prefixes = {
+        str(item.get("prefix"))
+        for owner in ("hq_l3_gateway", "telesale_l3_gateway")
+        for item in routes.get(owner, {}).get("user_routes", [])
+    }
     if "10.10.93.0/24" in routed_prefixes:
         errors.append("VLAN 93 must not be routed through the IPsec abstraction")
 
+    relay = config.get("dhcp_relay", {})
+    if relay.get("server_ip") != "10.10.100.10":
+        errors.append("DHCP relay must target 10.10.100.10")
+    if set(relay.get("hq_vlans", [])) != {93, 101, 103, 104, 110, 120, 140}:
+        errors.append("HQ DHCP relay VLAN set is incorrect")
+    if set(relay.get("branch_vlans", [])) != {50}:
+        errors.append("Branch DHCP relay must exist only on local VLAN 50")
 
-def _validate_policy_and_edges(config: dict[str, Any], errors: list[str]) -> None:
+
+def _validate_policy_and_edges(config: dict[str, Any], model: dict[str, Any], errors: list[str]) -> None:
     isolation = {
         int(item["source_vlan"]): {int(value) for value in item.get("deny_destination_vlans", [])}
         for item in config.get("hq_project_isolation", [])
@@ -191,6 +205,20 @@ def _validate_policy_and_edges(config: dict[str, Any], errors: list[str]) -> Non
         if isolation.get(vlan) != denied:
             errors.append(f"VLAN {vlan} isolation must deny exactly {sorted(denied)}")
 
+    for policy in config.get("hq_project_isolation", []):
+        if set(policy.get("allow_service_hosts", [])) != PROJECT_SERVICE_HOSTS:
+            errors.append(f"VLAN {policy.get('source_vlan')} project services are not least-privilege aligned")
+        if set(policy.get("deny_internal_prefixes", [])) != INTERNAL_PREFIXES:
+            errors.append(f"VLAN {policy.get('source_vlan')} must deny other internal prefixes after explicit allows")
+
+    zones = {int(item["source_vlan"]): item for item in config.get("hq_zone_policies", [])}
+    if set(zones) != {120, 140}:
+        errors.append("HQ zone policies must cover Guest VLAN 120 and HQ IoT VLAN 140")
+    if zones.get(120, {}).get("allow_internet") is not True:
+        errors.append("Guest VLAN 120 must be Internet-only after bootstrap service allows")
+    if zones.get(140, {}).get("allow_internet") is not False:
+        errors.append("HQ IoT VLAN 140 must not receive broad Internet access")
+
     l2 = config.get("l2vpn_policy", {})
     if int(l2.get("vlan", -1)) != 93 or l2.get("branch_svi_allowed") is not False:
         errors.append("L2VPN policy must make VLAN 93 HQ-gateway-only with no Branch SVI")
@@ -198,33 +226,42 @@ def _validate_policy_and_edges(config: dict[str, Any], errors: list[str]) -> Non
     firewall_sites = config.get("firewall_policy", {}).get("sites", {})
     if set(firewall_sites) != {"hq", "branch"}:
         errors.append("Firewall policy sites must be HQ and Branch")
-    expected_firewalls = {
-        "hq": ("fw_hq", "core_hq"),
-        "branch": ("fw_telesale", "dist_branch"),
-    }
-    for site, (name, inside) in expected_firewalls.items():
-        item = firewall_sites.get(site, {})
-        if item.get("firewall_name") != name or item.get("inside_node") != inside:
-            errors.append(f"Firewall ownership is incorrect for {site}")
+    for site, item in firewall_sites.items():
         if item.get("design_redundancy") != "active_standby":
             errors.append(f"Firewall {site} must be represented as active/standby HA in design")
-        if item.get("outside_circuits") != ["primary", "backup"]:
-            errors.append(f"Firewall {site} must reference both ISP circuits")
+        if not item.get("tunnel_interface") or "tunnel" not in item.get("runtime_interfaces", {}):
+            errors.append(f"Firewall {site} must expose the routed intersite tunnel interface")
+        if not item.get("remote_subnets"):
+            errors.append(f"Firewall {site} must declare remote corporate subnets")
+
+    provider = model.get("edge_design", {}).get("provider_domain", {}).get("circuits", {})
+    expected_provider = {"hq_primary", "hq_backup", "branch_primary", "branch_backup"}
+    if set(provider) != expected_provider:
+        errors.append("Provider design must contain independent Primary/Backup circuits for HQ and Branch")
+    for name, circuit in provider.items():
+        sites = list(circuit.get("sites", []))
+        if len(sites) != 1:
+            errors.append(f"Provider circuit {name} must belong to exactly one physical site")
 
     handoffs = config.get("provider_handoff_paths", {})
     if set(handoffs) != {"primary", "backup"}:
-        errors.append("Provider handoff plan must contain primary and backup ISP paths")
+        errors.append("Provider handoff role plan must contain primary and backup")
     for name, item in handoffs.items():
         if item.get("representation") != "design_only" or item.get("runtime_node") is not None:
             errors.append(f"Provider handoff {name} must remain design-only")
-        if set(item.get("site_firewalls", {})) != {"hq", "branch"}:
-            errors.append(f"Provider handoff {name} must serve HQ and Branch")
+
+    interfaces = config.get("interfaces", {})
+    if any("port-channel" in str(value).lower() for value in interfaces.values()):
+        errors.append("Candidate interface mapping must not invent Port-channel without a confirmed physical design")
 
     sdn = config.get("sdn", {})
     if sdn.get("enabled") is not True:
         errors.append("SDN must be enabled")
     if len(EXPECTED_CONTROLLED_SWITCHES) != 6:
         errors.append("v7 must have exactly six controlled OVS")
+    for intent in sdn.get("intents", []):
+        if intent.get("allow_destination_vlans") == [100]:
+            errors.append(f"SDN intent {intent.get('name')} must not grant broad access to Server VLAN 100")
 
 
 def validate_all(config: dict[str, Any]) -> list[str]:
@@ -233,7 +270,7 @@ def validate_all(config: dict[str, Any]) -> list[str]:
     _validate_vlans(config, errors)
     _validate_sites_and_devices(config, model, errors)
     _validate_routing(config, model, errors)
-    _validate_policy_and_edges(config, errors)
+    _validate_policy_and_edges(config, model, errors)
     return errors
 
 
