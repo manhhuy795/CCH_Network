@@ -20,7 +20,7 @@ def test_v7_collapsed_core_inventory_is_complete_and_valid():
     assert EXPECTED_CE_NODES == {"ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2"}
     assert {name for name, item in model["infrastructure"].items() if item.get("type") == "firewall"} == EXPECTED_FIREWALL_NODES
     assert user_count(model) == 90
-    assert len(build_host_inventory(model)) == 104
+    assert len(build_host_inventory(model)) == 111
 
 
 def test_executable_builder_uses_enterprise_v7_entry_point():
