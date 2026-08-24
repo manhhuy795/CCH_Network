@@ -6,11 +6,11 @@ sites:
     devices:
       - {name: hq-access-a, model_node: access_floor1, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.11, access_vlans: [93, 101, 120, 140]}
       - {name: hq-access-b, model_node: access_floor2, role: access_switch, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.12, access_vlans: [103, 104, 110]}
-      - {name: hq-core-dist, model_node: core_hq, role: collapsed_core_distribution, site: hq, platform: cisco_ios, template: cisco_ios/core_hq.j2, management_ip: 192.0.2.10, svi_vlans: [93, 100, 101, 103, 104, 110, 120, 140], design_members: [core_dist_hq1, core_dist_hq2], fhrp: true}
+      - {name: hq-core-dist, model_node: core_hq, route_node: hq_l3_gateway, role: collapsed_core_distribution, site: hq, platform: cisco_ios, template: cisco_ios/core_hq.j2, management_ip: 192.0.2.10, svi_vlans: [93, 100, 101, 103, 104, 110, 120, 140], design_members: [core_dist_hq1, core_dist_hq2], fhrp: true}
       - {name: hq-infra-access, model_node: infra_access, role: infrastructure_access, site: hq, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.15, access_vlans: [100]}
       - {name: hq-ce1, model_node: ce_hq1, role: ce_l2vpn_edge, site: hq, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.16, customer_vlan: 93, path_role: primary}
       - {name: hq-ce2, model_node: ce_hq2, role: ce_l2vpn_edge, site: hq, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.18, customer_vlan: 93, path_role: backup}
-      - {name: hq-firewall-ha, model_node: fw_hq, role: firewall, site: hq, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.17, design_role: firewall_ha_pair, redundancy: active_standby, design_members: [fw_hq1, fw_hq2], outside_circuits: [primary, backup]}
+      - {name: hq-firewall-ha, model_node: fw_hq, route_node: fw_hq, role: firewall, site: hq, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.17, design_role: firewall_ha_pair, redundancy: active_standby, design_members: [fw_hq1, fw_hq2], outside_circuits: [primary, backup]}
 
   branch:
     name: "Branch"
@@ -18,10 +18,10 @@ sites:
     kind: physical
     devices:
       - {name: br-access, model_node: access_branch, role: access_switch, site: branch, platform: cisco_ios, template: cisco_ios/access_switch.j2, management_ip: 192.0.2.50, access_vlans: [50, 93]}
-      - {name: br-core-dist, model_node: dist_branch, role: collapsed_core_distribution, site: branch, platform: cisco_ios, template: cisco_ios/distribution_branch.j2, management_ip: 192.0.2.51, svi_vlans: [50], no_svi_vlans: [93], design_members: [core_dist_br1, core_dist_br2], fhrp: true}
+      - {name: br-core-dist, model_node: dist_branch, route_node: telesale_l3_gateway, role: collapsed_core_distribution, site: branch, platform: cisco_ios, template: cisco_ios/distribution_branch.j2, management_ip: 192.0.2.51, svi_vlans: [50], no_svi_vlans: [93], design_members: [core_dist_br1, core_dist_br2], fhrp: true}
       - {name: br-ce1, model_node: ce_branch1, role: ce_l2vpn_edge, site: branch, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.52, customer_vlan: 93, path_role: primary}
       - {name: br-ce2, model_node: ce_branch2, role: ce_l2vpn_edge, site: branch, platform: cisco_ios, template: cisco_ios/ce_l2vpn_edge.j2, management_ip: 192.0.2.54, customer_vlan: 93, path_role: backup}
-      - {name: br-firewall-ha, model_node: fw_telesale, role: firewall, site: branch, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.53, design_role: firewall_ha_pair, redundancy: active_standby, design_members: [fw_br1, fw_br2], outside_circuits: [primary, backup]}
+      - {name: br-firewall-ha, model_node: fw_telesale, route_node: fw_telesale, role: firewall, site: branch, platform: vendor_neutral, template: firewall/firewall_policy_vendor_neutral.j2, management_ip: 192.0.2.53, design_role: firewall_ha_pair, redundancy: active_standby, design_members: [fw_br1, fw_br2], outside_circuits: [primary, backup]}
 
   wan:
     name: "WAN Services"
