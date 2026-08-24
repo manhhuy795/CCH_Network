@@ -1,8 +1,8 @@
 metadata:
   name: sdn-edge-policy-callcenter-v7
-  description: "Enterprise v7 policy: Project 2 VLAN 93 L2 stretch, routed IPsec abstraction for other intersite traffic, local firewall breakout."
+  description: "Enterprise v7 policy: Project 2 VLAN 93 L2 stretch, firewall-to-firewall routed IPsec abstraction for other intersite traffic, local firewall breakout."
   default_action: deny
-  enforcement_note: "Project isolation is enforced on controlled OVS. Partner/Internet access is enforced by local nftables firewall abstractions."
+  enforcement_note: "Project isolation is enforced on controlled OVS. Partner/Internet and intersite tunnel access are enforced by local nftables firewall abstractions."
 
 policies:
   isolate_hq_projects: true
@@ -47,7 +47,7 @@ policies:
       access_switch: access_branch
       addressing: reservation
       allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
-      transport_to_hq: ipsec_l3_logic
+      transport_to_hq: firewall_ipsec_l3_logic
       deny_by_default: true
     infrastructure_services:
       vlan: 100
@@ -58,19 +58,6 @@ policies:
     note: "Agent softphone runs in the project VLAN. PBX/Contact Center and CRM are partner services outside the internal server farm."
     voice_quality_note: "UDP iperf is only a lab estimate; it is not a SIP/RTP, SBC or production QoS proof."
 
-dhcp:
-  server: hdhcp
-  relay_gateways: [core_hq, dist_branch]
-  scopes:
-    project_1: {network: 10.10.101.0/24, range: 10.10.101.100-10.10.101.199, gateway: 10.10.101.1, dns: 10.10.100.11}
-    project_2: {network: 10.10.93.0/24, range: 10.10.93.100-10.10.93.199, gateway: 10.10.93.1, dns: 10.10.100.11, gateway_site: hq}
-    project_3: {network: 10.10.103.0/24, range: 10.10.103.100-10.10.103.199, gateway: 10.10.103.1, dns: 10.10.100.11}
-    project_4: {network: 10.10.104.0/24, range: 10.10.104.100-10.10.104.199, gateway: 10.10.104.1, dns: 10.10.100.11}
-    it_support: {network: 10.10.110.0/24, range: 10.10.110.100-10.10.110.199, gateway: 10.10.110.1, dns: 10.10.100.11}
-    iot_hq: {network: 10.10.140.0/24, range: 10.10.140.200-10.10.140.220, gateway: 10.10.140.1, dns: 10.10.100.11}
-    iot_branch: {network: 10.20.50.0/24, range: 10.20.50.200-10.20.50.220, gateway: 10.20.50.1, dns: 10.10.100.11}
-    guest: {network: 10.10.120.0/24, range: 10.10.120.100-10.10.120.199, gateway: 10.10.120.1, dns: 10.10.100.11}
-
 runtime:
   controller: 127.0.0.1:6653
   installed_flows_file: runtime/installed_flows.json
@@ -80,6 +67,6 @@ runtime:
     backup: [ce_hq2, l2vpn_backup, ce_branch2]
     active_path: primary
   ipsec_l3:
-    path: [core_hq, ipsec_l3, dist_branch]
+    path: [fw_hq, ipsec_l3, fw_telesale]
     cryptographic_ipsec: false
-    note: "Routed tunnel abstraction only; no IKE/ESP/XFRM claim."
+    note: "Routed firewall-to-firewall tunnel abstraction only; no IKE/ESP/XFRM claim."
