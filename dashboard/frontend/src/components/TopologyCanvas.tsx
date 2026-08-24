@@ -95,7 +95,7 @@ function displayNodes(topology?: Topology): DisplayNode[] {
     if (String(node.id) !== "project_2") return [{ ...node, id: String(node.id) }];
     const hosts = groups.find((group) => group.id === "project_2")?.hosts || [];
     const hq = hosts.filter((host) => host.site === "hq");
-    const branch = hosts.filter((host) => host.site === "branch" || host.site === "telesale");
+    const branch = hosts.filter((host) => host.site === "branch");
     return [
       { ...node, id: "project_2_hq", label: "Dự án 2 · HQ · VLAN 93", site: "hq", hosts: hq, count: hq.length },
       { ...node, id: "project_2_branch", label: "Dự án 2 · Branch · VLAN 93", site: "branch", hosts: branch, count: branch.length },
@@ -142,7 +142,7 @@ function nodeSubtitle(node: DisplayNode) {
   if (node.id === "dist_branch") return "Collapsed Core/Distribution HA abstraction";
   if (node.id === "l2vpn_primary") return "VLAN 93 · ACTIVE";
   if (node.id === "l2vpn_backup") return "VLAN 93 · STANDBY";
-  if (node.id === "ipsec_l3") return "Routed tunnel abstraction · no IKE/ESP proof";
+  if (node.id === "ipsec_l3") return "Routed tunnel abstraction · firewall to firewall";
   if (node.id === "fw_hq" || node.id === "fw_telesale") return "Firewall HA active-cluster abstraction";
   if (node.id === "project_2_hq") return "10 runtime users · GW 10.10.93.1 at HQ";
   if (node.id === "project_2_branch") return "10 runtime users · no Branch SVI";
@@ -158,8 +158,7 @@ function nodeSubtitle(node: DisplayNode) {
 }
 
 function endpointForNode(node: DisplayNode) {
-  const first = node.hosts?.[0];
-  return first?.name;
+  return node.hosts?.[0]?.name;
 }
 
 export default function TopologyCanvas({
@@ -205,7 +204,7 @@ export default function TopologyCanvas({
           <h2>Sơ đồ logic mạng doanh nghiệp · v7</h2>
           <p>
             HQ + Branch · 2-tier collapsed Core/Distribution · VLAN 93 dùng MPLS L2VPN Primary/Backup ·
-            routed intersite dùng IPsec L3 abstraction.
+            routed intersite đi Firewall ↔ IPsec L3 abstraction ↔ Firewall.
           </p>
         </div>
         <div className="topology-runtime-note">
@@ -287,7 +286,7 @@ export default function TopologyCanvas({
       <div className="topology-v7-legend">
         <span><strong>VLAN 93:</strong> gateway 10.10.93.1 chỉ ở HQ; Branch không có SVI.</span>
         <span><strong>L2VPN:</strong> CE1/Primary active, CE2/Backup standby để tránh loop L2.</span>
-        <span><strong>IPsec:</strong> dashboard chỉ chứng minh routed path, không chứng minh mã hóa IPsec thật.</span>
+        <span><strong>IPsec:</strong> path đi qua hai firewall; dashboard không chứng minh mã hóa IPsec thật.</span>
         <span><strong>Partner:</strong> CRM/PBX nằm ngoài Server Farm nội bộ.</span>
       </div>
 
