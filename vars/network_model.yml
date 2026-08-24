@@ -1,26 +1,18 @@
 metadata:
   name: "CCH Enterprise Logical Topology v7"
-  description: "HQ + 1 Branch, collapsed Core/Distribution, VLAN 93 stretched by MPLS L2VPN, local Internet breakout and logical IPsec L3 intersite transport."
+  description: "HQ + 1 Branch, collapsed Core/Distribution, VLAN 93 stretched by MPLS L2VPN, local Internet breakout and logical IPsec L3 intersite transport between site firewalls."
   architecture: "2-tier Collapsed Core / Distribution"
   openflow_version: "1.3"
   controller: "127.0.0.1:6653"
   design_diagram: "docs/assets/enterprise_logical_topology_v7.svg"
-  runtime_note: "Mininet keeps one logical OVS per HA Core/Distribution pair and one nftables namespace per firewall HA pair. IPsec is a routed tunnel abstraction without IKE/XFRM encryption. MPLS L2VPN primary/backup is Ethernet transport logic, not a provider PE/P control plane."
+  runtime_note: "Mininet keeps one logical OVS per HA Core/Distribution pair and one nftables namespace per firewall HA pair. IPsec is a routed tunnel abstraction between the firewall namespaces without IKE/XFRM encryption. MPLS L2VPN primary/backup is Ethernet transport logic, not a provider PE/P control plane."
   runtime_scale_note: "User counts are intentionally scaled for the lab. The approved drawing shows about 70 Project 2 agents at Branch; runtime uses 10 Branch Project 2 endpoints to keep the VM deterministic."
 
 sites:
-  hq:
-    label: "HQ - Tru so chinh"
-    kind: physical
-  branch:
-    label: "Branch"
-    kind: physical
-  wan:
-    label: "WAN / Provider Services"
-    kind: logical
-  internet:
-    label: "Internet / Partner Services"
-    kind: logical
+  hq: {label: "HQ - Tru so chinh", kind: physical}
+  branch: {label: "Branch", kind: physical}
+  wan: {label: "WAN / Provider Services", kind: logical}
+  internet: {label: "Internet / Partner Services", kind: logical}
 
 host_groups:
   project_1:
@@ -145,56 +137,11 @@ service_addressing:
   route_owner: internet_zone
 
 services:
-  h90:
-    label: "Partner PBX / Contact Center"
-    ip: 10.250.10.10
-    subnet: 10.250.10.10/32
-    interface_ip: 10.255.30.10
-    interface_cidr: 10.255.30.10/24
-    transit_ip: 10.255.30.10
-    gateway: 10.255.30.1
-    site: internet
-    zone: partner
-  hcall:
-    label: "Partner CRM"
-    ip: 10.250.10.20
-    subnet: 10.250.10.20/32
-    interface_ip: 10.255.30.11
-    interface_cidr: 10.255.30.11/24
-    transit_ip: 10.255.30.11
-    gateway: 10.255.30.1
-    site: internet
-    zone: partner
-  hzalo:
-    label: "Internet App Simulator"
-    ip: 10.250.20.10
-    subnet: 10.250.20.10/32
-    interface_ip: 10.255.30.12
-    interface_cidr: 10.255.30.12/24
-    transit_ip: 10.255.30.12
-    gateway: 10.255.30.1
-    site: internet
-    zone: internet
-  hsocial:
-    label: "Social Media Simulator"
-    ip: 10.250.20.20
-    subnet: 10.250.20.20/32
-    interface_ip: 10.255.30.13
-    interface_cidr: 10.255.30.13/24
-    transit_ip: 10.255.30.13
-    gateway: 10.255.30.1
-    site: internet
-    zone: internet
-  hinternet:
-    label: "General Internet Test Service"
-    ip: 10.250.20.30
-    subnet: 10.250.20.30/32
-    interface_ip: 10.255.30.14
-    interface_cidr: 10.255.30.14/24
-    transit_ip: 10.255.30.14
-    gateway: 10.255.30.1
-    site: internet
-    zone: internet
+  h90: {label: "Partner PBX / Contact Center", ip: 10.250.10.10, subnet: 10.250.10.10/32, interface_ip: 10.255.30.10, interface_cidr: 10.255.30.10/24, transit_ip: 10.255.30.10, gateway: 10.255.30.1, site: internet, zone: partner}
+  hcall: {label: "Partner CRM", ip: 10.250.10.20, subnet: 10.250.10.20/32, interface_ip: 10.255.30.11, interface_cidr: 10.255.30.11/24, transit_ip: 10.255.30.11, gateway: 10.255.30.1, site: internet, zone: partner}
+  hzalo: {label: "Internet App Simulator", ip: 10.250.20.10, subnet: 10.250.20.10/32, interface_ip: 10.255.30.12, interface_cidr: 10.255.30.12/24, transit_ip: 10.255.30.12, gateway: 10.255.30.1, site: internet, zone: internet}
+  hsocial: {label: "Social Media Simulator", ip: 10.250.20.20, subnet: 10.250.20.20/32, interface_ip: 10.255.30.13, interface_cidr: 10.255.30.13/24, transit_ip: 10.255.30.13, gateway: 10.255.30.1, site: internet, zone: internet}
+  hinternet: {label: "General Internet Test Service", ip: 10.250.20.30, subnet: 10.250.20.30/32, interface_ip: 10.255.30.14, interface_cidr: 10.255.30.14/24, transit_ip: 10.255.30.14, gateway: 10.255.30.1, site: internet, zone: internet}
 
 infrastructure_services:
   hdhcp: {label: "DHCP Server", ip: 10.10.100.10, subnet: 10.10.100.0/24, gateway: 10.10.100.1, site: hq, vlan: 100, switch: infra_access, role: dhcp}
@@ -221,31 +168,25 @@ infrastructure:
   ce_branch2: {label: "CE-BR2", type: ce_bridge, site: branch, path_role: backup}
   l2vpn_primary: {label: "MPLS L2VPN Primary", type: l2vpn, site: wan, state: active, runtime_name: l2vpn93p}
   l2vpn_backup: {label: "MPLS L2VPN Backup", type: l2vpn, site: wan, state: standby, runtime_name: l2vpn93b}
-  ipsec_l3: {label: "IPsec L3 VPN Logic", type: ipsec, site: wan, runtime_mode: routed_tunnel_abstraction, cryptographic_ipsec: false}
+  ipsec_l3: {label: "IPsec L3 VPN Logic", type: ipsec, site: wan, runtime_mode: routed_tunnel_abstraction_between_firewalls, cryptographic_ipsec: false}
   fw_hq: {label: "Firewall HQ HA - Runtime Active Abstraction", type: firewall, site: hq}
   fw_telesale: {label: "Firewall Branch HA - Runtime Active Abstraction", type: firewall, site: branch}
   internet_zone: {label: "Internet / Partner Service Zone", type: service_edge, site: internet}
 
 collapsed_core_design:
-  hq:
-    runtime_node: core_hq
-    design_members: [core_dist_hq1, core_dist_hq2]
-    gateway_mode: svi_fhrp
-    representation: design_metadata
-  branch:
-    runtime_node: dist_branch
-    design_members: [core_dist_br1, core_dist_br2]
-    gateway_mode: svi_fhrp_except_vlan93
-    representation: design_metadata
+  hq: {runtime_node: core_hq, design_members: [core_dist_hq1, core_dist_hq2], gateway_mode: svi_fhrp, representation: design_metadata}
+  branch: {runtime_node: dist_branch, design_members: [core_dist_br1, core_dist_br2], gateway_mode: svi_fhrp_except_vlan93, representation: design_metadata}
 
 edge_design:
   provider_domain:
     label: "Internet ISP / Carrier"
     handoff_layer: "WAN Handoff Layer"
-    mode: logical_provider_demarcation
+    mode: site_local_logical_provider_demarcation
     circuits:
-      primary: {id: isp_1, label: "ISP 1", state: active, color: blue, sites: [hq, branch], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
-      backup: {id: isp_2, label: "ISP 2", state: standby, color: purple, sites: [hq, branch], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
+      hq_primary: {id: isp_hq_1, label: "HQ ISP 1", state: active, color: blue, sites: [hq], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
+      hq_backup: {id: isp_hq_2, label: "HQ ISP 2", state: standby, color: purple, sites: [hq], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
+      branch_primary: {id: isp_branch_1, label: "Branch ISP 1", state: active, color: blue, sites: [branch], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
+      branch_backup: {id: isp_branch_2, label: "Branch ISP 2", state: standby, color: purple, sites: [branch], representation: design_only, runtime_node: null, runtime_state: design_only, controller_managed: false}
   firewalls:
     hq:
       runtime_node: fw_hq
@@ -253,7 +194,7 @@ edge_design:
       primary_member: fw_hq1
       backup_member: fw_hq2
       inside_node: core_hq
-      outside_circuits: [primary, backup]
+      outside_circuits: [hq_primary, hq_backup]
       representation: design_metadata
       controller_managed: false
       runtime_note: "Mininet uses one nftables namespace as the active HA-cluster abstraction."
@@ -263,7 +204,7 @@ edge_design:
       primary_member: fw_br1
       backup_member: fw_br2
       inside_node: dist_branch
-      outside_circuits: [primary, backup]
+      outside_circuits: [branch_primary, branch_backup]
       representation: design_metadata
       controller_managed: false
       runtime_note: "Mininet uses one nftables namespace as the active HA-cluster abstraction."
@@ -273,9 +214,10 @@ edge_design:
   ipsec:
     runtime_node: ipsec_l3
     design_path: "Firewall HQ -> Internet -> Firewall Branch"
-    runtime_mode: routed_tunnel_abstraction
+    runtime_path: [fw_hq, ipsec_l3, fw_telesale]
+    runtime_mode: routed_tunnel_abstraction_between_firewalls
     cryptographic_ipsec: false
-    note: "Lab validates routed intersite reachability, not IKE/IPsec cryptography."
+    note: "Lab validates routed intersite reachability through both firewall abstractions, not IKE/IPsec cryptography."
 
 server_zone_design:
   runtime_switch: infra_access
@@ -312,10 +254,10 @@ links:
   - [ce_hq2, l2vpn_backup, l2vpn]
   - [l2vpn_backup, ce_branch2, l2vpn]
   - [ce_branch2, dist_branch, l2vpn]
-  - [core_hq, ipsec_l3, routed]
-  - [ipsec_l3, dist_branch, routed]
   - [core_hq, fw_hq, routed]
-  - [dist_branch, fw_telesale, routed]
+  - [fw_hq, ipsec_l3, routed]
+  - [ipsec_l3, fw_telesale, routed]
+  - [fw_telesale, dist_branch, routed]
   - [fw_hq, internet_zone, routed]
   - [fw_telesale, internet_zone, routed]
   - [internet_zone, h90, data]
@@ -364,7 +306,7 @@ l2vpn_services:
 reference_paths:
   project_2_l2vpn_primary: [project_2, access_branch, dist_branch, ce_branch1, l2vpn_primary, ce_hq1, core_hq, access_floor1, project_2]
   project_2_l2vpn_backup: [project_2, access_branch, dist_branch, ce_branch2, l2vpn_backup, ce_hq2, core_hq, access_floor1, project_2]
-  branch_iot_to_hq_services: [iot_branch, access_branch, dist_branch, ipsec_l3, core_hq, infra_access, hmonitor]
+  branch_iot_to_hq_services: [iot_branch, access_branch, dist_branch, fw_telesale, ipsec_l3, fw_hq, core_hq, infra_access, hmonitor]
   project_1_internet: [project_1, access_floor1, core_hq, fw_hq, internet_zone, hinternet]
   project_2_partner_pbx: [project_2, access_floor1, core_hq, fw_hq, internet_zone, h90]
   project_2_partner_crm: [project_2, access_floor1, core_hq, fw_hq, internet_zone, hcall]
