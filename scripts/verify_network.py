@@ -29,6 +29,10 @@ def _read_required(config_dir: Path, name: str, errors: list[str]) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _has_config_line(text: str, expected: str) -> bool:
+    return any(line.strip() == expected for line in text.splitlines())
+
+
 def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
     errors = validate_all(load_vars())
     hq_core = _read_required(config_dir, "hq-core-dist.cfg", errors)
@@ -54,7 +58,7 @@ def verify_generated(config_dir: Path = GENERATED_DIR) -> list[str]:
             errors.append("Project 1 ACL must deny other internal HQ destinations after explicit service allows")
 
     if br_core:
-        if "interface Vlan93" in br_core:
+        if _has_config_line(br_core, "interface Vlan93"):
             errors.append("Branch Core-Dist must not create interface Vlan93")
         for expected in (
             "interface Vlan50",
