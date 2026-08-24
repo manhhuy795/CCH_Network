@@ -7,6 +7,7 @@ from scripts.validate_redesigned_topology import validate
 from scripts.validate_vars import validate_all
 from scripts.verify_network import verify_generated
 from sdn_mpls_demo.policy_engine import PolicyEngine
+from sdn_mpls_demo.runtime_contract import source_truth_runtime_links
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,22 +29,19 @@ def test_v7_source_of_truth_is_internally_consistent():
         "dist_branch",
         "infra_access",
     }
-
-    hosts = build_host_inventory(model)
-    assert sum(host["kind"] == "user" for host in hosts.values()) == 90
+    assert sum(host["kind"] == "user" for host in build_host_inventory(model).values()) == 90
 
 
 def test_vlan93_is_l2_stretched_with_hq_gateway_only():
     model = load_network_model()
     config = load_vars()
     shared = model["host_groups"]["project_2"]
-    placements = shared["placements"]
 
     assert shared["vlan"] == 93
     assert shared["subnet"] == "10.10.93.0/24"
     assert shared["gateway"] == "10.10.93.1"
     assert shared["gateway_site"] == "hq"
-    assert {item["site"] for item in placements} == {"hq", "branch"}
+    assert {item["site"] for item in shared["placements"]} == {"hq", "branch"}
 
     branch = next(
         device
@@ -59,6 +57,35 @@ def test_vlan93_is_l2_stretched_with_hq_gateway_only():
         for route in config["routes"][owner].get("user_routes", [])
     }
     assert "10.10.93.0/24" not in routed
+
+
+def test_ipsec_abstraction_terminates_on_firewalls():
+    model = load_network_model()
+    config = load_vars()
+
+    assert model["edge_design"]["ipsec"]["runtime_path"] == ["fw_hq", "ipsec_l3", "fw_telesale"]
+    declared = {frozenset((left, right)) for left, right, kind in model["links"] if kind == "routed"}
+    assert frozenset(("fw_hq", "ipsec_l3")) in declared
+    assert frozenset(("ipsec_l3", "fw_telesale")) in declared
+    assert frozenset(("core_hq", "ipsec_l3")) not in declared
+    assert frozenset(("dist_branch", "ipsec_l3")) not in declared
+
+    link_names = set(config["links"])
+    assert "fw_hq_to_ipsec" in link_names
+    assert "ipsec_to_fw_branch" in link_names
+    assert "hq_l3_to_ipsec" not in link_names
+    assert "ipsec_to_branch_l3" not in link_names
+    source_truth_runtime_links(model)
+
+
+def test_provider_circuits_are_site_local():
+    circuits = load_network_model()["edge_design"]["provider_domain"]["circuits"]
+    assert set(circuits) == {"hq_primary", "hq_backup", "branch_primary", "branch_backup"}
+    assert circuits["hq_primary"]["sites"] == ["hq"]
+    assert circuits["hq_backup"]["sites"] == ["hq"]
+    assert circuits["branch_primary"]["sites"] == ["branch"]
+    assert circuits["branch_backup"]["sites"] == ["branch"]
+    assert len({item["id"] for item in circuits.values()}) == 4
 
 
 def test_v7_policy_paths_and_least_privilege():
@@ -79,8 +106,17 @@ def test_v7_policy_paths_and_least_privilege():
 
     branch_iot = engine.decide("iot_branch_cam_01", "hmonitor")
     assert branch_iot["action"] == "allow"
-    assert "ipsec_l3" in branch_iot["path"]
-    assert "l2vpn_primary" not in branch_iot["path"]
+    assert branch_iot["path"] == [
+        "iot_branch",
+        "access_branch",
+        "dist_branch",
+        "fw_telesale",
+        "ipsec_l3",
+        "fw_hq",
+        "core_hq",
+        "infra_access",
+        "hmonitor",
+    ]
 
 
 def test_generated_candidate_configs_match_v7_contract(tmp_path: Path):
@@ -92,6 +128,8 @@ def test_generated_candidate_configs_match_v7_contract(tmp_path: Path):
         "hq-ce2.cfg",
         "br-ce1.cfg",
         "br-ce2.cfg",
+        "hq-firewall-ha.policy.txt",
+        "br-firewall-ha.policy.txt",
     }.issubset(rendered)
     assert verify_generated(tmp_path) == []
 
@@ -99,8 +137,19 @@ def test_generated_candidate_configs_match_v7_contract(tmp_path: Path):
     branch_core = (tmp_path / "br-core-dist.cfg").read_text(encoding="utf-8")
     assert "interface Vlan93" in hq_core
     assert "ip address 10.10.93.1 255.255.255.0" in hq_core
+    assert "ip helper-address 10.10.100.10" in hq_core
     assert "interface Vlan93" not in branch_core
-
+    assert "interface Vlan50" in branch_core
+    assert "ip helper-address 10.10.100.10" in branch_core
+    assert "Port-channel" not in hq_core
+    assert "Port-channel" not in branch_core
+    assert "ACL_GUEST_IN" in hq_core
+    assert "ACL_IOT_HQ_IN" in hq_core
     assert "host 10.10.100.12" in hq_core
     assert "host 10.10.100.13" in hq_core
-    assert "deny ip 10.10.101.0 0.0.0.255 10.10.100.0 0.0.0.255 log" in hq_core
+    assert "deny ip 10.10.101.0 0.0.0.255 10.10.0.0 0.0.255.255 log" in hq_core
+
+    for name in ("hq-firewall-ha.policy.txt", "br-firewall-ha.policy.txt"):
+        policy = (tmp_path / name).read_text(encoding="utf-8")
+        assert "tunnel:" in policy
+        assert "allow-corporate-ipsec-overlay" in policy
