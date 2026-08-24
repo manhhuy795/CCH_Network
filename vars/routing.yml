@@ -78,11 +78,11 @@ service_zone:
 routes:
   hq_l3_gateway:
     default_route: {next_hop: 10.10.254.2, description: "HQ local Internet breakout via firewall HA abstraction"}
-    intersite_routes:
+    user_routes:
       - {prefix: 10.20.50.0/24, next_hop: 10.255.20.2, transport: ipsec_l3_logic}
   telesale_l3_gateway:
     default_route: {next_hop: 10.20.254.2, description: "Branch local Internet breakout via firewall HA abstraction"}
-    intersite_routes:
+    user_routes:
       - {prefix: 10.10.100.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
       - {prefix: 10.10.101.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
       - {prefix: 10.10.103.0/24, next_hop: 10.255.20.5, transport: ipsec_l3_logic}
