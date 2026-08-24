@@ -129,15 +129,13 @@ def prefix_to_acl(prefix: str) -> str:
 
 
 def acl_name_for_vlan(config: dict[str, Any], vlan_id: int) -> str | None:
-    for policy in config.get("hq_project_isolation", []):
-        if int(policy["source_vlan"]) == int(vlan_id):
-            return policy["name"]
+    for group in ("hq_project_isolation", "hq_zone_policies", "branch_policies"):
+        for policy in config.get(group, []):
+            if int(policy["source_vlan"]) == int(vlan_id):
+                return policy["name"]
     management = config.get("management_policy", {})
     if int(management.get("source_vlan", -1)) == int(vlan_id):
         return management.get("name")
-    for policy in config.get("branch_policies", []):
-        if int(policy["source_vlan"]) == int(vlan_id):
-            return policy["name"]
     return None
 
 
