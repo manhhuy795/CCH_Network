@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { Decision, Host, Link, Topology } from "../api/client";
 
 
@@ -122,6 +122,14 @@ function linkIsActive(path: string[], source: string, target: string) {
   });
 }
 
+function isBackupLink(link: Link) {
+  return [link.source, link.target].some((id) => id.includes("hq2") || id.includes("branch2") || id.includes("backup"));
+}
+
+function isPrimaryL2Link(link: Link) {
+  return [link.source, link.target].some((id) => id.includes("hq1") || id.includes("branch1") || id.includes("l2vpn_primary"));
+}
+
 function nodeType(node: DisplayNode) {
   const type = String(node.type || "");
   if (type) return type;
@@ -173,11 +181,22 @@ export default function TopologyCanvas({
   const visibleLinks = useMemo(() => displayLinks(links), [links]);
   const path = decision?.path || [];
   const selectedEndpoints = new Set([source, destination]);
-  const l2Controls = visibleLinks.filter((link) =>
-    ["ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2", "l2vpn_primary", "l2vpn_backup"].some(
-      (id) => link.source === id || link.target === id,
-    ),
-  );
+  const l2Controls = visibleLinks.filter(isPrimaryL2Link);
+
+  useEffect(() => {
+    if (!topology?.hosts?.length) return;
+    const names = new Set(topology.hosts.map((host) => host.name));
+    if (!names.has(source)) {
+      const fallback = topology.hosts.find((host) => host.name === "h101_01")?.name
+        || topology.hosts.find((host) => host.kind === "user")?.name;
+      if (fallback) onSource(fallback);
+    }
+    if (!names.has(destination)) {
+      const fallback = topology.hosts.find((host) => host.name === "h90")?.name
+        || topology.hosts.find((host) => host.kind === "service")?.name;
+      if (fallback) onDestination(fallback);
+    }
+  }, [destination, onDestination, onSource, source, topology]);
 
   return (
     <section className="topology-page" data-testid="topology-canvas">
@@ -208,9 +227,10 @@ export default function TopologyCanvas({
             const from = positions[link.source];
             const to = positions[link.target];
             if (!from || !to) return null;
-            const down = failedLinks.includes(link.id) || link.status === "down";
+            const backup = isBackupLink(link);
+            const standby = link.status === "standby" || (backup && link.status === "down" && !failedLinks.includes(link.id));
+            const down = failedLinks.includes(link.id) || (link.status === "down" && !standby);
             const active = linkIsActive(path, link.source, link.target);
-            const backup = [link.source, link.target].some((id) => id.includes("hq2") || id.includes("branch2") || id.includes("backup"));
             return (
               <line
                 key={link.id}
@@ -218,10 +238,10 @@ export default function TopologyCanvas({
                 y1={from[1]}
                 x2={to[0] + 70}
                 y2={to[1]}
-                stroke={down ? "#d92d20" : active ? "#1570ef" : backup ? "#7f56d9" : "#98a2b3"}
+                stroke={down ? "#d92d20" : active ? "#1570ef" : standby ? "#7f56d9" : "#98a2b3"}
                 strokeWidth={active ? 4 : 2}
-                strokeDasharray={backup || down ? "8 6" : undefined}
-                opacity={down ? 0.65 : 1}
+                strokeDasharray={standby || down ? "8 6" : undefined}
+                opacity={down ? 0.65 : standby ? 0.8 : 1}
               />
             );
           })}
@@ -271,7 +291,7 @@ export default function TopologyCanvas({
         <span><strong>Partner:</strong> CRM/PBX nằm ngoài Server Farm nội bộ.</span>
       </div>
 
-      <div className="topology-link-controls" aria-label="L2VPN link controls">
+      <div className="topology-link-controls" aria-label="L2VPN primary path controls">
         {l2Controls.map((link) => {
           const down = failedLinks.includes(link.id) || link.status === "down";
           const busy = linkOperation?.linkId === link.id && linkOperation.status === "running";
@@ -282,7 +302,7 @@ export default function TopologyCanvas({
               disabled={!authenticated || !liveLinkControl || busy}
               onClick={() => (down ? onRecover(link.id) : onFail(link.id))}
             >
-              {down ? "Recover" : "Fail"} · {link.source} ↔ {link.target}
+              {down ? "Recover Primary" : "Fail Primary"} · {link.source} ↔ {link.target}
             </button>
           );
         })}
