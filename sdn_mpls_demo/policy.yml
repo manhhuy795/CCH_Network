@@ -8,7 +8,7 @@ policies:
   isolate_hq_projects: true
   allow_voice: true
   voice_flow_priority: true
-  allow_zalo: true
+  allow_zalo: false
   allow_call_app: true
   allow_general_internet: true
   allow_guest_general_internet: true
@@ -22,7 +22,7 @@ policies:
     source_group: it_support
     allow_icmp_to_managed_users: true
     managed_user_groups: [project_1, project_2, project_3, project_4, iot_hq, iot_branch]
-    allowed_services: [h90, hcall, hzalo, hinternet, hdhcp, hdns, hntp, hmonitor]
+    allowed_services: [h90, hcall, hinternet, hdhcp, hdns, hntp, hmonitor]
     denied_services: [hsocial]
     management_tcp_ports: [22, 443, 3389, 5985, 5986]
   enterprise_zones:

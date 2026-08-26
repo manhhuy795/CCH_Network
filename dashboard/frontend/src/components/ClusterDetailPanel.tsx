@@ -3,16 +3,17 @@ import { useState } from "react";
 import { api, type ClusterDetailResult } from "../api/client";
 
 const clusters = [
-  ["project_a", "Dự án A"],
-  ["project_b", "Dự án B"],
-  ["project_c", "Dự án C"],
-  ["telesale", "Telesale"],
-  ["backoffice", "BackOffice"],
-  ["it_support", "IT Support"],
+  ["project_1", "Dự án 1 (VLAN 101)"],
+  ["project_2", "Dự án 2 (VLAN 93 · HQ)"],
+  ["project_2_branch", "Dự án 2 (VLAN 93 · Chi nhánh)"],
+  ["project_3", "Dự án 3 (VLAN 103)"],
+  ["project_4", "Dự án 4 (VLAN 104)"],
+  ["telesale", "Mạng IoT & Telesale (VLAN 50)"],
+  ["it_support", "Hạ tầng & IT Support (VLAN 110)"],
 ];
 
 export default function ClusterDetailPanel() {
-  const [cluster, setCluster] = useState("project_a");
+  const [cluster, setCluster] = useState("project_1");
   const [seconds, setSeconds] = useState(3);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ClusterDetailResult>();

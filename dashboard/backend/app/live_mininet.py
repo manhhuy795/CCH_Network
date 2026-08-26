@@ -59,30 +59,48 @@ POLICY_PRIORITY_HINTS = {
 }
 
 CLUSTER_SOURCES = {
-    "project_a": ("h20_01", "Dự án A / VLAN 20"),
-    "project_b": ("h30_01", "Dự án B / VLAN 30"),
-    "project_c": ("h40_01", "Dự án C / VLAN 40"),
-    "telesale": ("h50_01", "Telesale / VLAN 50"),
-    "backoffice": ("h60_01", "BackOffice / VLAN 60"),
-    "it_support": ("h70_01", "IT Support / VLAN 70"),
+    "project_1": ("h101_01", "Dự án 1 / VLAN 101"),
+    "project_2": ("h93_01", "Dự án 2 / VLAN 93 (HQ)"),
+    "project_2_branch": ("h93_11", "Dự án 2 / VLAN 93 (Chi nhánh)"),
+    "project_3": ("h103_01", "Dự án 3 / VLAN 103"),
+    "project_4": ("h104_01", "Dự án 4 / VLAN 104"),
+    "telesale": ("h50_01", "Mạng IoT & Telesale / VLAN 50"),
+    "it_support": ("h110_01", "Hạ tầng & IT Support / VLAN 110"),
+    # Compatibility aliases for legacy dashboard queries
+    "project_a": ("h101_01", "Dự án 1 / VLAN 101"),
+    "project_b": ("h93_01", "Dự án 2 / VLAN 93 (HQ)"),
+    "project_c": ("h103_01", "Dự án 3 / VLAN 103"),
+    "backoffice": ("h104_01", "Dự án 4 / VLAN 104"),
 }
 
 CLUSTER_ALLOW_TARGETS = {
-    "project_a": ("h90", "hzalo", "hcall", "hinternet"),
-    "project_b": ("h90", "hzalo", "hcall", "hinternet"),
-    "project_c": ("h90", "hzalo", "hcall", "hinternet"),
-    "telesale": ("h90", "hzalo", "hcall", "hinternet"),
-    "backoffice": ("h90", "hzalo", "hcall", "hinternet"),
-    "it_support": ("h20_01", "h30_01", "h40_01", "h50_01", "h60_01", "h90", "hzalo", "hcall", "hinternet"),
+    "project_1": ("h90", "hcall", "hinternet"),
+    "project_2": ("h90", "hcall", "hinternet"),
+    "project_2_branch": ("h90", "hcall", "hinternet"),
+    "project_3": ("h90", "hcall", "hinternet"),
+    "project_4": ("h90", "hcall", "hinternet"),
+    "telesale": ("h90", "hcall", "hinternet"),
+    "it_support": ("h101_01", "h93_01", "h103_01", "h104_01", "h50_01", "h90", "hcall", "hinternet"),
+    # Compatibility aliases
+    "project_a": ("h90", "hcall", "hinternet"),
+    "project_b": ("h90", "hcall", "hinternet"),
+    "project_c": ("h90", "hcall", "hinternet"),
+    "backoffice": ("h90", "hcall", "hinternet"),
 }
 
 CLUSTER_DENY_TARGETS = {
-    "project_a": ("h30_01", "h40_01", "h50_01", "h60_01", "hsocial"),
-    "project_b": ("h20_01", "h40_01", "h50_01", "h60_01", "hsocial"),
-    "project_c": ("h20_01", "h30_01", "h50_01", "h60_01", "hsocial"),
-    "telesale": ("h20_01", "h30_01", "h40_01", "h60_01", "hsocial"),
-    "backoffice": ("h50_01", "h20_01", "h30_01", "h40_01", "hsocial"),
+    "project_1": ("h103_01", "h104_01", "h50_01", "hsocial"),
+    "project_2": ("h101_01", "h103_01", "h104_01", "hsocial"),
+    "project_2_branch": ("h101_01", "h103_01", "h104_01", "hsocial"),
+    "project_3": ("h101_01", "h104_01", "h50_01", "hsocial"),
+    "project_4": ("h101_01", "h103_01", "h50_01", "hsocial"),
+    "telesale": ("h101_01", "h103_01", "h104_01", "hsocial"),
     "it_support": ("hsocial",),
+    # Compatibility aliases
+    "project_a": ("h103_01", "h104_01", "h50_01", "hsocial"),
+    "project_b": ("h101_01", "h103_01", "h104_01", "hsocial"),
+    "project_c": ("h101_01", "h104_01", "h50_01", "hsocial"),
+    "backoffice": ("h101_01", "h103_01", "h50_01", "hsocial"),
 }
 
 
@@ -1200,8 +1218,6 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
         cases.append(_case_result("Call App/CRM TCP throughput", "application", "allow", iperf(source, "hcall", "tcp", seconds)))
     if "hinternet" in CLUSTER_ALLOW_TARGETS[cluster]:
         cases.append(_case_result("Internet test reachability", "internet", "allow", ping(source, "hinternet", count=3)))
-    if "hzalo" in CLUSTER_ALLOW_TARGETS[cluster]:
-        cases.append(_case_result("Zalo service reachability", "internet", "allow", ping(source, "hzalo", count=3)))
 
     for target in CLUSTER_DENY_TARGETS[cluster]:
         cases.append(_case_result(f"Policy chặn {source} -> {target}", "segmentation", "deny", ping(source, target, count=2)))
