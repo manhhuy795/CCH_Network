@@ -70,6 +70,9 @@ def _connect() -> sqlite3.Connection:
     return connection
 
 
+DEFAULT_ADMIN_PASSWORD = os.environ.get("CCH_DEFAULT_ADMIN_PASSWORD", "CCH@1234")
+
+
 def initialize() -> None:
     with _connect() as connection:
         connection.executescript(
@@ -110,6 +113,14 @@ def initialize() -> None:
             CREATE INDEX IF NOT EXISTS audit_events_time_idx ON audit_events(timestamp);
             """
         )
+        admin_row = connection.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
+        if not admin_row:
+            now = utc_text()
+            user_id = uuid.uuid4().hex
+            connection.execute(
+                "INSERT INTO users (id, username, role, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, "admin", "admin", _hash_password(DEFAULT_ADMIN_PASSWORD), now, now),
+            )
 
 
 def validate_username(username: str) -> str:
@@ -126,8 +137,8 @@ def validate_role(role: str) -> str:
 
 
 def validate_password(password: str) -> None:
-    if len(password) < 12:
-        raise ValueError("Mat khau phai co it nhat 12 ky tu.")
+    if len(password) < 8:
+        raise ValueError("Mat khau phai co it nhat 8 ky tu.")
     if len(password) > 256:
         raise ValueError("Mat khau qua dai.")
 

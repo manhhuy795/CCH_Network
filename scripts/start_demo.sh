@@ -91,10 +91,12 @@ prepare_backend_privileges() {
   fi
 
   echo "Backend can quyen root de truy cap namespace Mininet."
-  echo "Kiem tra quyen sudo khong tuong tac truoc khi khoi dong backend..."
-  if ! sudo -n -E true; then
-    echo "FAIL Khong xac thuc duoc sudo; backend chua duoc khoi dong."
-    return 1
+  if ! sudo -n -E true 2>/dev/null; then
+    echo "Nhap mat khau sudo de cap quyen cho backend..."
+    if ! sudo -v; then
+      echo "FAIL Khong xac thuc duoc sudo; backend chua duoc khoi dong."
+      return 1
+    fi
   fi
   BACKEND_PRIVILEGE_PREFIX=(sudo -n -E)
 }

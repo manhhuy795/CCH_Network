@@ -33,7 +33,7 @@ export default function LoginPanel(props: Props) {
             {props.busy ? "Đang xác thực..." : "Đăng nhập"}
           </button>
         </form>
-        <p className="auth-note">Username mặc định là admin. Mật khẩu được tạo cục bộ bằng bootstrap và không được đóng gói trong frontend.</p>
+        <p className="auth-note">Tài khoản mặc định: <strong>admin</strong> / <strong>CCH@1234</strong></p>
       </div>
     </section>
   );

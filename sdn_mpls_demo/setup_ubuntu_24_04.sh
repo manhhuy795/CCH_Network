@@ -19,7 +19,7 @@ echo "[1/4] Cài Mininet, Open vSwitch, Python 3.12, Node.js và công cụ đo 
 sudo apt update
 sudo apt install -y \
   git mininet openvswitch-switch iperf3 nftables tcpdump \
-  python3 python3-venv python3-pip python3-dev python3-yaml \
+  python3 python3-venv python3-pip python3-dev python3-yaml python3-jinja2 \
   build-essential curl jq iproute2 procps util-linux \
   nodejs
 

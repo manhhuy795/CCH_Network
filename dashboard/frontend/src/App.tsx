@@ -48,7 +48,7 @@ export default function App() {
   const [websocketState, setWebsocketState] = useState<RealtimeConnectionState>("idle");
   const [user, setUser] = useState<AuthUser>();
   const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("CCH@1234");
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(true);
   const [authStatus, setAuthStatus] = useState<AuthStatus>();

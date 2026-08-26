@@ -98,7 +98,9 @@ echo "Don Mininet/OVS cu..."
 sudo mn -c >/dev/null 2>&1 || true
 cleanup_v7_network
 
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 echo "Khoi dong CCH Enterprise v7: 90 runtime users, VLAN 93 L2VPN Primary/Backup, IPsec L3 abstraction..."
 MININET_ATTEMPTED=1
-sudo env LANG="$LANG" LC_ALL="$LC_ALL" PYTHONUTF8="$PYTHONUTF8" \
+sudo env LANG="$LANG" LC_ALL="$LC_ALL" PYTHONUTF8="$PYTHONUTF8" PYTHONPATH="$ROOT_DIR" \
   python3 "$SCRIPT_DIR/topology_enterprise_v7.py"

@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1050" viewBox="0 0 1900 1050">
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #101828; }
+      .subtitle { font-size: 15px; font-weight: 500; fill: #475467; }
+      .site-title { font-size: 21px; font-weight: 700; fill: #173b67; }
+      .label { font-size: 13px; font-weight: 700; fill: #101828; }
+      .small { font-size: 11px; font-weight: 500; fill: #344054; }
+      .tiny { font-size: 10px; font-weight: 500; fill: #475467; }
+      .site { fill: #ffffff; stroke: #175cd3; stroke-width: 2; }
+      .group { fill: #ffffff; stroke: #98a2b3; stroke-width: 1.4; }
+      .fw-group { fill: #ffffff; stroke: #b42318; stroke-width: 1.8; }
+      .core-group { fill: #ffffff; stroke: #175cd3; stroke-width: 1.8; }
+      .ce-group { fill: #ffffff; stroke: #175cd3; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .device { fill: #ffffff; stroke: #175cd3; stroke-width: 2; }
+      .firewall { fill: #ffffff; stroke: #b42318; stroke-width: 2; }
+      .access { fill: #ffffff; stroke: #667085; stroke-width: 1.5; }
+      .shared { fill: #ffffff; stroke: #039855; stroke-width: 1.8; }
+      .partner { fill: #ffffff; stroke: #6941c6; stroke-width: 1.8; }
+      .wan-primary { fill: #ffffff; stroke: #d92d20; stroke-width: 2; }
+      .wan-backup { fill: #ffffff; stroke: #d92d20; stroke-width: 2; stroke-dasharray: 9 6; }
+      .normal-link { stroke: #344054; stroke-width: 2; fill: none; }
+      .lan-link { stroke: #175cd3; stroke-width: 2; fill: none; }
+      .ha-link { stroke: #b42318; stroke-width: 1.8; stroke-dasharray: 7 5; fill: none; }
+      .inter-switch { stroke: #344054; stroke-width: 2.2; fill: none; }
+      .l2-handoff { stroke: #175cd3; stroke-width: 2.4; fill: none; }
+      .ipsec-link { stroke: #027a48; stroke-width: 2.5; stroke-dasharray: 10 7; fill: none; }
+      .mpls-primary { stroke: #d92d20; stroke-width: 2.6; fill: none; }
+      .mpls-backup { stroke: #d92d20; stroke-width: 2.6; stroke-dasharray: 10 7; fill: none; }
+      .note-green { fill: #ffffff; stroke: #039855; stroke-width: 1.3; }
+      .note-blue { fill: #ffffff; stroke: #175cd3; stroke-width: 1.2; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1900" height="1050" fill="#ffffff"/>
+  <text x="950" y="38" text-anchor="middle" class="title">SƠ ĐỒ LOGIC MẠNG DOANH NGHIỆP</text>
+  <text x="950" y="63" text-anchor="middle" class="subtitle">Trụ sở chính + Chi nhánh | Mô hình 2 tầng Collapsed Core / Distribution</text>
+  <rect x="30" y="90" width="780" height="880" rx="10" class="site"/>
+  <text x="55" y="122" class="site-title">TRỤ SỞ CHÍNH (HQ)</text>
+  <rect x="55" y="170" width="165" height="112" rx="8" class="partner"/>
+  <text x="138" y="195" text-anchor="middle" class="label">HỆ THỐNG ĐỐI TÁC</text>
+  <text x="138" y="225" text-anchor="middle" class="small">CRM</text>
+  <text x="138" y="250" text-anchor="middle" class="small">PBX / Contact Center</text>
+  <text x="470" y="103" text-anchor="middle" class="small">INTERNET</text>
+  <rect x="350" y="118" width="105" height="42" rx="20" class="device"/>
+  <rect x="500" y="118" width="105" height="42" rx="20" class="device"/>
+  <text x="403" y="145" text-anchor="middle" class="label">ISP 1</text>
+  <text x="553" y="145" text-anchor="middle" class="label">ISP 2</text>
+  <rect x="325" y="180" width="300" height="115" rx="8" class="fw-group"/>
+  <text x="475" y="199" text-anchor="middle" class="tiny">CỤM FIREWALL HA</text>
+  <rect x="350" y="218" width="95" height="55" rx="6" class="firewall"/>
+  <rect x="500" y="218" width="95" height="55" rx="6" class="firewall"/>
+  <text x="398" y="242" text-anchor="middle" class="label">FW-HQ1</text>
+  <text x="398" y="260" text-anchor="middle" class="tiny">ACTIVE</text>
+  <text x="548" y="242" text-anchor="middle" class="label">FW-HQ2</text>
+  <text x="548" y="260" text-anchor="middle" class="tiny">STANDBY</text>
+  <line x1="403" y1="160" x2="403" y2="180" class="normal-link"/>
+  <line x1="553" y1="160" x2="553" y2="180" class="normal-link"/>
+  <line x1="445" y1="245" x2="500" y2="245" class="ha-link"/>
+  <text x="472" y="235" text-anchor="middle" class="tiny">HA / Sync</text>
+  <line x1="220" y1="226" x2="325" y2="226" class="normal-link"/>
+  <text x="272" y="216" text-anchor="middle" class="tiny">Đường truyền riêng</text>
+  <rect x="260" y="345" width="390" height="245" rx="8" class="core-group"/>
+  <text x="455" y="368" text-anchor="middle" class="label">CẶP CORE / DISTRIBUTION</text>
+  <rect x="315" y="390" width="155" height="60" rx="6" class="device"/>
+  <rect x="315" y="480" width="155" height="60" rx="6" class="device"/>
+  <text x="393" y="426" text-anchor="middle" class="label">CORE-DIST-HQ1</text>
+  <text x="393" y="516" text-anchor="middle" class="label">CORE-DIST-HQ2</text>
+  <line x1="393" y1="450" x2="393" y2="480" class="inter-switch"/>
+  <text x="300" y="468" text-anchor="end" class="tiny">INTER-SWITCH LINK</text>
+  <rect x="485" y="492" width="145" height="58" rx="6" class="note-green"/>
+  <text x="558" y="511" text-anchor="middle" class="tiny">SVI / FHRP Gateway</text>
+  <text x="558" y="528" text-anchor="middle" class="tiny">VLAN 93: 10.10.93.1</text>
+  <text x="558" y="544" text-anchor="middle" class="tiny">Gateway đặt tại HQ</text>
+  <line x1="475" y1="295" x2="475" y2="345" class="lan-link"/>
+  <rect x="690" y="370" width="100" height="180" rx="8" class="ce-group"/>
+  <text x="740" y="388" text-anchor="middle" class="tiny">CẶP CE</text>
+  <text x="740" y="401" text-anchor="middle" class="tiny">WAN EDGE</text>
+  <circle cx="740" cy="430" r="28" class="device"/>
+  <circle cx="740" cy="510" r="28" class="device"/>
+  <text x="740" y="434" text-anchor="middle" class="label">CE-HQ1</text>
+  <text x="740" y="514" text-anchor="middle" class="label">CE-HQ2</text>
+  <line x1="650" y1="460" x2="690" y2="460" class="l2-handoff"/>
+  <rect x="640" y="437" width="60" height="18" fill="#ffffff"/>
+  <text x="670" y="450" text-anchor="middle" class="tiny">VLAN 93</text>
+  <text x="670" y="475" text-anchor="middle" class="tiny">L2 Handoff</text>
+  <text x="455" y="620" text-anchor="middle" class="tiny">Các Access Block dual-uplink tới cặp Core-Dist (biểu diễn logic)</text>
+  <rect x="50" y="665" width="105" height="140" rx="7" class="access"/>
+  <rect x="165" y="665" width="105" height="140" rx="7" class="shared"/>
+  <rect x="280" y="665" width="105" height="140" rx="7" class="access"/>
+  <rect x="395" y="665" width="105" height="140" rx="7" class="access"/>
+  <rect x="510" y="665" width="120" height="140" rx="7" class="access"/>
+  <rect x="645" y="665" width="125" height="140" rx="7" class="access"/>
+  <text x="103" y="692" text-anchor="middle" class="label">DỰ ÁN 1</text>
+  <text x="103" y="713" text-anchor="middle" class="small">VLAN 101</text>
+  <text x="218" y="692" text-anchor="middle" class="label">DỰ ÁN 2</text>
+  <text x="218" y="713" text-anchor="middle" class="small">VLAN 93</text>
+  <text x="333" y="692" text-anchor="middle" class="label">DỰ ÁN 3</text>
+  <text x="333" y="713" text-anchor="middle" class="small">VLAN 103</text>
+  <text x="448" y="692" text-anchor="middle" class="label">DỰ ÁN 4</text>
+  <text x="448" y="713" text-anchor="middle" class="small">VLAN 104</text>
+  <text x="570" y="692" text-anchor="middle" class="label">HẠ TẦNG</text>
+  <text x="570" y="713" text-anchor="middle" class="tiny">Văn phòng / Guest / IoT</text>
+  <text x="570" y="731" text-anchor="middle" class="tiny">Camera / Máy in / UPS</text>
+  <text x="708" y="692" text-anchor="middle" class="label">SERVER ACCESS /</text>
+  <text x="708" y="708" text-anchor="middle" class="label">CỤM SERVER</text>
+  <text x="708" y="729" text-anchor="middle" class="tiny">AD / DNS / DHCP</text>
+  <text x="708" y="747" text-anchor="middle" class="tiny">File / NMS / Backup</text>
+  <line x1="285" y1="590" x2="103" y2="665" class="lan-link"/>
+  <line x1="345" y1="590" x2="218" y2="665" class="lan-link"/>
+  <line x1="405" y1="590" x2="333" y2="665" class="lan-link"/>
+  <line x1="465" y1="590" x2="448" y2="665" class="lan-link"/>
+  <line x1="525" y1="590" x2="570" y2="665" class="lan-link"/>
+  <line x1="585" y1="590" x2="708" y2="665" class="lan-link"/>
+  <rect x="175" y="840" width="285" height="85" rx="8" class="shared"/>
+  <text x="318" y="865" text-anchor="middle" class="label">VLAN 93 - DỰ ÁN DÙNG CHUNG</text>
+  <text x="318" y="887" text-anchor="middle" class="small">10.10.93.0/24</text>
+  <text x="318" y="907" text-anchor="middle" class="small">Gateway 10.10.93.1 tại HQ</text>
+  <rect x="1090" y="90" width="780" height="880" rx="10" class="site"/>
+  <text x="1845" y="122" text-anchor="end" class="site-title">CHI NHÁNH</text>
+  <text x="1480" y="103" text-anchor="middle" class="small">INTERNET</text>
+  <rect x="1360" y="118" width="105" height="42" rx="20" class="device"/>
+  <rect x="1510" y="118" width="105" height="42" rx="20" class="device"/>
+  <text x="1413" y="145" text-anchor="middle" class="label">ISP 1</text>
+  <text x="1563" y="145" text-anchor="middle" class="label">ISP 2</text>
+  <rect x="1335" y="180" width="300" height="115" rx="8" class="fw-group"/>
+  <text x="1485" y="199" text-anchor="middle" class="tiny">CỤM FIREWALL HA</text>
+  <rect x="1360" y="218" width="95" height="55" rx="6" class="firewall"/>
+  <rect x="1510" y="218" width="95" height="55" rx="6" class="firewall"/>
+  <text x="1408" y="242" text-anchor="middle" class="label">FW-BR1</text>
+  <text x="1408" y="260" text-anchor="middle" class="tiny">ACTIVE</text>
+  <text x="1558" y="242" text-anchor="middle" class="label">FW-BR2</text>
+  <text x="1558" y="260" text-anchor="middle" class="tiny">STANDBY</text>
+  <line x1="1413" y1="160" x2="1413" y2="180" class="normal-link"/>
+  <line x1="1563" y1="160" x2="1563" y2="180" class="normal-link"/>
+  <line x1="1455" y1="245" x2="1510" y2="245" class="ha-link"/>
+  <text x="1482" y="235" text-anchor="middle" class="tiny">HA / Sync</text>
+  <rect x="1250" y="345" width="390" height="245" rx="8" class="core-group"/>
+  <text x="1445" y="368" text-anchor="middle" class="label">CẶP CORE / DISTRIBUTION</text>
+  <rect x="1440" y="390" width="155" height="60" rx="6" class="device"/>
+  <rect x="1440" y="480" width="155" height="60" rx="6" class="device"/>
+  <text x="1518" y="426" text-anchor="middle" class="label">CORE-DIST-BR1</text>
+  <text x="1518" y="516" text-anchor="middle" class="label">CORE-DIST-BR2</text>
+  <line x1="1518" y1="450" x2="1518" y2="480" class="inter-switch"/>
+  <text x="1608" y="468" class="tiny">INTER-SWITCH LINK</text>
+  <rect x="1270" y="492" width="155" height="58" rx="6" class="note-green"/>
+  <text x="1348" y="511" text-anchor="middle" class="tiny">SVI/FHRP: VLAN nội bộ</text>
+  <text x="1348" y="528" text-anchor="middle" class="tiny">VLAN 93: KHÔNG SVI</text>
+  <text x="1348" y="544" text-anchor="middle" class="tiny">Không Gateway tại Branch</text>
+  <line x1="1485" y1="295" x2="1485" y2="345" class="lan-link"/>
+  <rect x="1110" y="370" width="100" height="180" rx="8" class="ce-group"/>
+  <text x="1160" y="388" text-anchor="middle" class="tiny">CẶP CE</text>
+  <text x="1160" y="401" text-anchor="middle" class="tiny">WAN EDGE</text>
+  <circle cx="1160" cy="430" r="28" class="device"/>
+  <circle cx="1160" cy="510" r="28" class="device"/>
+  <text x="1160" y="434" text-anchor="middle" class="label">CE-BR1</text>
+  <text x="1160" y="514" text-anchor="middle" class="label">CE-BR2</text>
+  <line x1="1210" y1="460" x2="1250" y2="460" class="l2-handoff"/>
+  <rect x="1218" y="437" width="24" height="18" fill="#ffffff"/>
+  <text x="1230" y="450" text-anchor="middle" class="tiny">V93</text>
+  <text x="1230" y="475" text-anchor="middle" class="tiny">L2 Handoff</text>
+  <text x="1445" y="620" text-anchor="middle" class="tiny">Access dual-uplink tới cặp Core-Dist (biểu diễn logic)</text>
+  <rect x="1210" y="665" width="230" height="155" rx="8" class="shared"/>
+  <rect x="1480" y="665" width="230" height="155" rx="8" class="access"/>
+  <text x="1325" y="695" text-anchor="middle" class="label">DỰ ÁN 2</text>
+  <text x="1325" y="717" text-anchor="middle" class="small">VLAN 93</text>
+  <text x="1325" y="793" text-anchor="middle" class="tiny">~70 Agent</text>
+  <text x="1595" y="695" text-anchor="middle" class="label">MẠNG IoT</text>
+  <text x="1595" y="717" text-anchor="middle" class="small">VLAN 50</text>
+  <line x1="1360" y1="590" x2="1325" y2="665" class="lan-link"/>
+  <line x1="1530" y1="590" x2="1595" y2="665" class="lan-link"/>
+  <rect x="855" y="400" width="190" height="60" rx="28" class="wan-primary"/>
+  <text x="950" y="425" text-anchor="middle" class="label">MPLS L2VPN</text>
+  <text x="950" y="446" text-anchor="middle" class="small">ĐƯỜNG CHÍNH</text>
+  <rect x="855" y="480" width="190" height="60" rx="28" class="wan-backup"/>
+  <text x="950" y="505" text-anchor="middle" class="label">MPLS L2VPN</text>
+  <text x="950" y="526" text-anchor="middle" class="small">ĐƯỜNG DỰ PHÒNG</text>
+  <line x1="768" y1="430" x2="855" y2="430" class="mpls-primary"/>
+  <line x1="1045" y1="430" x2="1132" y2="430" class="mpls-primary"/>
+  <line x1="768" y1="510" x2="855" y2="510" class="mpls-backup"/>
+  <line x1="1045" y1="510" x2="1132" y2="510" class="mpls-backup"/>
+  <text x="950" y="565" text-anchor="middle" class="small">Chỉ mở rộng Layer 2 cho VLAN 93</text>
+  <text x="950" y="584" text-anchor="middle" class="tiny">Primary = Active | Backup = Standby | Failover phụ thuộc dịch vụ MPLS L2VPN của nhà cung cấp</text>
+  <line x1="625" y1="226" x2="1335" y2="226" class="ipsec-link"/>
+  <rect x="862" y="207" width="176" height="26" fill="#ffffff"/>
+  <text x="950" y="222" text-anchor="middle" class="small" fill="#027a48">IPsec L3 VPN</text>
+  <text x="950" y="233" text-anchor="middle" class="tiny" fill="#027a48">(qua Internet)</text>
+  <rect x="790" y="845" width="320" height="90" rx="8" class="group"/>
+  <text x="950" y="870" text-anchor="middle" class="label">DỰ PHÒNG WAN</text>
+  <text x="950" y="892" text-anchor="middle" class="small">CE1 + MPLS chính = đường hoạt động ưu tiên</text>
+  <text x="950" y="911" text-anchor="middle" class="small">CE2 + MPLS dự phòng = đường standby</text>
+  <text x="950" y="929" text-anchor="middle" class="tiny">Chi tiết dual-homing / failover phụ thuộc thiết bị và dịch vụ nhà cung cấp</text>
+</svg>
