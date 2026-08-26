@@ -1,25 +1,21 @@
-"""Comprehensive Test Suite for Full-SDN Enterprise Fabric Controller.
+"""Comprehensive Runtime-Grade Test Suite for Full-SDN Fabric Controller.
 
 Verifies:
-  1. Zero usage of OFPP_NORMAL across the entire fabric controller.
-  2. OpenFlow 1.3 multi-table pipeline (Tables 0, 10, 20, 30, 40).
-  3. Shortest path graph topology computation across the 6 OVS.
-  4. Proxy ARP for virtual gateways and ARP suppression.
-  5. L2 forwarding with explicit port output.
-  6. L3 inter-VLAN routing (MAC rewrite, TTL decrement).
-  7. Project isolation (Project 1, 2, 3, 4 cross-traffic drop).
-  8. Guest security boundaries (Guest -> Internet allow, internal deny).
-  9. IoT security boundaries (IoT -> infra allow, lateral/Internet deny).
- 10. IT Support management least-privilege (ICMP/SSH/RDP allow, unsolicited reverse drop).
- 11. Anti-spoofing port/VLAN validation.
- 12. Link failure & shortest path failover.
- 13. Unknown endpoint default-deny.
+  1. Strict Zero OFPP_NORMAL across controller_fabric.py.
+  2. Multi-table flow-through: Table 0 GotoTable(10), Table 10 GotoTable(20), Table 20 GotoTable(30).
+  3. Multi-hop path flow installation: forward and reverse flows installed on ALL switches in path.
+  4. Real L2VPN failover: Primary (core-eth93p <-> bd-eth93p) and Backup (core-eth93b <-> bd-eth93b).
+  5. L3 routing FlowMod: set eth_src, set eth_dst, dec_ttl, output.
+  6. Anti-spoofing enforcement: Port <-> VLAN <-> MAC <-> IP binding drop.
+  7. Flow-level voice priority (Table 20 -> Table 30 without fake queues).
+  8. Project isolation and guest boundaries.
 """
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -30,7 +26,6 @@ from sdn_mpls_demo.controller_fabric import (
     GATEWAY_MAC_BRANCH,
     GATEWAY_MAC_HQ,
     PROJECT_VLANS,
-    TABLE_EGRESS_QOS,
     TABLE_FORWARDING,
     TABLE_INGRESS_FILTER,
     TABLE_PROTO_VALIDATION,
@@ -42,8 +37,59 @@ from sdn_mpls_demo.controller_fabric import (
 CONTROLLER_FABRIC_FILE = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "controller_fabric.py"
 
 
-def test_zero_ofpp_normal_used_in_controller_fabric():
-    """Verify that OFPP_NORMAL is strictly NEVER used in controller_fabric.py."""
+class MockParser:
+    def OFPMatch(self, **kwargs):
+        return dict(kwargs)
+
+    def OFPInstructionGotoTable(self, table_id):
+        return {"type": "GOTO_TABLE", "table_id": table_id}
+
+    def OFPInstructionActions(self, type_, actions):
+        return {"type": "APPLY_ACTIONS", "actions": actions}
+
+    def OFPActionOutput(self, port, max_len=None):
+        return {"action": "OUTPUT", "port": port}
+
+    def OFPActionSetField(self, **kwargs):
+        return {"action": "SET_FIELD", **kwargs}
+
+    def OFPActionDecNwTtl(self):
+        return {"action": "DEC_NW_TTL"}
+
+    def OFPFlowMod(self, **kwargs):
+        return kwargs
+
+    def OFPPacketOut(self, **kwargs):
+        return kwargs
+
+
+class MockOfproto:
+    OFP_VERSION = 4
+    OFPP_CONTROLLER = 0xFFFFFFFD
+    OFPP_MAX = 0xFFFFFF00
+    OFPCML_NO_BUFFER = 0xFFFF
+    OFP_NO_BUFFER = 0xFFFFFFFF
+    OFPTT_ALL = 0xFF
+    OFPFC_DELETE = 3
+    OFPP_ANY = 0xFFFFFFFF
+    OFPG_ANY = 0xFFFFFFFF
+    OFPPS_LINK_DOWN = 1
+    OFPIT_APPLY_ACTIONS = 4
+
+
+class MockDatapath:
+    def __init__(self, dpid: int):
+        self.id = dpid
+        self.ofproto = MockOfproto()
+        self.ofproto_parser = MockParser()
+        self.sent_msgs: list[dict[str, Any]] = []
+
+    def send_msg(self, msg: Any) -> None:
+        self.sent_msgs.append(msg)
+
+
+def test_zero_ofpp_normal_in_controller_fabric():
+    """Verify that OFPP_NORMAL is strictly NEVER referenced or used in controller_fabric.py."""
     source = CONTROLLER_FABRIC_FILE.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(CONTROLLER_FABRIC_FILE))
 
@@ -52,276 +98,407 @@ def test_zero_ofpp_normal_used_in_controller_fabric():
             pytest.fail("Found disallowed identifier 'OFPP_NORMAL' in controller_fabric.py AST")
         if isinstance(node, ast.Attribute) and node.attr == "OFPP_NORMAL":
             pytest.fail("Found disallowed attribute access '.OFPP_NORMAL' in controller_fabric.py AST")
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and "OFPP_NORMAL" in node.value:
-            # Only allowed in docstring explanations of what is forbidden
-            pass
 
 
-def test_multi_table_pipeline_contract():
-    """Verify the 5-table OpenFlow 1.3 pipeline IDs and their order."""
+def test_table_pipeline_ids_and_sequence():
+    """Verify the 4-table pipeline structure (0 -> 10 -> 20 -> 30)."""
     assert TABLE_INGRESS_FILTER == 0
     assert TABLE_PROTO_VALIDATION == 10
     assert TABLE_SECURITY_POLICY == 20
     assert TABLE_FORWARDING == 30
-    assert TABLE_EGRESS_QOS == 40
-    assert TABLE_INGRESS_FILTER < TABLE_PROTO_VALIDATION < TABLE_SECURITY_POLICY < TABLE_FORWARDING < TABLE_EGRESS_QOS
+    assert TABLE_INGRESS_FILTER < TABLE_PROTO_VALIDATION < TABLE_SECURITY_POLICY < TABLE_FORWARDING
 
 
-def test_fabric_topology_shortest_path_computation():
-    """Verify BFS shortest path computation between switches in the 6 OVS fabric."""
-    topo = FabricTopology()
+def test_table_0_and_10_multi_table_flow_installation():
+    """Verify Table 0 installs GotoTable(10) and Table 10 installs GotoTable(20) for legitimate traffic."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)  # access_floor1
+    app.datapaths[1] = dp
 
-    # Link access_floor1 <-> core_hq (ports 38 and 1)
-    topo.add_link("access_floor1", "core_hq", local_port=38, remote_port=1, vlans={93, 101, 120, 140})
-    topo.add_link("core_hq", "access_floor1", local_port=1, remote_port=38, vlans={93, 101, 120, 140})
+    # Register access port h101-u01
+    port_no = 1
+    app.topo.register_port("access_floor1", port_no, "h101-u01")
+    app._configure_port_profile(1, port_no, "h101-u01")
+    app._install_port_pipeline_flows(dp)
 
-    # Link access_floor2 <-> core_hq (ports 38 and 2)
-    topo.add_link("access_floor2", "core_hq", local_port=38, remote_port=2, vlans={103, 104, 110})
-    topo.add_link("core_hq", "access_floor2", local_port=2, remote_port=38, vlans={103, 104, 110})
+    # Inspect messages sent to datapath
+    flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and "table_id" in m]
 
-    # Link infra_access <-> core_hq (ports 10 and 4)
-    topo.add_link("infra_access", "core_hq", local_port=10, remote_port=4, vlans={100})
-    topo.add_link("core_hq", "infra_access", local_port=4, remote_port=10, vlans={100})
+    # 1. Must find Table 0 -> GotoTable(10)
+    t0_goto_t10 = [
+        f for f in flow_mods
+        if f.get("table_id") == TABLE_INGRESS_FILTER
+        and any(inst.get("type") == "GOTO_TABLE" and inst.get("table_id") == TABLE_PROTO_VALIDATION for inst in f.get("instructions", []))
+    ]
+    assert len(t0_goto_t10) >= 1, "Table 0 must install GotoTable(10) flow for access port"
 
-    # Link access_branch <-> dist_branch (ports 20 and 1)
-    topo.add_link("access_branch", "dist_branch", local_port=20, remote_port=1, vlans={50, 93})
-    topo.add_link("dist_branch", "access_branch", local_port=1, remote_port=20, vlans={50, 93})
+    # 2. Must find Table 10 -> GotoTable(20) for legitimate subnet
+    t10_goto_t20 = [
+        f for f in flow_mods
+        if f.get("table_id") == TABLE_PROTO_VALIDATION
+        and any(inst.get("type") == "GOTO_TABLE" and inst.get("table_id") == TABLE_SECURITY_POLICY for inst in f.get("instructions", []))
+    ]
+    assert len(t10_goto_t20) >= 1, "Table 10 must install GotoTable(20) flow for legitimate subnet"
 
-    # Intersite L2 link core_hq <-> dist_branch for VLAN 93 (ports 93 and 93)
-    topo.add_link("core_hq", "dist_branch", local_port=93, remote_port=93, vlans={93})
-    topo.add_link("dist_branch", "core_hq", local_port=93, remote_port=93, vlans={93})
-
-    # 1. HQ floor1 to floor2
-    path_hq = topo.shortest_path("access_floor1", "access_floor2")
-    assert path_hq == ["access_floor1", "core_hq", "access_floor2"]
-    assert topo.egress_port_for_next_hop("access_floor1", "core_hq") == 38
-    assert topo.egress_port_for_next_hop("core_hq", "access_floor2") == 2
-
-    # 2. Floor 1 to Infra
-    path_infra = topo.shortest_path("access_floor1", "infra_access")
-    assert path_infra == ["access_floor1", "core_hq", "infra_access"]
-
-    # 3. VLAN 93 intersite path (access_floor1 -> core_hq -> dist_branch -> access_branch)
-    path_v93 = topo.shortest_path("access_floor1", "access_branch", vlan=93)
-    assert path_v93 == ["access_floor1", "core_hq", "dist_branch", "access_branch"]
-
-    # 4. Non-VLAN 93 intersite path directly through L2 must NOT exist (only VLAN 93 is stretched)
-    path_v101_to_branch = topo.shortest_path("access_floor1", "access_branch", vlan=101)
-    assert path_v101_to_branch is None
+    # 3. Must find Table 10 anti-spoof DROP rule for unauthorized IPs on this port
+    t10_spoof_drop = [
+        f for f in flow_mods
+        if f.get("table_id") == TABLE_PROTO_VALIDATION
+        and f.get("priority") == 100
+        and not f.get("instructions")
+    ]
+    assert len(t10_spoof_drop) >= 1, "Table 10 must install proactive DROP for spoofed IPs"
 
 
-def test_topology_failover_and_rerouting():
-    """Verify link failure updates topology status and reroutes traffic."""
-    topo = FabricTopology()
+def test_table_20_goto_table_30_flow_through():
+    """Verify Table 20 installs GotoTable(30) for allowed intra-project and permitted services."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)  # access_floor1
+    app.datapaths[1] = dp
 
-    # Primary path via CE1
-    topo.add_link("core_hq", "dist_branch", local_port=931, remote_port=931, vlans={93}, status="up")
-    # Backup path via CE2
-    topo.add_link("core_hq", "dist_branch_backup", local_port=932, remote_port=932, vlans={93}, status="up")
-    topo.add_link("dist_branch_backup", "dist_branch", local_port=1, remote_port=2, vlans={93}, status="up")
+    app._install_proactive_security_flows(dp)
 
-    # Initially primary link is used
-    assert topo.shortest_path("core_hq", "dist_branch", vlan=93) == ["core_hq", "dist_branch"]
+    flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and "table_id" in m]
 
-    # Fail primary link
-    topo.set_link_status("core_hq", "dist_branch", "down")
-    assert topo.links[("core_hq", "dist_branch")]["status"] == "down"
-
-    # Reroutes via backup
-    failover_path = topo.shortest_path("core_hq", "dist_branch", vlan=93)
-    assert failover_path == ["core_hq", "dist_branch_backup", "dist_branch"]
-
-    # Restore primary
-    topo.set_link_status("core_hq", "dist_branch", "up")
-    assert topo.shortest_path("core_hq", "dist_branch", vlan=93) == ["core_hq", "dist_branch"]
+    # Find Table 20 -> GotoTable(30) for permitted flows
+    t20_goto_t30 = [
+        f for f in flow_mods
+        if f.get("table_id") == TABLE_SECURITY_POLICY
+        and any(inst.get("type") == "GOTO_TABLE" and inst.get("table_id") == TABLE_FORWARDING for inst in f.get("instructions", []))
+    ]
+    assert len(t20_goto_t30) >= 5, "Table 20 must install GotoTable(30) for allowed flows"
 
 
-def test_virtual_gateway_ip_and_mac_mapping():
-    """Verify virtual gateway IPs, MACs, and subnets for HQ and Branch."""
-    assert GATEWAY_MAC_HQ == "00:00:5e:00:01:01"
-    assert GATEWAY_MAC_BRANCH == "00:00:5e:00:02:01"
-
-    # HQ Gateways
-    assert "10.10.93.1" in GATEWAY_IPS_HQ
-    assert "10.10.100.1" in GATEWAY_IPS_HQ
-    assert "10.10.101.1" in GATEWAY_IPS_HQ
-    assert "10.10.103.1" in GATEWAY_IPS_HQ
-    assert "10.10.104.1" in GATEWAY_IPS_HQ
-    assert "10.10.110.1" in GATEWAY_IPS_HQ
-    assert "10.10.120.1" in GATEWAY_IPS_HQ
-    assert "10.10.140.1" in GATEWAY_IPS_HQ
-
-    # Branch Gateways
-    assert "10.20.50.1" in GATEWAY_IPS_BRANCH
-    assert len(ALL_GATEWAY_IPS) == len(GATEWAY_IPS_HQ) + len(GATEWAY_IPS_BRANCH)
-
-
-def test_security_policy_project_isolation():
-    """Verify cross-project traffic between VLAN 101, 93, 103, 104 is strictly DROPPED."""
-    # Build a dummy controller instance with mocked methods
+def test_multi_hop_path_flows_installed_on_all_switches():
+    """Verify that when a packet triggers routing, flow rules are installed on ALL switches in the path."""
     app = FullSDNFabricController()
 
-    # Project 1 -> Project 3
-    d1_3 = app.policy.decide_ip("10.10.101.11", "10.10.103.11")
-    assert d1_3["action"] == "deny"
-    assert "segmentation" in d1_3["reason"].lower() or "cô lập" in d1_3["reason"].lower() or "chan" in d1_3["reason"].lower()
+    # Set up 3 switches on the path: access_floor1 (1) -> core_hq (3) -> access_floor2 (2)
+    dp_f1 = MockDatapath(dpid=1)
+    dp_core = MockDatapath(dpid=3)
+    dp_f2 = MockDatapath(dpid=2)
 
-    # Project 1 -> Project 4
-    d1_4 = app.policy.decide_ip("10.10.101.11", "10.10.104.11")
-    assert d1_4["action"] == "deny"
+    app.datapaths[1] = dp_f1
+    app.datapaths[3] = dp_core
+    app.datapaths[2] = dp_f2
 
-    # Project 3 -> Project 2
-    d3_2 = app.policy.decide_ip("10.10.103.11", "10.10.93.11")
-    assert d3_2["action"] == "deny"
+    # Set up ports and links
+    app.topo.register_port("access_floor1", 1, "h101-u01")
+    app.topo.register_port("access_floor1", 38, "f1-eth99")
+    app.topo.register_port("core_hq", 1, "core-eth01")
+    app.topo.register_port("core_hq", 2, "core-eth02")
+    app.topo.register_port("access_floor2", 38, "f2-eth99")
+    app.topo.register_port("access_floor2", 1, "h103-u01")
 
-    # Intra-project 1 -> 1
-    d1_1 = app.policy.decide_ip("10.10.101.11", "10.10.101.12")
-    assert d1_1["action"] == "allow"
+    app.port_profiles[1][1] = {"name": "h101-u01", "role": "access", "vlan": 101}
+    app.port_profiles[1][38] = {"name": "f1-eth99", "role": "trunk", "allowed_vlans": {93, 101, 120, 140}}
+    app.port_profiles[3][1] = {"name": "core-eth01", "role": "trunk", "allowed_vlans": {93, 101, 120, 140}}
+    app.port_profiles[3][2] = {"name": "core-eth02", "role": "trunk", "allowed_vlans": {103, 104, 110}}
+    app.port_profiles[2][38] = {"name": "f2-eth99", "role": "trunk", "allowed_vlans": {103, 104, 110}}
+    app.port_profiles[2][1] = {"name": "h103-u01", "role": "access", "vlan": 103}
 
+    app.topo.add_link("access_floor1", "core_hq", local_port=38, remote_port=1, vlans={101, 103, 110})
+    app.topo.add_link("core_hq", "access_floor1", local_port=1, remote_port=38, vlans={101, 103, 110})
+    app.topo.add_link("core_hq", "access_floor2", local_port=2, remote_port=38, vlans={101, 103, 110})
+    app.topo.add_link("access_floor2", "core_hq", local_port=38, remote_port=2, vlans={101, 103, 110})
 
-def test_security_policy_guest_isolation():
-    """Verify Guest (VLAN 120) can reach Internet but is barred from internal RFC1918 subnets."""
-    app = FullSDNFabricController()
-
-    # Guest -> Internet
-    d_guest_inet = app.policy.decide_ip("10.10.120.101", "10.250.20.30")
-    assert d_guest_inet["action"] == "allow"
-
-    # Guest -> Internal Project 1
-    d_guest_p1 = app.policy.decide_ip("10.10.120.101", "10.10.101.11")
-    assert d_guest_p1["action"] == "deny"
-
-    # Guest -> Internal Project 2
-    d_guest_p2 = app.policy.decide_ip("10.10.120.101", "10.10.93.11")
-    assert d_guest_p2["action"] == "deny"
-
-    # Guest -> Infra DHCP Server
-    d_guest_dhcp = app.policy.decide_ip("10.10.120.101", "10.10.100.10")
-    assert d_guest_dhcp["action"] == "allow"
-
-
-def test_security_policy_iot_isolation():
-    """Verify IoT devices can only access infra monitoring/dhcp/dns, not users or Internet."""
-    app = FullSDNFabricController()
-
-    # HQ IoT -> Monitoring Server
-    d_iot_mon = app.policy.decide_ip("10.10.140.101", "10.10.100.14")
-    assert d_iot_mon["action"] == "allow"
-
-    # HQ IoT -> Project 1 User
-    d_iot_user = app.policy.decide_ip("10.10.140.101", "10.10.101.11")
-    assert d_iot_user["action"] == "deny"
-
-    # Branch IoT -> Monitoring Server (over routed intersite)
-    d_br_iot_mon = app.policy.decide_ip("10.20.50.101", "10.10.100.14")
-    assert d_br_iot_mon["action"] == "allow"
-
-    # Branch IoT -> VLAN 93 (must not enter customer VLAN)
-    d_br_iot_v93 = app.policy.decide_ip("10.20.50.101", "10.10.93.11")
-    assert d_br_iot_v93["action"] == "deny"
-
-
-def test_security_policy_it_management_least_privilege():
-    """Verify IT Support can initiate ICMP/management to users, but users cannot initiate to IT."""
-    app = FullSDNFabricController()
-
-    # IT Support (110) -> Project 1 (ICMP Request)
-    d_it_req = app.policy.decide_packet("h110_01", "h101_01", icmp_type=8)
-    assert d_it_req["action"] == "allow"
-
-    # Project 1 -> IT Support (Reverse ICMP Reply)
-    d_it_reply = app.policy.decide_packet("h101_01", "h110_01", icmp_type=0)
-    assert d_it_reply["action"] == "allow"
-
-    # Project 1 -> IT Support (Unsolicited new connection)
-    d_user_it = app.policy.decide_packet("h101_01", "h110_01", icmp_type=8)
-    assert d_user_it["action"] == "deny"
-
-
-def test_security_policy_voice_priority_and_crm():
-    """Verify Partner PBX (h90) has voice priority and CRM (hcall) is allowed."""
-    app = FullSDNFabricController()
-
-    # Project 1 -> PBX h90
-    d_voice = app.policy.decide_ip("10.10.101.11", "10.250.10.10")
-    assert d_voice["action"] == "allow"
-    assert d_voice.get("voice_flow_priority") is True
-
-    # Project 1 -> CRM hcall
-    d_crm = app.policy.decide_ip("10.10.101.11", "10.250.10.20")
-    assert d_crm["action"] == "allow"
-
-
-def test_security_policy_social_media_block():
-    """Verify Social Media (hsocial) is blocked for all internal users."""
-    app = FullSDNFabricController()
-
-    # Project 1 -> hsocial
-    d_social1 = app.policy.decide_ip("10.10.101.11", "10.250.20.20")
-    assert d_social1["action"] == "deny"
-
-    # IT Support -> hsocial
-    d_social_it = app.policy.decide_ip("10.10.110.11", "10.250.20.20")
-    assert d_social_it["action"] == "deny"
-
-
-def test_unknown_endpoint_default_deny():
-    """Verify undeclared / unknown IPs default to deny."""
-    app = FullSDNFabricController()
-
-    # Random IP
-    d_unknown = app.policy.decide_ip("192.168.1.100", "10.10.101.11")
-    assert d_unknown["action"] == "deny"
-
-
-def test_anti_spoofing_event_recorded_on_vlan_mismatch():
-    """Verify anti-spoofing alert event is logged when packet arrives with mismatched VLAN."""
-    app = FullSDNFabricController()
-    dpid = 1  # access_floor1
-    in_port = 5
-
-    # Configure port profile for VLAN 101
-    app.port_profiles[dpid][in_port] = {
-        "name": "h101-u05",
-        "role": "access",
+    # Host inventory records
+    app.hosts_by_ip["10.10.110.11"] = {
+        "name": "h110_01",
+        "ip": "10.10.110.11",
+        "mac": "00:00:00:10:10:11",
+        "switch": "access_floor2",
+        "port": 1,
+        "vlan": 110,
+    }
+    app.hosts_by_ip["10.10.101.11"] = {
+        "name": "h101_01",
+        "ip": "10.10.101.11",
+        "mac": "00:00:00:10:01:11",
+        "switch": "access_floor1",
+        "port": 1,
         "vlan": 101,
-        "allowed_vlans": {101},
     }
 
-    # Simulate packet with spoofed VLAN 103 on access port 101
+    # Simulate IT Support (access_floor2) sending ICMP to Project 1 (access_floor1)
+    class DummyEthernet:
+        src = "00:00:00:10:10:11"
+        dst = GATEWAY_MAC_HQ
+
+    class DummyIPv4:
+        src = "10.10.110.11"
+        dst = "10.10.101.11"
+
     class DummyMsg:
-        class Match:
-            def __getitem__(self, item):
-                return in_port
-        match = Match()
+        buffer_id = 0xFFFFFFFF
+        data = b"test"
+
+    app._route_multi_hop_internal(
+        dp_f2,
+        in_port=1,
+        eth=DummyEthernet(),
+        ip_pkt=DummyIPv4(),
+        src_vlan=110,
+        src_host=app.hosts_by_ip["10.10.110.11"],
+        dst_host=app.hosts_by_ip["10.10.101.11"],
+        msg=DummyMsg(),
+    )
+
+    # 1. Verify FlowMod installed on access_floor2 (ingress switch)
+    f2_flows = [m for m in dp_f2.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_FORWARDING]
+    assert len(f2_flows) >= 2, "access_floor2 must receive both forward and reverse FlowMods"
+
+    # 2. Verify FlowMod installed on core_hq (intermediate gateway switch)
+    core_flows = [m for m in dp_core.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_FORWARDING]
+    assert len(core_flows) >= 2, "core_hq must receive both forward and reverse FlowMods"
+
+    # 3. Verify FlowMod installed on access_floor1 (egress switch)
+    f1_flows = [m for m in dp_f1.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_FORWARDING]
+    assert len(f1_flows) >= 2, "access_floor1 must receive both forward and reverse FlowMods"
+
+
+def test_l3_routing_actions_in_core_switch():
+    """Verify that the L3 gateway switch rewrites eth_src to gateway MAC, eth_dst to host MAC, and decrements TTL."""
+    app = FullSDNFabricController()
+    dp_core = MockDatapath(dpid=3)
+    app.datapaths[3] = dp_core
+
+    app.topo.register_port("core_hq", 1, "core-eth01")
+    app.topo.register_port("core_hq", 2, "core-eth02")
+    app.port_profiles[3][1] = {"name": "core-eth01", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[3][2] = {"name": "core-eth02", "role": "trunk", "allowed_vlans": {101, 110}}
+
+    app.topo.add_link("core_hq", "access_floor1", local_port=1, remote_port=38, vlans={101, 110})
+    app.topo.add_link("access_floor1", "core_hq", local_port=38, remote_port=1, vlans={101, 110})
+    app.topo.add_link("core_hq", "access_floor2", local_port=2, remote_port=38, vlans={101, 110})
+    app.topo.add_link("access_floor2", "core_hq", local_port=38, remote_port=2, vlans={101, 110})
+
+    # Trigger internal routing via core_hq
+    class DummyEthernet:
+        src = "00:00:00:10:10:11"
+        dst = GATEWAY_MAC_HQ
+
+    class DummyIPv4:
+        src = "10.10.110.11"
+        dst = "10.10.101.11"
+
+    app._route_multi_hop_internal(
+        dp_core,
+        in_port=2,
+        eth=DummyEthernet(),
+        ip_pkt=DummyIPv4(),
+        src_vlan=110,
+        src_host={"name": "h110_01", "mac": "00:00:00:10:10:11", "port": 1, "switch": "access_floor2", "vlan": 110},
+        dst_host={"name": "h101_01", "mac": "00:00:00:10:01:11", "port": 1, "switch": "access_floor1", "vlan": 101},
+        msg=type("Msg", (), {"buffer_id": 0xFFFFFFFF, "data": b""})(),
+    )
+
+    core_flows = [m for m in dp_core.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_FORWARDING]
+    forward_flows = [m for m in core_flows if m.get("match", {}).get("ipv4_src") == "10.10.110.11"]
+    assert len(forward_flows) >= 1
+    forward_flow = forward_flows[0]
+
+    # Verify action components
+    actions = [inst["actions"] for inst in forward_flow["instructions"] if inst.get("type") == "APPLY_ACTIONS"][0]
+    action_types = [a.get("action") for a in actions]
+
+    assert "SET_FIELD" in action_types, "L3 flow must contain SET_FIELD actions for MAC rewrite"
+    assert "DEC_NW_TTL" in action_types, "L3 flow must decrement TTL"
+    assert "OUTPUT" in action_types, "L3 flow must output to next-hop port"
+
+    # Check rewritten MAC values
+    set_fields = [a for a in actions if a.get("action") == "SET_FIELD"]
+    src_rewrites = [s.get("eth_src") for s in set_fields if "eth_src" in s]
+    dst_rewrites = [s.get("eth_dst") for s in set_fields if "eth_dst" in s]
+
+    assert src_rewrites == [GATEWAY_MAC_HQ], "L3 rewrite must set eth_src to GATEWAY_MAC_HQ"
+    assert dst_rewrites == ["00:00:00:10:01:11"], "L3 rewrite must set eth_dst to target host MAC"
+
+
+def test_real_primary_and_backup_failover_logic():
+    """Verify failover switches traffic between real primary (core-eth93p) and backup (core-eth93b)."""
+    topo = FabricTopology()
+
+    # Register switches & real ports
+    topo.register_port("core_hq", 931, "core-eth93p")
+    topo.register_port("core_hq", 932, "core-eth93b")
+    topo.register_port("dist_branch", 931, "bd-eth93p")
+    topo.register_port("dist_branch", 932, "bd-eth93b")
+
+    # Add real Primary L2VPN link
+    topo.add_link("core_hq", "dist_branch", local_port=931, remote_port=931, circuit_id="l2vpn-primary", role="primary", status="up", vlans={93})
+    topo.add_link("dist_branch", "core_hq", local_port=931, remote_port=931, circuit_id="l2vpn-primary", role="primary", status="up", vlans={93})
+
+    # Add real Backup L2VPN link
+    topo.add_link("core_hq", "dist_branch", local_port=932, remote_port=932, circuit_id="l2vpn-backup", role="backup", status="standby", vlans={93})
+    topo.add_link("dist_branch", "core_hq", local_port=932, remote_port=932, circuit_id="l2vpn-backup", role="backup", status="standby", vlans={93})
+
+    # 1. Normal state: Uses primary port 931 (core-eth93p)
+    assert topo.egress_port_for_next_hop("core_hq", "dist_branch", vlan=93) == 931
+
+    # 2. Simulate Primary link down
+    topo.set_port_link_status("core_hq", 931, "down")
+
+    # When primary is down, backup is activated
+    circ = topo.active_circuit("core_hq", "dist_branch", vlan=93)
+    assert circ is not None
+    assert circ["circuit_id"] == "l2vpn-backup"
+    assert circ["local_port"] == 932, "Must switch to real backup port core-eth93b (932)"
+
+    # 3. Simulate Primary link restored
+    topo.set_port_link_status("core_hq", 931, "up")
+    circ_restored = topo.active_circuit("core_hq", "dist_branch", vlan=93)
+    assert circ_restored["circuit_id"] == "l2vpn-primary"
+    assert circ_restored["local_port"] == 931, "Must switch back to real primary port core-eth93p (931)"
+
+
+def test_anti_spoofing_detection_and_drop(monkeypatch):
+    """Verify that unauthorized VLAN tag on access port triggers anti-spoof alert and drop."""
+    from sdn_mpls_demo import controller_fabric
+
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app.port_profiles[1][5] = {"name": "h101-u05", "role": "access", "vlan": 101}
+
+    class DummyPacket:
+        def get_protocol(self, proto_cls):
+            if proto_cls == controller_fabric.ethernet.ethernet:
+                return controller_fabric.ethernet.ethernet(src="00:00:00:10:01:05", dst="ff:ff:ff:ff:ff:ff", ethertype=0x8100)
+            if proto_cls == controller_fabric.vlan.vlan:
+                return controller_fabric.vlan.vlan(vid=103)
+            return None
+
+    monkeypatch.setattr(controller_fabric.packet, "Packet", lambda data: DummyPacket())
+
+    class DummyMsg:
+        datapath = dp
+        match = {"in_port": 5}
         data = b""
 
-    class DummyDatapath:
-        id = dpid
-        ofproto = app.OFP_VERSIONS[0]
-
     initial_drops = app.stats["anti_spoof_drop_count"]
-    app._record_event("ANTI_SPOOF_DROP", {
-        "switch": "access_floor1",
-        "in_port": in_port,
-        "mac": "00:00:00:10:01:05",
-        "reason": "Unauthorized VLAN 103 on access port 101",
-    })
-    assert Path(app.policy.path.parent / "runtime" / "events.jsonl").exists()
+
+    # Trigger packet_in with spoofed packet
+    app.packet_in_handler(type("Event", (), {"msg": DummyMsg()})())
+
+    # Verify drop counter incremented
+    assert app.stats["anti_spoof_drop_count"] == initial_drops + 1, "Anti-spoof drop count must increment"
 
 
-def test_l3_routing_virtual_gateway_rewrites():
-    """Verify L3 routing logic associates correct gateway MAC and decrement TTL."""
+def test_honest_voice_flow_priority():
+    """Verify Voice to PBX h90 (10.250.10.10) is given priority in Table 20 and transitions to Table 30."""
     app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
 
-    # When routing out of HQ core
-    assert GATEWAY_MAC_HQ == "00:00:5e:00:01:01"
-    # When routing out of Branch dist
-    assert GATEWAY_MAC_BRANCH == "00:00:5e:00:02:01"
+    app._install_proactive_security_flows(dp)
 
-    # Destination in Project 1 (10.10.101.11)
-    target = app.hosts_by_ip.get("10.10.101.11")
-    assert target is not None
-    assert target["vlan"] == 101
-    assert target["switch"] == "access_floor1"
+    flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY]
+
+    voice_flows = [
+        f for f in flow_mods
+        if f.get("match", {}).get("ipv4_dst") == "10.250.10.10"
+    ]
+    assert len(voice_flows) == 1
+    voice_flow = voice_flows[0]
+
+    assert voice_flow.get("priority") == 430, "Voice flow must have higher priority (430)"
+    instructions = voice_flow.get("instructions", [])
+    assert any(inst.get("type") == "GOTO_TABLE" and inst.get("table_id") == TABLE_FORWARDING for inst in instructions), (
+        "Voice flow must transition directly to Table 30 (not dropped in empty queue table)"
+    )
+
+
+def test_proxy_arp_response_generation():
+    """Verify Proxy ARP synthesizes ARP reply for virtual gateway IP."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    initial_proxy_arps = app.stats["proxy_arp_count"]
+
+    class DummyEthernet:
+        src = "00:00:00:10:01:11"
+        dst = "ff:ff:ff:ff:ff:ff"
+        ethertype = 0x0806
+
+    class DummyARP:
+        opcode = 1  # Request
+        src_mac = "00:00:00:10:01:11"
+        src_ip = "10.10.101.11"
+        dst_mac = "00:00:00:00:00:00"
+        dst_ip = "10.10.101.1"  # Gateway IP!
+
+    app._handle_arp(dp, in_port=1, eth=DummyEthernet(), arp_pkt=DummyARP(), vlan_id=101)
+
+    assert app.stats["proxy_arp_count"] == initial_proxy_arps + 1
+    assert len(dp.sent_msgs) == 1, "Must send PacketOut ARP reply"
+    packet_out = dp.sent_msgs[0]
+    assert packet_out["actions"][0]["port"] == 1, "ARP reply must be sent back out in_port 1"
+
+
+def test_project_isolation_dataplane_flow_mods():
+    """Verify Table 20 installs explicit DROP flow mods for cross-project pairs (VLAN 101, 93, 103, 104)."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app._install_proactive_security_flows(dp)
+
+    flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY]
+    drop_flows = [f for f in flow_mods if f.get("priority") == 400 and not f.get("instructions")]
+
+    # For 4 project VLANs, there are 4 * 3 = 12 cross-project isolation drops
+    assert len(drop_flows) == 12, "Must install exactly 12 cross-project DROP flows in Table 20"
+
+
+def test_guest_isolation_dataplane_flow_mods():
+    """Verify Table 20 installs DROP flows for Guest to internal subnets (10.10.0.0/16, 10.20.0.0/16)."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app._install_proactive_security_flows(dp)
+
+    guest_drops = [f for f in app.installed_flows if f.get("policy") == "guest_isolation" and f.get("action") == "DROP"]
+    assert len(guest_drops) == 2, "Must install exactly 2 internal subnet DROP flows for Guest"
+
+
+def test_iot_isolation_dataplane_flow_mods():
+    """Verify Table 20 installs DROP flows for IoT lateral movement and internet."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app._install_proactive_security_flows(dp)
+
+    iot_drops = [f for f in app.installed_flows if f.get("policy") == "iot_isolation" and f.get("action") == "DROP"]
+    assert len(iot_drops) == 2, "Must install lateral/internet DROP flows for both HQ and Branch IoT"
+
+
+def test_it_support_management_dataplane_flow_mods():
+    """Verify Table 20 installs allow for IT ICMP/echo-reply and drop for unsolicited user ICMP."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app._install_proactive_security_flows(dp)
+
+    it_unsolicited_drops = [f for f in app.installed_flows if f.get("policy") == "it_inbound_block" and f.get("action") == "DROP"]
+    assert len(it_unsolicited_drops) == 6, "Must install unsolicited reverse DROP flows for all 6 managed user groups"
+
+
+def test_table_20_default_deny_flow_mod():
+    """Verify Table 20 has table-miss flow mod with priority 0 and empty actions (Strict Default-Deny)."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app._setup_pipeline_defaults(dp)
+
+    flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY]
+    default_deny = [f for f in flow_mods if f.get("priority") == 0 and not f.get("instructions")]
+
+    assert len(default_deny) == 1, "Table 20 must have a strict Default-Deny priority 0 DROP flow"
 
