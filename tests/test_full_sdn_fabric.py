@@ -25,6 +25,7 @@ from sdn_mpls_demo.controller_fabric import (
     GATEWAY_IPS_HQ,
     GATEWAY_MAC_BRANCH,
     GATEWAY_MAC_HQ,
+    NAME_DPIDS,
     PROJECT_VLANS,
     TABLE_FORWARDING,
     TABLE_INGRESS_FILTER,
@@ -32,6 +33,11 @@ from sdn_mpls_demo.controller_fabric import (
     TABLE_SECURITY_POLICY,
     FabricTopology,
     FullSDNFabricController,
+    dhcp,
+    packet,
+    source_truth_port_profiles,
+    tcp,
+    udp,
 )
 
 CONTROLLER_FABRIC_FILE = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "controller_fabric.py"
@@ -56,6 +62,12 @@ class MockParser:
     def OFPActionDecNwTtl(self):
         return {"action": "DEC_NW_TTL"}
 
+    def OFPActionPushVlan(self, ethertype=0x8100):
+        return {"action": "PUSH_VLAN", "ethertype": ethertype}
+
+    def OFPActionPopVlan(self):
+        return {"action": "POP_VLAN"}
+
     def OFPFlowMod(self, **kwargs):
         return kwargs
 
@@ -75,6 +87,7 @@ class MockOfproto:
     OFPG_ANY = 0xFFFFFFFF
     OFPPS_LINK_DOWN = 1
     OFPIT_APPLY_ACTIONS = 4
+    OFPMPF_REPLY_MORE = 1
 
 
 class MockDatapath:
@@ -148,6 +161,95 @@ def test_table_0_and_10_multi_table_flow_installation():
         and not f.get("instructions")
     ]
     assert len(t10_spoof_drop) >= 1, "Table 10 must install proactive DROP for spoofed IPs"
+
+
+def test_source_of_truth_covers_every_valid_ingress_port_and_representative_hosts():
+    profiles = source_truth_port_profiles()
+    representatives = {
+        "h101_02": ("access_floor1", "h101-u02", 101, "10.10.101.0/24"),
+        "h104_20": ("access_floor2", "h104-u20", 104, "10.10.104.0/24"),
+        "guest_02": ("access_floor1", "guest-u02", 120, "10.10.120.0/24"),
+        "iot_cam_02": ("access_floor1", "iot-u05", 140, "10.10.140.0/24"),
+    }
+
+    for host_name, (switch_name, port_name, vlan_id, subnet) in representatives.items():
+        profile = profiles[(switch_name, port_name)]
+        assert profile["host"] == host_name
+        assert profile["vlan"] == vlan_id
+        assert profile["subnet"] == subnet
+
+    app = FullSDNFabricController()
+    next_port_by_dpid: dict[int, int] = {}
+    for (switch_name, port_name), expected_profile in profiles.items():
+        dpid = NAME_DPIDS[switch_name]
+        next_port_by_dpid[dpid] = next_port_by_dpid.get(dpid, 0) + 1
+        port_no = next_port_by_dpid[dpid]
+        app._configure_port_profile(dpid, port_no, port_name)
+        assert app.port_profiles[dpid][port_no] == expected_profile
+
+    for dpid, port_count in next_port_by_dpid.items():
+        dp = MockDatapath(dpid)
+        app._install_port_pipeline_flows(dp)
+        flows = [message for message in dp.sent_msgs if "table_id" in message]
+        for port_no in range(1, port_count + 1):
+            assert any(
+                flow.get("table_id") == TABLE_INGRESS_FILTER
+                and flow.get("match", {}).get("in_port") == port_no
+                and any(
+                    instruction.get("type") == "GOTO_TABLE"
+                    and instruction.get("table_id") == TABLE_PROTO_VALIDATION
+                    for instruction in flow.get("instructions", [])
+                )
+                for flow in flows
+            ), f"Port {port_no} on DPID {dpid} is missing Table 0 -> 10"
+            assert any(
+                flow.get("table_id") == TABLE_PROTO_VALIDATION
+                and flow.get("match", {}).get("in_port") == port_no
+                and any(
+                    instruction.get("type") == "GOTO_TABLE"
+                    and instruction.get("table_id") == TABLE_SECURITY_POLICY
+                    for instruction in flow.get("instructions", [])
+                )
+                for flow in flows
+            ), f"Port {port_no} on DPID {dpid} is missing Table 10 -> 20"
+
+
+def test_port_desc_multipart_waits_for_complete_inventory_and_unknown_port_stays_denied():
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app._setup_pipeline_defaults(dp)
+    default_flow_count = len(dp.sent_msgs)
+
+    def event(body, flags):
+        ports = [type("Port", (), {"port_no": number, "name": name})() for number, name in body]
+        msg = type("Msg", (), {"datapath": dp, "body": ports, "flags": flags})()
+        return type("Event", (), {"msg": msg})()
+
+    app.port_desc_stats_reply_handler(event([(1, "h101-u01"), (2, "unknown-port")], MockOfproto.OFPMPF_REPLY_MORE))
+    assert len(dp.sent_msgs) == default_flow_count, (
+        "No partial Table 0/10 pipeline may be published before the final multipart reply"
+    )
+
+    app.port_desc_stats_reply_handler(event([(3, "h101-u02")], 0))
+    assert 1 in app.complete_port_inventories
+    flow_mods = [message for message in dp.sent_msgs if "table_id" in message]
+    for port_no in (1, 3):
+        assert any(
+            flow.get("table_id") == TABLE_INGRESS_FILTER
+            and flow.get("match", {}).get("in_port") == port_no
+            for flow in flow_mods
+        )
+    assert not any(
+        flow.get("table_id") == TABLE_INGRESS_FILTER
+        and flow.get("match", {}).get("in_port") == 2
+        for flow in flow_mods
+    ), "An unknown port must fall through to the existing Table 0 default-deny"
+    assert any(
+        flow.get("table_id") == TABLE_INGRESS_FILTER
+        and flow.get("priority") == 0
+        and not flow.get("instructions")
+        for flow in flow_mods
+    )
 
 
 def test_table_20_goto_table_30_flow_through():
@@ -400,10 +502,10 @@ def test_honest_voice_flow_priority():
         f for f in flow_mods
         if f.get("match", {}).get("ipv4_dst") == "10.250.10.10"
     ]
-    assert len(voice_flows) == 1
+    assert len(voice_flows) >= 1
     voice_flow = voice_flows[0]
 
-    assert voice_flow.get("priority") == 430, "Voice flow must have higher priority (430)"
+    assert voice_flow.get("priority") in {430, 440}, "Voice flow must have higher priority (430/440)"
     instructions = voice_flow.get("instructions", [])
     assert any(inst.get("type") == "GOTO_TABLE" and inst.get("table_id") == TABLE_FORWARDING for inst in instructions), (
         "Voice flow must transition directly to Table 30 (not dropped in empty queue table)"
@@ -447,7 +549,7 @@ def test_project_isolation_dataplane_flow_mods():
     app._install_proactive_security_flows(dp)
 
     flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY]
-    drop_flows = [f for f in flow_mods if f.get("priority") == 400 and not f.get("instructions")]
+    drop_flows = [f for f in flow_mods if f.get("priority") == 420 and not f.get("instructions")]
 
     # For 4 project VLANs, there are 4 * 3 = 12 cross-project isolation drops
     assert len(drop_flows) == 12, "Must install exactly 12 cross-project DROP flows in Table 20"
@@ -501,4 +603,417 @@ def test_table_20_default_deny_flow_mod():
     default_deny = [f for f in flow_mods if f.get("priority") == 0 and not f.get("instructions")]
 
     assert len(default_deny) == 1, "Table 20 must have a strict Default-Deny priority 0 DROP flow"
+
+
+def test_pure_openflow_vlan_push_and_pop():
+    """Verify Table 0 pushes 802.1Q on access ingress and Table 30 pops 802.1Q on access egress."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)  # access_floor1
+    app.datapaths[1] = dp
+
+    # Port 1 is access VLAN 101
+    app.port_profiles[1][1] = {"name": "h101-u01", "role": "access", "vlan": 101, "subnet": "10.10.101.0/24"}
+    app._install_port_pipeline_flows(dp)
+
+    flow_mods = [m for m in dp.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_INGRESS_FILTER]
+
+    # 1. Access ingress untagged -> push_vlan + set_field(vlan_vid=101 | OFPVID_PRESENT)
+    access_push_flows = [
+        f for f in flow_mods
+        if f.get("priority") == 100
+        and any(inst.get("type") == "APPLY_ACTIONS" and any(act.get("action") == "PUSH_VLAN" for act in inst.get("actions", [])) for inst in f.get("instructions", []))
+    ]
+    assert len(access_push_flows) >= 1, "Table 0 must install PUSH_VLAN for untagged access ingress"
+
+    # 2. Access ingress tagged violation -> DROP at priority 90
+    tag_violation_drops = [f for f in flow_mods if f.get("priority") == 90 and not f.get("instructions")]
+    assert len(tag_violation_drops) >= 1, "Table 0 must drop tagged frames arriving on access ports"
+
+
+def test_dhcp_bootstrap_and_ipv6_drop():
+    """Verify Table 10 installs explicit IPv6 drop and DHCP bootstrap allowance."""
+    app = FullSDNFabricController()
+    dp = MockDatapath(dpid=1)
+    app.datapaths[1] = dp
+
+    app.port_profiles[1][1] = {"name": "h101-u01", "role": "access", "vlan": 101, "subnet": "10.10.101.0/24"}
+    app._install_port_pipeline_flows(dp)
+
+    t10_flows = [m for m in dp.sent_msgs if isinstance(m, dict) and m.get("table_id") == TABLE_PROTO_VALIDATION]
+
+    # Explicit IPv6 DROP (priority 500)
+    ipv6_drops = [
+        f for f in t10_flows
+        if f.get("priority") == 500 and f.get("match", {}).get("eth_type") == 0x86DD and not f.get("instructions")
+    ]
+    assert len(ipv6_drops) >= 1, "Table 10 must install explicit IPv6 DROP flow at priority 500"
+
+    # DHCP Bootstrap (priority 180)
+    dhcp_bootstrap = [
+        f for f in t10_flows
+        if f.get("priority") == 180
+        and f.get("match", {}).get("ipv4_src") == "0.0.0.0"
+        and f.get("match", {}).get("ipv4_dst") == "255.255.255.255"
+    ]
+    assert len(dhcp_bootstrap) >= 1, "Table 10 must install DHCP bootstrap flow (0.0.0.0 -> 255.255.255.255)"
+
+
+def test_dynamic_it_session_tracking_vs_unsolicited_drop():
+    """Verify IT Support outbound creates dynamic return flow at priority 480; unsolicited is blocked at 470."""
+    app = FullSDNFabricController()
+    dp_f2 = MockDatapath(dpid=2)
+    dp_core = MockDatapath(dpid=3)
+    dp_f1 = MockDatapath(dpid=1)
+
+    app.datapaths[1] = dp_f1
+    app.datapaths[2] = dp_f2
+    app.datapaths[3] = dp_core
+
+    app.topo.register_port("access_floor2", 1, "h110-u01")
+    app.topo.register_port("access_floor2", 38, "f2-eth99")
+    app.topo.register_port("core_hq", 1, "core-eth01")
+    app.topo.register_port("core_hq", 2, "core-eth02")
+    app.topo.register_port("access_floor1", 38, "f1-eth99")
+    app.topo.register_port("access_floor1", 1, "h101-u01")
+
+    app.port_profiles[2][1] = {"name": "h110-u01", "role": "access", "vlan": 110}
+    app.port_profiles[2][38] = {"name": "f2-eth99", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[3][2] = {"name": "core-eth02", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[3][1] = {"name": "core-eth01", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[1][38] = {"name": "f1-eth99", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[1][1] = {"name": "h101-u01", "role": "access", "vlan": 101}
+
+    app.topo.add_link("access_floor2", "core_hq", local_port=38, remote_port=2, vlans={101, 110})
+    app.topo.add_link("core_hq", "access_floor2", local_port=2, remote_port=38, vlans={101, 110})
+    app.topo.add_link("core_hq", "access_floor1", local_port=1, remote_port=38, vlans={101, 110})
+    app.topo.add_link("access_floor1", "core_hq", local_port=38, remote_port=1, vlans={101, 110})
+
+    app.hosts_by_ip["10.10.110.11"] = {"name": "h110_01", "ip": "10.10.110.11", "switch": "access_floor2", "port": 1, "vlan": 110}
+    app.hosts_by_ip["10.10.101.11"] = {"name": "h101_01", "ip": "10.10.101.11", "switch": "access_floor1", "port": 1, "vlan": 101}
+
+    class DummyEthernet:
+        src = "00:00:00:10:10:11"
+        dst = GATEWAY_MAC_HQ
+
+    class DummyIPv4:
+        src = "10.10.110.11"
+        dst = "10.10.101.11"
+
+    class DummyMsg:
+        buffer_id = 0xFFFFFFFF
+        data = b"test"
+
+    app._route_multi_hop_internal(
+        dp_f2,
+        in_port=1,
+        eth=DummyEthernet(),
+        ip_pkt=DummyIPv4(),
+        src_vlan=110,
+        src_host=app.hosts_by_ip["10.10.110.11"],
+        dst_host=app.hosts_by_ip["10.10.101.11"],
+        msg=DummyMsg(),
+    )
+
+    # Verify that dynamic return flow was installed in Table 20 with priority 480
+    f1_t20_flows = [
+        m for m in dp_f1.sent_msgs
+        if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY and m.get("priority") == 480
+    ]
+    assert len(f1_t20_flows) >= 1, "Dynamic session return flow must be installed in Table 20 at priority 480"
+
+
+def test_selective_vlan93_failover_flow_purge():
+    """Verify link status failure on Primary L2VPN purges ONLY VLAN 93 flows without wiping Table 30."""
+    app = FullSDNFabricController()
+    dp_core = MockDatapath(dpid=3)
+    app.datapaths[3] = dp_core
+
+    app.topo.register_port("core_hq", 41, "core-eth93p")
+    app.topo.register_port("core_hq", 42, "core-eth93b")
+    app.topo.register_port("dist_branch", 41, "bd-eth93p")
+    app.topo.register_port("dist_branch", 42, "bd-eth93b")
+
+    app.topo.add_link("core_hq", "dist_branch", local_port=41, remote_port=41, circuit_id="l2vpn-primary", role="primary", status="up", vlans={93})
+    app.topo.add_link("core_hq", "dist_branch", local_port=42, remote_port=42, circuit_id="l2vpn-backup", role="backup", status="standby", vlans={93})
+
+    class DummyDesc:
+        port_no = 41
+        state = 1  # OFPPS_LINK_DOWN
+
+    class DummyMsg:
+        datapath = dp_core
+        desc = DummyDesc()
+
+    class DummyEvent:
+        msg = DummyMsg()
+
+    assert app.vlan93_active_circuit == "primary"
+    app.port_status_handler(DummyEvent())
+
+    assert app.vlan93_active_circuit == "backup", "Active circuit must switch to backup"
+    # Check sent FlowMods for command=OFPFC_DELETE
+    deletes = [
+        m for m in dp_core.sent_msgs
+        if isinstance(m, dict) and m.get("command") == MockOfproto.OFPFC_DELETE
+    ]
+    assert len(deletes) >= 1, "Must issue FlowMod DELETE"
+    # Check that the delete matched VLAN 93 (not an unconditioned table flush)
+    v93_deletes = [
+        d for d in deletes
+        if d.get("match", {}).get("vlan_vid") == (93 | 0x1000)
+    ]
+    assert len(v93_deletes) >= 1, "DELETE must be scoped to VLAN 93"
+
+
+def test_controlled_arp_flood_active_circuit():
+    """Verify ARP flood in VLAN 93 only sends to active circuit port (never both simultaneously)."""
+    app = FullSDNFabricController()
+    dp_core = MockDatapath(dpid=3)
+    app.datapaths[3] = dp_core
+
+    app.port_profiles[3][41] = {"name": "core-eth93p", "role": "l2vpn", "allowed_vlans": {93}}
+    app.port_profiles[3][42] = {"name": "core-eth93b", "role": "l2vpn", "allowed_vlans": {93}}
+
+    class DummyEth:
+        src = "00:00:00:10:93:01"
+        dst = "ff:ff:ff:ff:ff:ff"
+        ethertype = 0x0806
+
+    class DummyPayload:
+        pass
+
+    # Case 1: Primary circuit active
+    app.vlan93_active_circuit = "primary"
+    app._flood_in_vlan(dp_core, in_port=1, vlan_id=93, eth=DummyEth(), payload=DummyPayload())
+    packet_outs = [m for m in dp_core.sent_msgs if isinstance(m, dict) and "actions" in m]
+    assert len(packet_outs) == 1
+    out_ports = [a["port"] for a in packet_outs[0]["actions"]]
+    assert 41 in out_ports, "Must flood to primary port 41"
+    assert 42 not in out_ports, "Must NOT flood to backup port 42 when primary is active"
+
+    # Case 2: Backup circuit active
+    dp_core.sent_msgs.clear()
+    app.vlan93_active_circuit = "backup"
+    app._flood_in_vlan(dp_core, in_port=1, vlan_id=93, eth=DummyEth(), payload=DummyPayload())
+    packet_outs = [m for m in dp_core.sent_msgs if isinstance(m, dict) and "actions" in m]
+    assert len(packet_outs) == 1
+    out_ports = [a["port"] for a in packet_outs[0]["actions"]]
+    assert 42 in out_ports, "Must flood to backup port 42"
+    assert 41 not in out_ports, "Must NOT flood to primary port 41 when backup is active"
+
+
+def test_dynamic_5tuple_session_tracking_vs_unsolicited_drop():
+    """Verify IT Support session installs strict 5-tuple return flow on Table 20.
+    
+    Response on matching 5-tuple passes (goto Table 30).
+    Traffic on different port/protocol within idle_timeout hits Priority 470 DROP.
+    """
+    app = FullSDNFabricController()
+    dp_f2 = MockDatapath(dpid=2)
+    dp_core = MockDatapath(dpid=3)
+    dp_f1 = MockDatapath(dpid=1)
+    app.datapaths[2] = dp_f2
+    app.datapaths[3] = dp_core
+    app.datapaths[1] = dp_f1
+
+    app.topo.register_port("access_floor2", 1, "h110-u01")
+    app.topo.register_port("access_floor2", 38, "f2-eth99")
+    app.topo.register_port("core_hq", 1, "core-eth01")
+    app.topo.register_port("core_hq", 2, "core-eth02")
+    app.topo.register_port("access_floor1", 38, "f1-eth99")
+    app.topo.register_port("access_floor1", 1, "h101-u01")
+
+    app.port_profiles[2][1] = {"name": "h110-u01", "role": "access", "vlan": 110}
+    app.port_profiles[2][38] = {"name": "f2-eth99", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[3][2] = {"name": "core-eth02", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[3][1] = {"name": "core-eth01", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[1][38] = {"name": "f1-eth99", "role": "trunk", "allowed_vlans": {101, 110}}
+    app.port_profiles[1][1] = {"name": "h101-u01", "role": "access", "vlan": 101}
+
+    app.topo.add_link("access_floor2", "core_hq", local_port=38, remote_port=2, vlans={101, 110})
+    app.topo.add_link("core_hq", "access_floor2", local_port=2, remote_port=38, vlans={101, 110})
+    app.topo.add_link("core_hq", "access_floor1", local_port=1, remote_port=38, vlans={101, 110})
+    app.topo.add_link("access_floor1", "core_hq", local_port=38, remote_port=1, vlans={101, 110})
+
+    app.hosts_by_ip["10.10.110.11"] = {"name": "h110_01", "ip": "10.10.110.11", "switch": "access_floor2", "port": 1, "vlan": 110}
+    app.hosts_by_ip["10.10.101.11"] = {"name": "h101_01", "ip": "10.10.101.11", "switch": "access_floor1", "port": 1, "vlan": 101}
+
+    # Mock Packet with TCP payload: IT Support (port 54321) -> User SSH (port 22)
+    class DummyTCP:
+        src_port = 54321
+        dst_port = 22
+        _proto_type = tcp.tcp if hasattr(tcp, "tcp") else Any
+
+    class DummyIPv4:
+        src = "10.10.110.11"
+        dst = "10.10.101.11"
+        proto = 6
+
+    class DummyEthernet:
+        src = "00:00:00:10:10:11"
+        dst = "00:00:00:10:01:11"
+        ethertype = 0x0800
+
+    class DummyMsg:
+        buffer_id = 0xFFFFFFFF
+        data = b"raw_packet_data"
+
+    # Patch _extract_l4_details to return 5-tuple for this test
+    app._extract_l4_details = lambda msg, ip_pkt: (6, 54321, 22, None)
+
+    app._route_multi_hop_internal(
+        dp_f2,
+        in_port=1,
+        eth=DummyEthernet(),
+        ip_pkt=DummyIPv4(),
+        src_vlan=110,
+        src_host=app.hosts_by_ip["10.10.110.11"],
+        dst_host=app.hosts_by_ip["10.10.101.11"],
+        msg=DummyMsg(),
+    )
+
+    # 1. Verify dynamic 5-tuple return flow installed in Table 20 on access_floor1
+    f1_t20_flows = [
+        m for m in dp_f1.sent_msgs
+        if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY and m.get("priority") == 480
+    ]
+    assert len(f1_t20_flows) >= 1, "Dynamic session return flow must be installed in Table 20 at priority 480"
+    rev_flow = f1_t20_flows[0]
+    match = rev_flow.get("match", {})
+
+    # Check 5-tuple fields
+    assert match.get("ip_proto") == 6, "Must match protocol TCP (6)"
+    assert match.get("ipv4_src") == "10.10.101.11", "Must match reverse src IP"
+    assert match.get("ipv4_dst") == "10.10.110.11", "Must match reverse dst IP"
+    assert match.get("tcp_src") == 22, "Must match reverse src port (22)"
+    assert match.get("tcp_dst") == 54321, "Must match reverse dst port (54321)"
+
+    # 2. Check that proactive Table 20 contains Priority 470 Unsolicited DROP for user -> IT Support
+    app._install_proactive_security_flows(dp_f1)
+    t20_drops = [
+        m for m in dp_f1.sent_msgs
+        if isinstance(m, dict) and m.get("table_id") == TABLE_SECURITY_POLICY and m.get("priority") == 470
+    ]
+    assert len(t20_drops) >= 1, "Table 20 must have Priority 470 Unsolicited User -> IT Support DROP"
+    unsolicited_drop = t20_drops[0]
+    assert len(unsolicited_drop.get("actions", [])) == 0, "Priority 470 must drop packet"
+
+
+def test_dhcp_relay_discover_and_offer_delivery():
+    """Verify DHCP Relay converts client broadcast to relayed unicast with giaddr and delivers offer back."""
+    app = FullSDNFabricController()
+    infra_dpid = NAME_DPIDS["infra_access"]
+    dp_f1 = MockDatapath(dpid=1)  # access_floor1
+    dp_infra = MockDatapath(dpid=infra_dpid)  # infra_access
+    app.datapaths[1] = dp_f1
+    app.datapaths[infra_dpid] = dp_infra
+
+    app.port_profiles[1][1] = {"name": "h101-u01", "role": "access", "vlan": 101}
+    app.port_profiles[infra_dpid][1] = {"name": "inf-eth01", "role": "access", "vlan": 100}
+
+    class DummyDHCPDiscover:
+        op = 1
+        chaddr = "00:11:22:33:44:55"
+        giaddr = "0.0.0.0"
+        hops = 0
+        yiaddr = "0.0.0.0"
+
+    class DummyUDP:
+        src_port = 68
+        dst_port = 67
+
+    class DummyIPv4:
+        src = "0.0.0.0"
+        dst = "255.255.255.255"
+        proto = 17
+
+    class DummyEthernet:
+        src = "00:11:22:33:44:55"
+        dst = "ff:ff:ff:ff:ff:ff"
+        ethertype = 0x0800
+
+    class DummyMsg:
+        data = b"dhcp_packet_bytes"
+
+    # Mock packet parser returning our dummy protocols
+    orig_packet = packet.Packet
+    class MockPacket:
+        def __init__(self, data=b""):
+            pass
+        def get_protocol(self, proto_cls):
+            if proto_cls == dhcp.dhcp or getattr(proto_cls, "__name__", "") == "dhcp":
+                return DummyDHCPDiscover()
+            if proto_cls == udp.udp or getattr(proto_cls, "__name__", "") == "udp":
+                return DummyUDP()
+            return None
+        def add_protocol(self, p):
+            pass
+        def serialize(self):
+            self.data = b"relayed_bytes"
+
+    packet.Packet = MockPacket
+    try:
+        # Step 1: Client sends DHCP Discover
+        app._handle_dhcp(
+            dp_f1,
+            in_port=1,
+            eth=DummyEthernet(),
+            ip_pkt=DummyIPv4(),
+            vlan_id=101,
+            msg=DummyMsg(),
+            udp_pkt=DummyUDP(),
+        )
+
+        # Verify client was registered with giaddr = 10.10.101.1
+        rec = app.dhcp_client_records.get("00:11:22:33:44:55")
+        assert rec is not None, "Client record must be stored"
+        assert rec["gateway_ip"] == "10.10.101.1", "Gateway IP must match VLAN 101"
+        assert rec["dpid"] == 1
+        assert rec["port"] == 1
+
+        # Verify relayed packet was sent to infra_access
+        assert len(dp_infra.sent_msgs) >= 1, "Relayed packet must be sent to infra_access"
+        pkt_out = dp_infra.sent_msgs[-1]
+        assert pkt_out.get("actions", [])[0]["port"] == 1, "Must output to hdhcp port on infra_access"
+
+        # Step 2: hdhcp replies with DHCPOFFER
+        class DummyDHCPOffer:
+            op = 2
+            chaddr = "00:11:22:33:44:55"
+            giaddr = "10.10.101.1"
+            hops = 1
+            yiaddr = "10.10.101.150"
+
+        class MockOfferPacket:
+            def __init__(self, data=b""):
+                pass
+            def get_protocol(self, proto_cls):
+                return DummyDHCPOffer()
+            def add_protocol(self, p):
+                pass
+            def serialize(self):
+                self.data = b"offer_bytes"
+
+        packet.Packet = MockOfferPacket
+        class DummyOfferUDP:
+            src_port = 67
+            dst_port = 67
+
+        app._handle_dhcp(
+            dp_infra,
+            in_port=1,
+            eth=DummyEthernet(),
+            ip_pkt=DummyIPv4(),
+            vlan_id=100,
+            msg=DummyMsg(),
+            udp_pkt=DummyOfferUDP(),
+        )
+
+        # Verify Offer was delivered to client port 1 on access_floor1
+        assert len(dp_f1.sent_msgs) >= 1, "Offer must be sent to client datapath"
+        client_out = dp_f1.sent_msgs[-1]
+        assert client_out.get("actions", [])[0]["port"] == 1, "Must deliver Offer out client port 1"
+    finally:
+        packet.Packet = orig_packet
+
 

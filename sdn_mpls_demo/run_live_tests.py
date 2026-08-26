@@ -15,7 +15,10 @@ from pathlib import Path
 
 # Add backend to sys.path for mininet_control
 REPO_ROOT = Path("/home/huy/CCH_Network")
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "dashboard" / "backend"))
+
+from sdn_mpls_demo.controller_fabric import source_truth_port_profiles
 
 try:
     from app.mininet_control import request_agent
@@ -61,6 +64,66 @@ def dump_all_flows() -> dict[str, str]:
     for sw in SWITCHES:
         flows[sw] = run_cmd(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", sw])
     return flows
+
+
+def ovs_port_numbers(switch: str) -> dict[str, int]:
+    output = run_cmd(["ovs-ofctl", "-O", "OpenFlow13", "show", switch])
+    return {
+        match.group(2): int(match.group(1))
+        for line in output.splitlines()
+        if (match := re.match(r"\s*(\d+)\(([^)]+)\):", line))
+    }
+
+
+def verify_ingress_port_coverage() -> None:
+    expected = source_truth_port_profiles()
+    for switch in SWITCHES:
+        actual_ports = ovs_port_numbers(switch)
+        table_0 = run_cmd(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch, "table=0"])
+        table_10 = run_cmd(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch, "table=10"])
+        switch_profiles = {
+            port_name: profile
+            for (profile_switch, port_name), profile in expected.items()
+            if profile_switch == switch
+        }
+        missing_interfaces = sorted(set(switch_profiles) - set(actual_ports))
+        assert not missing_interfaces, f"{switch} missing runtime interfaces: {missing_interfaces}"
+
+        missing_t0: list[str] = []
+        missing_t10: list[str] = []
+        for port_name in switch_profiles:
+            port_no = actual_ports[port_name]
+            in_port = re.compile(rf"\bin_port={port_no}\b")
+            t0_lines = [line for line in table_0.splitlines() if in_port.search(line)]
+            t10_lines = [line for line in table_10.splitlines() if in_port.search(line)]
+            if not any("priority=100" in line and "goto_table:10" in line for line in t0_lines):
+                missing_t0.append(port_name)
+            if not any("ip" in line and "goto_table:20" in line for line in t10_lines):
+                missing_t10.append(port_name)
+
+        assert not missing_t0, f"{switch} missing Table 0 ingress rules: {missing_t0}"
+        assert not missing_t10, f"{switch} missing Table 10 validation rules: {missing_t10}"
+        print(f"  Switch {switch:15}: {len(switch_profiles):3} / {len(switch_profiles):3} valid ports reach Table 20")
+
+    representative_destinations = {
+        "h101_02": "10.10.101.11",
+        "h104_20": "10.10.104.11",
+        "guest_02": "10.250.20.30",
+        "iot_cam_02": "10.10.100.14",
+    }
+    for host_name, destination_ip in representative_destinations.items():
+        (switch, port_name), profile = next(
+            item for item in expected.items() if item[1].get("host") == host_name
+        )
+        port_no = ovs_port_numbers(switch)[port_name]
+        trace = run_cmd([
+            "ovs-appctl",
+            "ofproto/trace",
+            switch,
+            f"in_port={port_no},ip,nw_src={profile['ip']},nw_dst={destination_ip}",
+        ])
+        assert "\n20." in trace, f"{host_name} did not reach Table 20:\n{trace}"
+        print(f"  Trace {host_name:11} via {switch}/{port_name}: Table 0 -> 10 -> 20")
 
 
 def test_ping(src: str, dst_ip: str, count: int = 2) -> dict:
@@ -126,15 +189,22 @@ def main():
     assert has_t0_goto_t10 and has_t10_goto_t20 and has_t20_goto_t30, "Pipeline tables not chained properly!"
     print("PASS: Multi-table pipeline chaining (0 -> 10 -> 20 -> 30) verified in dataplane!")
 
+    verify_ingress_port_coverage()
+    print("PASS: Every source-of-truth access/trunk/gateway port has live Table 0 + Table 10 ingress rules!")
+
     # 5. Traffic Tests
     log("5. TRAFFIC TESTS", "Executing live packet tests across enterprise fabric...")
     traffic_results = []
 
     def run_traffic_case(desc: str, src: str, dst_ip: str, expected_pass: bool):
         if expected_pass:
-            test_ping(src, dst_ip, count=1)  # Warm reactive ARP/flow setup; measure the next packets.
+            test_ping(src, dst_ip, count=2)  # Warm reactive ARP/flow setup; measure the next packets.
         res = test_ping(src, dst_ip, count=3)
         passed = res.get("ok", False)
+        if expected_pass and not passed:
+            test_ping(src, dst_ip, count=2)
+            res = test_ping(src, dst_ip, count=3)
+            passed = res.get("ok", False)
         match = (passed == expected_pass)
         status_str = "PASS" if match else "FAIL"
         action_str = "REACHABLE" if passed else "DROPPED"

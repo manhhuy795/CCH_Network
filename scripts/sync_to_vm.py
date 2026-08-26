@@ -21,6 +21,8 @@ def copy_to_vm(host_path: str, guest_path: str):
 if __name__ == "__main__":
     base = Path(r"D:\HK5\CCH_Network")
     copy_to_vm(str(base / "sdn_mpls_demo" / "controller_fabric.py"), "/home/huy/CCH_Network/sdn_mpls_demo/controller_fabric.py")
-    copy_to_vm(str(base / "sdn_mpls_demo" / "run_live_tests.py"), "/home/huy/CCH_Network/sdn_mpls_demo/run_live_tests.py")
     copy_to_vm(str(base / "sdn_mpls_demo" / "topology_enterprise_v7.py"), "/home/huy/CCH_Network/sdn_mpls_demo/topology_enterprise_v7.py")
+    copy_to_vm(str(base / "sdn_mpls_demo" / "policy.yml"), "/home/huy/CCH_Network/sdn_mpls_demo/policy.yml")
+    copy_to_vm(str(base / "sdn_mpls_demo" / "run_live_tests.py"), "/home/huy/CCH_Network/sdn_mpls_demo/run_live_tests.py")
     copy_to_vm(str(base / "scripts" / "test_mpls_failover_runtime.py"), "/home/huy/CCH_Network/scripts/test_mpls_failover_runtime.py")
+    copy_to_vm(str(base / "tests" / "test_full_sdn_fabric.py"), "/home/huy/CCH_Network/tests/test_full_sdn_fabric.py")

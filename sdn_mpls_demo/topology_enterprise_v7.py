@@ -323,6 +323,25 @@ def _start_service_simulators(net: Mininet) -> None:
             f"cd /tmp && printf 'CCH v7 infrastructure simulator: {name}\\n' > {name}.txt; "
             f"python3 -m http.server {9000 + index} > /tmp/{name}_http.log 2>&1 &"
         )
+        if name == "hdhcp":
+            dhcp_conf = (
+                "interface=hdhcp-eth0\n"
+                "bind-interfaces\n"
+                "dhcp-range=10.10.101.150,10.10.101.199,255.255.255.0,12h\n"
+                "dhcp-range=10.10.120.150,10.10.120.199,255.255.255.0,12h\n"
+                "dhcp-range=10.10.103.150,10.10.103.199,255.255.255.0,12h\n"
+                "dhcp-range=10.10.104.150,10.10.104.199,255.255.255.0,12h\n"
+                "dhcp-range=10.10.93.150,10.10.93.199,255.255.255.0,12h\n"
+                "dhcp-option=3,10.10.101.1\n"
+                "dhcp-option=6,10.10.100.11\n"
+                "log-dhcp\n"
+                "log-facility=/tmp/dnsmasq.log\n"
+            )
+            net.get(name).cmd(
+                f"cat << 'EOF' > /tmp/dnsmasq.conf\n{dhcp_conf}EOF\n"
+                "killall dnsmasq 2>/dev/null || true\n"
+                "dnsmasq -C /tmp/dnsmasq.conf &\n"
+            )
 
 
 def _set_segments(net: Mininet, segments: list[tuple[str, str]], state: str) -> None:
@@ -449,7 +468,7 @@ def build_topology() -> None:
     for node in l2vpn_nodes.values():
         node.start([])
     _configure_vlan_switching(switches)
-    _set_segments(net, BACKUP_L2_SEGMENTS, "down")
+    _set_segments(net, BACKUP_L2_SEGMENTS, "up")
 
     control_agent = None
     try:
