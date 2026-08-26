@@ -15,6 +15,12 @@ CONTROLLER_STARTED=0
 MININET_ATTEMPTED=0
 
 mkdir -p "$RUNTIME_DIR"
+if [[ ! -w "$RUNTIME_DIR" ]]; then
+  sudo chown -R "$(id -u):$(id -g)" "$RUNTIME_DIR" 2>/dev/null || true
+fi
+if [[ -f "$CONTROLLER_LOG" && ! -w "$CONTROLLER_LOG" ]]; then
+  sudo rm -f "$CONTROLLER_LOG" 2>/dev/null || sudo chown "$(id -u):$(id -g)" "$CONTROLLER_LOG" 2>/dev/null || true
+fi
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   echo "Loi: CCH topology dang chay o terminal khac."
