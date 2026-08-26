@@ -25,10 +25,11 @@ if ss -H -ltn 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:)6653$'; then
   exit 1
 fi
 
-echo "Khởi động OS-Ken Controller tại 127.0.0.1:6653"
+CONTROLLER_APP="${1:-${CCH_CONTROLLER_APP:-$SCRIPT_DIR/controller_fabric.py}}"
+echo "Khởi động OS-Ken Controller ($CONTROLLER_APP) tại 127.0.0.1:6653"
 echo "Nhấn Ctrl+C để dừng controller."
 
 exec "$VENV_DIR/bin/osken-manager" \
   --ofp-listen-host 127.0.0.1 \
   --ofp-tcp-listen-port 6653 \
-  "$SCRIPT_DIR/controller_policy.py"
+  "$CONTROLLER_APP"
