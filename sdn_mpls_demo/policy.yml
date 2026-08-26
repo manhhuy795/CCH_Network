@@ -4,43 +4,118 @@ metadata:
   default_action: deny
   enforcement_note: "Project isolation is enforced on controlled OVS. Partner/Internet and intersite tunnel access are enforced by local nftables firewall abstractions."
 
+# Định nghĩa các nhóm máy trạm (Host Groups) chuẩn Enterprise v7
+# Thay thế hoàn toàn các nhóm cũ: project_a, project_b, project_c, telesale, backoffice
+host_groups:
+  project_1:
+    vlan: 101
+    subnet: 10.10.101.0/24
+    site: hq
+    role: project
+    switch: access_floor1
+    description: "Dự án 1 - Trụ sở HQ"
+  project_2:
+    vlan: 93
+    subnet: 10.10.93.0/24
+    site: hq
+    shared_sites: [hq, branch]
+    role: project
+    switch: access_floor1
+    service: l2vpn_vpws93
+    description: "Dự án 2 - VLAN 93 dùng chung HQ và Chi nhánh qua MPLS L2VPN"
+  project_3:
+    vlan: 103
+    subnet: 10.10.103.0/24
+    site: hq
+    role: project
+    switch: access_floor2
+    description: "Dự án 3 - Trụ sở HQ"
+  project_4:
+    vlan: 104
+    subnet: 10.10.104.0/24
+    site: hq
+    role: project
+    switch: access_floor2
+    description: "Dự án 4 - Trụ sở HQ"
+  it_support:
+    vlan: 110
+    subnet: 10.10.110.0/24
+    site: hq
+    role: management
+    switch: infra_access
+    description: "IT Support - Quản trị và hỗ trợ kỹ thuật có kiểm soát"
+  guest:
+    vlan: 120
+    subnet: 10.10.120.0/24
+    site: hq
+    role: guest
+    switch: access_floor1
+    description: "Guest Wi-Fi - Khách vãng lai (chỉ ra Internet)"
+  iot_hq:
+    vlan: 140
+    subnet: 10.10.140.0/24
+    site: hq
+    role: iot
+    switch: access_floor1
+    description: "IoT / Camera / BMS - Trụ sở HQ"
+  iot_branch:
+    vlan: 50
+    subnet: 10.20.50.0/24
+    site: branch
+    role: iot
+    switch: access_branch
+    description: "Branch IoT / Telephony Devices - Chi nhánh"
+
 policies:
+  # Nguyên tắc bảo mật cốt lõi: Mặc định từ chối (Default Deny)
+  default_action: deny
+
+  # 1. Phân đoạn và cô lập dự án HQ (Đồng bộ vars/sdn.yml & vars/acl_policies.yml)
   isolate_hq_projects: true
-  allow_voice: true
-  voice_flow_priority: true
-  allow_zalo: false
-  allow_call_app: true
-  allow_general_internet: true
+  project_isolation:
+    enabled: true
+    groups: [project_1, project_2, project_3, project_4]
+    action: deny
+    enforcement: "Source Access Switch (access_floor1 / access_floor2)"
+    rule: "Chặn lưu lượng ngang giữa VLAN 101, 93, 103, 104; chỉ cho phép nội bộ cùng VLAN"
+
+  # 2. Chính sách phân vùng Guest (Đồng bộ vars/sdn.yml, vars/acl_policies.yml, vars/firewall_policies.yml)
   allow_guest_general_internet: true
-  block_social_media: true
+  guest_policy:
+    vlan: 120
+    subnet: 10.10.120.0/24
+    allowed_services: [hinternet]
+    allow_infrastructure_services: [hdhcp, hdns, hntp]
+    deny_internal: true
+    enforcement: "fw_hq (nftables) & access_floor1"
+    rule: "Guest chỉ được bootstrap DHCP/DNS/NTP và ra Internet; cấm tuyệt đối truy cập mạng nội bộ 10.10.0.0/16 và 10.20.0.0/16"
+
+  # 3. IT Support truy cập có kiểm soát (Đồng bộ vars/acl_policies.yml management_policy)
   allow_it_support_controlled_access: true
-  intersite_via_ipsec_l3: true
-  vlan93_l2vpn_primary_active: true
-  vlan93_l2vpn_backup_standby: true
   it_support_controlled_access:
     enabled: true
     source_group: it_support
+    source_vlan: 110
     allow_icmp_to_managed_users: true
     managed_user_groups: [project_1, project_2, project_3, project_4, iot_hq, iot_branch]
+    deny_unsolicited_from_user_vlans: [50, 93, 101, 103, 104, 120, 140]
     allowed_services: [h90, hcall, hinternet, hdhcp, hdns, hntp, hmonitor]
     denied_services: [hsocial]
     management_tcp_ports: [22, 443, 3389, 5985, 5986]
-  enterprise_zones:
-    guest:
-      vlan: 120
-      subnet: 10.10.120.0/24
-      access_switch: access_floor1
-      addressing: dhcp
-      allow_infrastructure_services: [hdhcp, hdns, hntp]
-      allow_services: [hinternet]
-      deny_internal: true
+    rule: "IT Support được chủ động ICMP/Remote quản trị các nhóm endpoint; người dùng không được chủ động kết nối vào VLAN 110"
+
+  # 4. Chính sách phân vùng IoT (Đồng bộ vars/acl_policies.yml & vars/sdn.yml)
+  iot_policies:
     iot_hq:
       vlan: 140
       subnet: 10.10.140.0/24
       access_switch: access_floor1
       addressing: reservation
       allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
+      deny_internal: true
+      allow_internet: false
       deny_by_default: true
+      rule: "IoT HQ chỉ giao tiếp hạ tầng quản lý cần thiết; cấm truy cập mạng user và cấm ra Internet"
     iot_branch:
       vlan: 50
       subnet: 10.20.50.0/24
@@ -48,12 +123,33 @@ policies:
       addressing: reservation
       allow_infrastructure_services: [hdhcp, hdns, hntp, hmonitor]
       transport_to_hq: firewall_ipsec_l3_logic
+      deny_destination_vlans: [93]
+      deny_internal: true
+      allow_internet: false
       deny_by_default: true
-    infrastructure_services:
-      vlan: 100
-      subnet: 10.10.100.0/24
-      access_switch: infra_access
-      deny_unsolicited_inbound: true
+      rule: "IoT Chi nhánh chuyển tiếp quản trị về HQ qua IPsec L3 tunnel; cấm truy cập VLAN 93 và cấm Internet"
+
+  # 5. Phân vùng dịch vụ hạ tầng nội bộ
+  infrastructure_services_zone:
+    vlan: 100
+    subnet: 10.10.100.0/24
+    access_switch: infra_access
+    deny_unsolicited_inbound: true
+
+  # 6. Dịch vụ ứng dụng, thoại và Internet (Đồng bộ vars/firewall_policies.yml)
+  allow_voice: true
+  voice_flow_priority: true
+  allow_call_app: true
+  allow_general_internet: true
+  block_social_media: true
+  allow_zalo: false
+
+  # 7. Vận chuyển liên site & MPLS L2VPN (Đồng bộ vars/sdn.yml & vars/acl_policies.yml)
+  vlan93_l2vpn_primary_active: true
+  vlan93_l2vpn_backup_standby: true
+  intersite_via_ipsec_l3: true
+
+  # 8. Mô hình Softphone và đánh giá chất lượng thoại
   softphone_model:
     note: "Agent softphone runs in the project VLAN. PBX/Contact Center and CRM are partner services outside the internal server farm."
     voice_quality_note: "UDP iperf is only a lab estimate; it is not a SIP/RTP, SBC or production QoS proof."
