@@ -15,6 +15,8 @@ import ipaddress
 import json
 import time
 from pathlib import Path
+import os
+import sys
 
 import yaml
 from mininet.cli import CLI
@@ -468,7 +470,12 @@ def build_topology() -> None:
         info("*** Routed intersite: firewall-to-firewall ipsec_l3 behavior abstraction; no cryptographic IPsec claim\n")
         info("*** Firewall: one nftables namespace per HA pair abstraction\n")
         info("*** nftables: " + ", ".join(f"{name}={item['rule_count']} rules" for name, item in firewall_status.items()) + "\n")
-        EnterpriseV7CLI(net)
+        if os.environ.get("CCH_DAEMON") == "1" or not sys.stdin.isatty():
+            info("*** Running in daemon mode (non-interactive)...\n")
+            while True:
+                time.sleep(3600)
+        else:
+            EnterpriseV7CLI(net)
     finally:
         if control_agent is not None:
             control_agent.stop()

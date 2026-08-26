@@ -410,6 +410,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
             "l3_flow_count": 0,
             "failover_count": 0,
         }
+        self.active_sessions: set[tuple[str, str]] = set()
 
         self._init_source_of_truth_inventory()
         self._write_flows()
@@ -438,6 +439,38 @@ class FullSDNFabricController(app_manager.OSKenApp):
                     "last_seen": utc_now(),
                 }
                 self.hosts_by_ip[ip] = record
+
+        # Pre-load known host MACs from runtime/host_macs.json if present
+        macs_file = RUNTIME_DIR / "host_macs.json"
+        if macs_file.exists():
+            try:
+                mac_data = json.loads(macs_file.read_text(encoding="utf-8"))
+                for record in self.hosts_by_ip.values():
+                    h_name = record["name"]
+                    if h_name in mac_data:
+                        record["mac"] = mac_data[h_name]
+            except Exception:
+                pass
+
+        # Pre-discover Mininet host MACs if in live Mininet lab environment
+        try:
+            import subprocess
+            for record in self.hosts_by_ip.values():
+                if record.get("mac"):
+                    continue
+                h_name = record["name"]
+                p = subprocess.run(["pgrep", "-f", f"mininet:{h_name}"], capture_output=True, text=True)
+                if p.returncode == 0 and p.stdout.strip():
+                    pid = p.stdout.strip().splitlines()[0]
+                    devs_out = subprocess.run(["mnexec", "-a", pid, "ls", "/sys/class/net"], capture_output=True, text=True)
+                    devs = [d for d in devs_out.stdout.split() if d != "lo"]
+                    if devs:
+                        mac_out = subprocess.run(["mnexec", "-a", pid, "cat", f"/sys/class/net/{devs[0]}/address"], capture_output=True, text=True)
+                        mac = mac_out.stdout.strip()
+                        if mac:
+                            record["mac"] = mac
+        except Exception:
+            pass
 
     def _write_flows(self) -> None:
         with self.file_lock:
@@ -775,6 +808,41 @@ class FullSDNFabricController(app_manager.OSKenApp):
             "allowed_vlans": {access_vlan} if access_vlan else set(),
         }
 
+        # Map port_name directly to host_rec in hosts_by_ip
+        infra_map = {
+            "inf-s01": "10.10.100.10",  # hdhcp
+            "inf-s02": "10.10.100.11",  # hdns
+            "inf-s03": "10.10.100.12",  # had
+            "inf-s04": "10.10.100.13",  # hfile
+            "inf-s05": "10.10.100.14",  # hmonitor
+            "inf-s06": "10.10.100.15",  # hbackup
+            "inf-s07": "10.10.100.16",  # hntp
+        }
+        if port_name in infra_map:
+            ip = infra_map[port_name]
+            if ip in self.hosts_by_ip:
+                self.hosts_by_ip[ip]["port"] = port_no
+                self.hosts_by_ip[ip]["dpid"] = dpid
+
+        for record in self.hosts_by_ip.values():
+            h_name = record["name"]
+            expected_pname = h_name.replace("_", "-u") if ("_" in h_name and not h_name.startswith("iot_")) else h_name
+            if (
+                expected_pname == port_name
+                or h_name == port_name
+                or (h_name == "iot_cam_01" and port_name == "iot-u01")
+                or (h_name == "iot_printer_01" and port_name == "iot-u02")
+                or (h_name == "ups_hq_01" and port_name == "iot-u03")
+                or (h_name == "ups_hq_02" and port_name == "iot-u04")
+                or (h_name == "iot_cam_02" and port_name == "iot-u05")
+                or (h_name == "guest_01" and port_name == "guest-u01")
+                or (h_name == "guest_02" and port_name == "guest-u02")
+                or (h_name == "iot_branch_cam_01" and port_name == "iotb-u01")
+                or (h_name == "ups_branch_01" and port_name == "iotb-u02")
+            ):
+                record["port"] = port_no
+                record["dpid"] = dpid
+
     def _build_topology_links(self, dpid: int) -> None:
         """Establish inter-switch links including real Primary and Backup L2VPN paths."""
         trunk_pairs = [
@@ -873,7 +941,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 subnet_str = prof.get("subnet")
 
                 # Table 0: Ingress classification for access port -> Goto Table 10
-                match_t0 = parser.OFPMatch(in_port=port_no)
+                match_t0 = parser.OFPMatch(in_port=port_no, vlan_vid=ofproto_v1_3.OFPVID_NONE)
                 self.add_goto_table_flow(
                     datapath,
                     table_id=TABLE_INGRESS_FILTER,
@@ -1177,6 +1245,38 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 idle_timeout=0,
             )
 
+            for tcp_port in self.policy.data["policies"]["it_support_controlled_access"]["management_tcp_ports"]:
+                self.add_goto_table_flow(
+                    datapath,
+                    table_id=TABLE_SECURITY_POLICY,
+                    priority=450,
+                    match=parser.OFPMatch(
+                        eth_type=ether_types.ETH_TYPE_IP,
+                        ip_proto=6,
+                        tcp_dst=tcp_port,
+                        ipv4_src=(str(it_net.network_address), str(it_net.netmask)),
+                        ipv4_dst=(str(d_net.network_address), str(d_net.netmask)),
+                    ),
+                    next_table_id=TABLE_FORWARDING,
+                    reason=f"IT Support được phép quản trị TCP/{tcp_port} tới VLAN {dst_vlan}",
+                    cookie=POLICY_COOKIES.get("it_support", 0x1301),
+                )
+                self.add_goto_table_flow(
+                    datapath,
+                    table_id=TABLE_SECURITY_POLICY,
+                    priority=450,
+                    match=parser.OFPMatch(
+                        eth_type=ether_types.ETH_TYPE_IP,
+                        ip_proto=6,
+                        tcp_src=tcp_port,
+                        ipv4_src=(str(d_net.network_address), str(d_net.netmask)),
+                        ipv4_dst=(str(it_net.network_address), str(it_net.netmask)),
+                    ),
+                    next_table_id=TABLE_FORWARDING,
+                    reason=f"Cho phép phản hồi TCP/{tcp_port} từ VLAN {dst_vlan} về IT Support",
+                    cookie=POLICY_COOKIES.get("it_support_return", 0x1302),
+                )
+
         # 6. Flow-level Voice Priority to PBX h90 (10.250.10.10)
         # Note: Passes directly into Table 30 at high priority 430 without fake hardware queues.
         match_voice = parser.OFPMatch(
@@ -1192,6 +1292,19 @@ class FullSDNFabricController(app_manager.OSKenApp):
             reason="Ưu tiên flow-level cho gói tin thoại tới PBX h90 (Table 20 -> Table 30)",
             cookie=POLICY_COOKIES.get("voice", 0x1200),
         )
+        match_voice_rev = parser.OFPMatch(
+            eth_type=ether_types.ETH_TYPE_IP,
+            ipv4_src="10.250.10.10",
+        )
+        self.add_goto_table_flow(
+            datapath,
+            table_id=TABLE_SECURITY_POLICY,
+            priority=430,
+            match=match_voice_rev,
+            next_table_id=TABLE_FORWARDING,
+            reason="Cho phép lưu lượng phản hồi từ PBX h90 (Table 20 -> Table 30)",
+            cookie=POLICY_COOKIES.get("voice", 0x1200),
+        )
 
         # 7. Allowed Partner CRM (10.250.10.20) and General Internet (10.250.20.30)
         for partner_dst in ("10.250.10.20", "10.250.20.30"):
@@ -1204,6 +1317,30 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 next_table_id=TABLE_FORWARDING,
                 reason=f"Cho phép truy cập dịch vụ đối tác {partner_dst}",
             )
+            match_partner_rev = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ipv4_src=partner_dst)
+            self.add_goto_table_flow(
+                datapath,
+                table_id=TABLE_SECURITY_POLICY,
+                priority=350,
+                match=match_partner_rev,
+                next_table_id=TABLE_FORWARDING,
+                reason=f"Cho phép phản hồi từ dịch vụ đối tác {partner_dst}",
+            )
+
+        # 8. Infrastructure Services (VLAN 100) Responses to Internal Fabric
+        infra_net = ipaddress.ip_network(VLAN_SUBNETS[100])
+        match_infra_resp = parser.OFPMatch(
+            eth_type=ether_types.ETH_TYPE_IP,
+            ipv4_src=(str(infra_net.network_address), str(infra_net.netmask)),
+        )
+        self.add_goto_table_flow(
+            datapath,
+            table_id=TABLE_SECURITY_POLICY,
+            priority=350,
+            match=match_infra_resp,
+            next_table_id=TABLE_FORWARDING,
+            reason="Cho phép phản hồi từ dịch vụ hạ tầng VLAN 100 tới mạng nội bộ",
+        )
 
         self.logger.info("Đã cài đặt security policy proactive tại Table 20 trên %s", switch_name)
 
@@ -1226,7 +1363,12 @@ class FullSDNFabricController(app_manager.OSKenApp):
         switch_name = DPID_NAMES[dpid]
         vlan_hdr = pkt.get_protocol(vlan.vlan)
         port_prof = self.port_profiles[dpid].get(in_port, {})
-        vlan_id = vlan_hdr.vid if vlan_hdr else port_prof.get("vlan", 0)
+        allowed_vlans = port_prof.get("allowed_vlans", set())
+        vlan_id = (
+            vlan_hdr.vid
+            if vlan_hdr
+            else port_prof.get("vlan") or (next(iter(allowed_vlans)) if len(allowed_vlans) == 1 else 0)
+        )
 
         # Anti-Spoof Check on access port
         if port_prof.get("role") == "access":
@@ -1291,7 +1433,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
             self.stats["proxy_arp_count"] += 1
             gateway_mac = GATEWAY_MAC_BRANCH if target_ip in GATEWAY_IPS_BRANCH else GATEWAY_MAC_HQ
             self.logger.debug("PROXY ARP REPLY: %s hỏi gateway %s -> trả về %s", sender_ip, target_ip, gateway_mac)
-            self._send_arp_reply(datapath, in_port, target_ip, gateway_mac, sender_ip, sender_mac)
+            self._send_arp_reply(datapath, in_port, target_ip, gateway_mac, sender_ip, sender_mac, vlan_id=vlan_id)
             return
 
         # B. Intra-VLAN ARP
@@ -1308,7 +1450,8 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 target_port = target_host.get("port")
                 if target_dpid == dpid and target_port:
                     self._send_packet_out(datapath, target_port, eth, arp_pkt)
-                    return
+                self._send_arp_reply(datapath, in_port, target_ip, dst_mac, sender_ip, sender_mac, vlan_id=vlan_id)
+                return
 
             self._flood_in_vlan(datapath, in_port, vlan_id, eth, arp_pkt)
             return
@@ -1327,16 +1470,36 @@ class FullSDNFabricController(app_manager.OSKenApp):
         sender_mac: str,
         target_ip: str,
         target_mac: str,
+        vlan_id: int = 0,
     ) -> None:
         """Synthesize and output an ARP reply packet directly without OFPP_NORMAL."""
+        dpid = datapath.id
+        port_prof = self.port_profiles[dpid].get(out_port, {})
+        is_tagged = port_prof.get("role") in {"trunk", "gateway", "l2vpn"} and vlan_id > 0
+
         reply_pkt = packet.Packet()
-        reply_pkt.add_protocol(
-            ethernet.ethernet(
-                ethertype=ether_types.ETH_TYPE_ARP,
-                dst=target_mac,
-                src=sender_mac,
+        if is_tagged:
+            reply_pkt.add_protocol(
+                ethernet.ethernet(
+                    ethertype=ether_types.ETH_TYPE_8021Q,
+                    dst=target_mac,
+                    src=sender_mac,
+                )
             )
-        )
+            reply_pkt.add_protocol(
+                vlan.vlan(
+                    vid=vlan_id,
+                    ethertype=ether_types.ETH_TYPE_ARP,
+                )
+            )
+        else:
+            reply_pkt.add_protocol(
+                ethernet.ethernet(
+                    ethertype=ether_types.ETH_TYPE_ARP,
+                    dst=target_mac,
+                    src=sender_mac,
+                )
+            )
         reply_pkt.add_protocol(
             arp.arp(
                 opcode=arp.ARP_REPLY,
@@ -1409,6 +1572,51 @@ class FullSDNFabricController(app_manager.OSKenApp):
             )
         )
 
+    def _handle_gateway_icmp(self, datapath, in_port: int, eth: Any, ip_pkt: Any, vlan_id: int, msg: Any) -> None:
+        """Respond to ICMP Echo Requests targeting the Virtual Gateway directly from SDN controller."""
+        pkt = packet.Packet(msg.data)
+        icmp_pkt = pkt.get_protocol(icmp.icmp)
+        if not icmp_pkt or icmp_pkt.type != icmp.ICMP_ECHO_REQUEST:
+            return
+
+        parser = datapath.ofproto_parser
+        gateway_mac = GATEWAY_MAC_BRANCH if ip_pkt.dst in GATEWAY_IPS_BRANCH else GATEWAY_MAC_HQ
+
+        reply_pkt = packet.Packet()
+        reply_pkt.add_protocol(
+            ethernet.ethernet(
+                ethertype=ether_types.ETH_TYPE_IP,
+                dst=eth.src,
+                src=gateway_mac,
+            )
+        )
+        reply_pkt.add_protocol(
+            ipv4.ipv4(
+                dst=ip_pkt.src,
+                src=ip_pkt.dst,
+                proto=ipv4.inet.IPPROTO_ICMP,
+                ttl=64,
+            )
+        )
+        reply_pkt.add_protocol(
+            icmp.icmp(
+                type_=icmp.ICMP_ECHO_REPLY,
+                code=0,
+                csum=0,
+                data=icmp_pkt.data,
+            )
+        )
+        reply_pkt.serialize()
+        datapath.send_msg(
+            parser.OFPPacketOut(
+                datapath=datapath,
+                buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                in_port=datapath.ofproto.OFPP_CONTROLLER,
+                actions=[parser.OFPActionOutput(in_port)],
+                data=reply_pkt.data,
+            )
+        )
+
     def _handle_ipv4(self, datapath, in_port: int, eth: Any, ip_pkt: Any, vlan_id: int, msg: Any) -> None:
         """Forwarding & Multi-hop Path Installation on Table 30 without OFPP_NORMAL."""
         dpid = datapath.id
@@ -1417,8 +1625,19 @@ class FullSDNFabricController(app_manager.OSKenApp):
         src_ip = ip_pkt.src
         dst_ip = ip_pkt.dst
 
-        # Policy validation
-        decision = self.policy.decide_ip(src_ip, dst_ip)
+        # Virtual Gateway ICMP Echo Request handling
+        if dst_ip in ALL_GATEWAY_IPS:
+            self._handle_gateway_icmp(datapath, in_port, eth, ip_pkt, vlan_id, msg)
+            return
+
+        # Policy validation with stateful connection tracking
+        is_established_return = (src_ip, dst_ip) in self.active_sessions
+        if is_established_return:
+            decision = {"action": "allow", "reason": "Stateful firewall cho phép lưu lượng phản hồi"}
+        else:
+            decision = self.policy.decide_ip(src_ip, dst_ip)
+            if decision["action"] == "allow":
+                self.active_sessions.add((dst_ip, src_ip))
         if decision["action"] == "deny":
             self.stats["policy_drop_count"] += 1
             self.logger.info("POLICY DROP: %s -> %s tại %s: %s", src_ip, dst_ip, switch_name, decision["reason"])
@@ -1446,7 +1665,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
         is_external = dest_host is None or dest_host.get("kind") == "service"
 
         if is_external:
-            self._route_multi_hop_external(datapath, in_port, eth, ip_pkt, msg)
+            self._route_multi_hop_external(datapath, in_port, eth, ip_pkt, vlan_id, src_host, msg)
         else:
             self._route_multi_hop_internal(datapath, in_port, eth, ip_pkt, vlan_id, src_host, dest_host, msg)
 
@@ -1614,13 +1833,23 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 )
             )
 
-    def _route_multi_hop_external(self, datapath, in_port: int, eth: Any, ip_pkt: Any, msg: Any) -> None:
+    def _route_multi_hop_external(
+        self,
+        datapath,
+        in_port: int,
+        eth: Any,
+        ip_pkt: Any,
+        vlan_id: int,
+        src_host: dict[str, Any] | None,
+        msg: Any,
+    ) -> None:
         """Route to external site breakout port (core-eth03 or bd-eth02) with multi-hop flow installation."""
         src_ip = ip_pkt.src
         dst_ip = ip_pkt.dst
         src_switch = DPID_NAMES[datapath.id]
+        src_vlan = vlan_id or (src_host.get("vlan") if src_host else 0)
         gateway_switch = "dist_branch" if src_switch in {"access_branch", "dist_branch"} else "core_hq"
-        path = self.topo.shortest_path(src_switch, gateway_switch)
+        path = self.topo.shortest_path(src_switch, gateway_switch, vlan=src_vlan)
         if not path:
             return
 
@@ -1636,10 +1865,25 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 # Gateway switch: output to firewall breakout port
                 breakout_port_name = "bd-eth02" if sw_name == "dist_branch" else "core-eth03"
                 out_port = self.topo.port_name_to_no.get(sw_name, {}).get(breakout_port_name)
-                actions = [sw_parser.OFPActionDecNwTtl(), sw_parser.OFPActionOutput(out_port)] if out_port else []
+                actions: list[Any] = []
+                if sw_name == "core_hq":
+                    actions.extend([
+                        sw_parser.OFPActionSetField(eth_dst="00:00:00:00:00:01"),
+                        sw_parser.OFPActionPushVlan(0x8100),
+                        sw_parser.OFPActionSetField(vlan_vid=src_vlan | ofproto_v1_3.OFPVID_PRESENT),
+                        sw_parser.OFPActionDecNwTtl(),
+                    ])
+                elif sw_name == "dist_branch":
+                    actions.extend([
+                        sw_parser.OFPActionPushVlan(0x8100),
+                        sw_parser.OFPActionSetField(vlan_vid=src_vlan | ofproto_v1_3.OFPVID_PRESENT),
+                        sw_parser.OFPActionDecNwTtl(),
+                    ])
+                if out_port:
+                    actions.append(sw_parser.OFPActionOutput(out_port))
             else:
                 next_sw = path[i + 1]
-                out_port = self.topo.egress_port_for_next_hop(sw_name, next_sw)
+                out_port = self.topo.egress_port_for_next_hop(sw_name, next_sw, vlan=src_vlan)
                 actions = [sw_parser.OFPActionOutput(out_port)] if out_port else []
 
             if not out_port:
@@ -1664,6 +1908,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
             )
 
         # Install reverse flow for traffic returning from breakout port to internal host
+        dest_access_port = (src_host.get("port") if src_host else None) or in_port
         rev_path = list(reversed(path))
         for i, sw_name in enumerate(rev_path):
             sw_dpid = NAME_DPIDS.get(sw_name)
@@ -1673,15 +1918,18 @@ class FullSDNFabricController(app_manager.OSKenApp):
             sw_parser = sw_dp.ofproto_parser
 
             if i == len(rev_path) - 1:
-                rev_out_port = in_port
+                rev_out_port = dest_access_port
+                actions = [sw_parser.OFPActionPopVlan(), sw_parser.OFPActionOutput(rev_out_port)]
             else:
                 next_sw = rev_path[i + 1]
-                rev_out_port = self.topo.egress_port_for_next_hop(sw_name, next_sw)
+                rev_out_port = self.topo.egress_port_for_next_hop(sw_name, next_sw, vlan=src_vlan)
+                actions = [sw_parser.OFPActionOutput(rev_out_port)] if rev_out_port else []
 
             if not rev_out_port:
                 continue
 
             match_rev = sw_parser.OFPMatch(
+                vlan_vid=src_vlan | ofproto_v1_3.OFPVID_PRESENT,
                 eth_type=ether_types.ETH_TYPE_IP,
                 ipv4_src=dst_ip,
                 ipv4_dst=src_ip,
@@ -1691,7 +1939,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 table_id=TABLE_FORWARDING,
                 priority=220,
                 match=match_rev,
-                actions=[sw_parser.OFPActionOutput(rev_out_port)],
+                actions=actions,
                 reason=f"Multi-hop External Reverse tới {sw_name} port {rev_out_port}",
                 policy="external_breakout_return",
                 idle_timeout=180,
@@ -1703,26 +1951,44 @@ class FullSDNFabricController(app_manager.OSKenApp):
         first_out_port = (
             self.topo.port_name_to_no.get(src_switch, {}).get("core-eth03" if src_switch == "core_hq" else "bd-eth02")
             if len(path) == 1
-            else self.topo.egress_port_for_next_hop(src_switch, path[1])
+            else self.topo.egress_port_for_next_hop(src_switch, path[1], vlan=src_vlan)
         )
         if first_out_port:
             parser = datapath.ofproto_parser
+            init_actions: list[Any] = []
+            if len(path) == 1:
+                if src_switch == "core_hq":
+                    init_actions.extend([
+                        parser.OFPActionSetField(eth_dst="00:00:00:00:00:01"),
+                        parser.OFPActionPushVlan(0x8100),
+                        parser.OFPActionSetField(vlan_vid=src_vlan | ofproto_v1_3.OFPVID_PRESENT),
+                        parser.OFPActionDecNwTtl(),
+                    ])
+                elif src_switch == "dist_branch":
+                    init_actions.extend([
+                        parser.OFPActionPushVlan(0x8100),
+                        parser.OFPActionSetField(vlan_vid=src_vlan | ofproto_v1_3.OFPVID_PRESENT),
+                        parser.OFPActionDecNwTtl(),
+                    ])
+            init_actions.append(parser.OFPActionOutput(first_out_port))
             datapath.send_msg(
                 parser.OFPPacketOut(
                     datapath=datapath,
                     buffer_id=msg.buffer_id,
                     in_port=in_port,
-                    actions=[parser.OFPActionOutput(first_out_port)],
+                    actions=init_actions,
                     data=msg.data if msg.buffer_id == datapath.ofproto.OFP_NO_BUFFER else None,
                 )
             )
 
     def _find_host_port(self, dpid: int, host_name: str, vlan_id: int) -> int | None:
+        for host_rec in self.hosts_by_ip.values():
+            if host_rec.get("name") == host_name and host_rec.get("dpid") == dpid and host_rec.get("port"):
+                return host_rec["port"]
+        norm_name = host_name.replace("_", "-u") if ("_" in host_name and not host_name.startswith("iot_")) else host_name
         for p_no, prof in self.port_profiles[dpid].items():
-            if prof.get("vlan") == vlan_id and host_name in prof.get("name", ""):
-                return p_no
-        for p_no, prof in self.port_profiles[dpid].items():
-            if prof.get("vlan") == vlan_id and prof.get("role") == "access":
+            p_name = prof.get("name", "")
+            if prof.get("vlan") == vlan_id and (host_name == p_name or norm_name == p_name):
                 return p_no
         return None
 
@@ -1772,16 +2038,29 @@ class FullSDNFabricController(app_manager.OSKenApp):
                     "switch": switch_name,
                 })
 
-            # Purge stale flows referencing the failed port across Table 30
-            parser = datapath.ofproto_parser
-            datapath.send_msg(
-                parser.OFPFlowMod(
-                    datapath=datapath,
-                    table_id=TABLE_FORWARDING,
-                    command=datapath.ofproto.OFPFC_DELETE,
-                    out_port=port_no,
-                    out_group=datapath.ofproto.OFPG_ANY,
-                    match=parser.OFPMatch(),
+            # Purge stale forwarding flows across Table 30 on all fabric switches
+            for dp in self.datapaths.values():
+                p = dp.ofproto_parser
+                dp.send_msg(
+                    p.OFPFlowMod(
+                        datapath=dp,
+                        table_id=TABLE_FORWARDING,
+                        command=dp.ofproto.OFPFC_DELETE,
+                        out_port=dp.ofproto.OFPP_ANY,
+                        out_group=dp.ofproto.OFPG_ANY,
+                        match=p.OFPMatch(),
+                    )
                 )
-            )
+                # Re-install Table 30 Miss so subsequent packets go to Controller
+                actions = [p.OFPActionOutput(dp.ofproto.OFPP_CONTROLLER, dp.ofproto.OFPCML_NO_BUFFER)]
+                self.add_flow(
+                    dp,
+                    table_id=TABLE_FORWARDING,
+                    priority=0,
+                    match=p.OFPMatch(),
+                    actions=actions,
+                    reason="Table 30 Miss: Gói đầu tiên kích hoạt controller cài đặt multi-hop path",
+                    policy="forwarding_first_packet",
+                    idle_timeout=0,
+                )
             self._write_state()
