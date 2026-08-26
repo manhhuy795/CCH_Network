@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mockFlows, mockPolicies, mockTopology } from "./api/mockData";
 import { ApiClientError, api, type ActivityEvent, type AuthStatus, type AuthUser, type DashboardPreflight, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
@@ -26,8 +27,8 @@ export default function App() {
   const [topology, setTopology] = useState<Topology>();
   const [policies, setPolicies] = useState<PolicyPayload>({ policies: {}, inventory: [] });
   const [flows, setFlows] = useState<Array<Record<string, unknown>>>([]);
-  const [source, setSource] = useState("h20_01");
-  const [destination, setDestination] = useState("h90");
+  const [source, setSource] = useState("");
+  const [destination, setDestination] = useState("");
   const [seconds, setSeconds] = useState(5);
   const [testType, setTestType] = useState<NetworkTestType>("ping");
   const [resultType, setResultType] = useState<NetworkTestType>("ping");
@@ -143,6 +144,7 @@ export default function App() {
     try {
       const result = await api.login(username, password);
       setUser(result.user);
+      setPage("overview");
       setPassword("");
       notify(`Phiên ${result.user.username} đã sẵn sàng.`, "success");
     } catch (error) {
@@ -272,6 +274,28 @@ export default function App() {
   const togglePolicy = async (key: string, enabled: boolean) => {
     setPolicyBusy(true);
     try {
+      if (user?.id === "preview-admin") {
+        setPolicies((prev) => {
+          const updatedInventory = (prev.inventory || []).map((item) =>
+            item.key === key
+              ? {
+                  ...item,
+                  enabled,
+                  configuration_status: enabled ? ("Enabled" as const) : ("Disabled" as const),
+                  lifecycle_status: "Applied" as const,
+                  updated_at: new Date().toISOString(),
+                }
+              : item
+          );
+          return {
+            ...prev,
+            policies: { ...prev.policies, [key]: enabled },
+            inventory: updatedInventory,
+          };
+        });
+        notify(`Chính sách ${key} đã được ${enabled ? "bật" : "tắt"} (Đồng bộ OpenFlow ACK)`, "success");
+        return;
+      }
       const payload = await api.post<{ ok: boolean; message: string }>("/api/policy/toggle", { key, enabled });
       addEvent(payload.message, payload.ok ? "allow" : "deny");
       notify(payload.message, payload.ok ? "success" : "error");
@@ -308,26 +332,60 @@ export default function App() {
     onDestination: selectDestination,
   };
 
+  const handlePreviewMode = () => {
+    setUser({
+      id: "preview-admin",
+      username: "admin",
+      role: "admin",
+      disabled: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    setTopology(mockTopology);
+    setPolicies(mockPolicies);
+    setFlows(mockFlows);
+    setPage("overview");
+    setFailedLinks([]);
+  };
+
   const pageContent = () => {
     if (authChecking) return <FeedbackState kind="loading" title="Kiểm tra phiên đăng nhập" message="Dashboard đang xác thực phiên làm việc." />;
-    if (!user) return <LoginPanel username={username} password={password} busy={authChecking} error={authError} onUsername={setUsername} onPassword={setPassword} onSubmit={() => void authenticate()} />;
+    if (!user) {
+      return (
+        <LoginPanel
+          username={username}
+          password={password}
+          busy={authChecking}
+          error={authError}
+          onUsername={setUsername}
+          onPassword={setPassword}
+          onSubmit={() => void authenticate()}
+          onPreview={handlePreviewMode}
+        />
+      );
+    }
     if (!topology && page !== "events") {
       return <FeedbackState kind="loading" title="Đang tải dữ liệu vận hành" message="Dashboard đang đọc topology, health và OpenFlow inventory." />;
     }
-    if (page === "topology") return <TopologyCanvas {...topologyProps} />;
-    if (page === "testing") return (
+    if (page === "topology" || page === "testing") return (
       <div className="workspace-grid">
         <TopologyCanvas {...topologyProps} />
         <TestPanel hosts={topology?.hosts || []} source={source} destination={destination} seconds={seconds}
           policyMap={topology?.policy_map} testType={testType} resultType={resultType} busy={busy} elapsedSeconds={elapsedSeconds}
-          websocketState={websocketState} result={result} onSource={setSource} onDestination={setDestination}
+          websocketState={websocketState} result={result} onSource={selectSource} onDestination={selectDestination}
           onSeconds={setSeconds} onTestType={setTestType} onRun={(action) => void runAction(action)}
           onCancel={() => abortController.current?.abort()} />
       </div>
     );
     if (page === "policy") return (
+      <div className="main-column">
+        <PolicyPanel policies={policies} onToggle={togglePolicy} busy={policyBusy} />
+        <FirewallPanel firewalls={policies.firewalls || topology?.firewalls || []} phase44Runtime={policies.phase44_runtime || topology?.phase44_runtime} />
+      </div>
+    );
+    if (page === "sdn") return (
       <div className="policy-workspace">
-        <div className="main-column"><PolicyPanel policies={policies} onToggle={togglePolicy} busy={policyBusy} /><FirewallPanel firewalls={policies.firewalls || topology?.firewalls || []} phase44Runtime={policies.phase44_runtime || topology?.phase44_runtime} /><FlowTable flows={flows} /></div>
+        <div className="main-column"><FlowTable flows={flows} /></div>
         <aside><ClusterDetailPanel /><MetricsPanel metrics={metrics} /></aside>
       </div>
     );

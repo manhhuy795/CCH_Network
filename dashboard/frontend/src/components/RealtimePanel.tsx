@@ -189,7 +189,7 @@ export default function RealtimePanel({ hosts, source, destination, onSource, on
           </label>
         </div>
         <div className="run-bar">
-          <button className="primary" onClick={() => setRunning(true)} disabled={running || source === destination}><Play size={16} />Bắt đầu</button>
+          <button className="primary" onClick={() => setRunning(true)} disabled={running || !source || !destination || source === destination}><Play size={16} />Bắt đầu</button>
           <button onClick={stopMonitoring} disabled={!running}><Pause size={16} />Dừng</button>
           <span className="realtime-updated">Cập nhật cuối: {updated} · {history.length} điểm</span>
         </div>

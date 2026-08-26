@@ -78,6 +78,20 @@ describe("TestPanel", () => {
     expect(screen.getByRole("button", { name: /Chạy Ping/ })).toBeEnabled();
   });
 
+  it("changes the test type with one click and starts with no false endpoint error", () => {
+    function Harness() {
+      const [testType, setTestType] = useState<NetworkTestType>("ping");
+      return <TestPanel {...baseProps({ source: "", destination: "", testType, onTestType: setTestType })} />;
+    }
+    render(<Harness />);
+    expect(screen.queryByText("Nguồn và đích phải khác nhau.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Chạy Ping/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "TCP Throughput" }));
+    expect(screen.getByRole("button", { name: "TCP Throughput" })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: /Chạy TCP Throughput/ })).toBeInTheDocument();
+  });
+
   it("reports a reconnecting realtime channel without blocking HTTP tests", () => {
     render(<TestPanel {...baseProps({ websocketState: "reconnecting" })} />);
     const warning = screen.getByText("WebSocket mất kết nối").closest("[role='status']");

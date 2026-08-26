@@ -57,6 +57,11 @@ describe("RealtimePanel", () => {
     expect(screen.getByText(/Flow bytes 1.200/)).toBeInTheDocument();
   });
 
+  it("does not start monitoring before both endpoints are selected", () => {
+    render(<RealtimePanel hosts={hosts} source="" destination="" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeDisabled();
+  });
+
   it("stops monitoring without starting iperf", () => {
     render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));

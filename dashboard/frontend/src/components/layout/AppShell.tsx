@@ -6,24 +6,24 @@ import {
   Moon,
   Network,
   PanelsTopLeft,
-  Route,
   Server,
   ShieldCheck,
   Sun,
   UserRound,
+  Waypoints,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AuthUser } from "../../api/client";
 import { realtimeStatusLabel, realtimeStatusTone, type RealtimeConnectionState } from "../RealtimePanel";
 import StatusBadge from "../ui/StatusBadge";
 
-export type DashboardPage = "overview" | "topology" | "testing" | "policy" | "performance" | "events";
+export type DashboardPage = "overview" | "topology" | "testing" | "policy" | "sdn" | "performance" | "events";
 
 const navigation: Array<{ id: DashboardPage; label: string; icon: typeof PanelsTopLeft }> = [
   { id: "overview", label: "Tổng quan", icon: PanelsTopLeft },
   { id: "topology", label: "Topology", icon: Network },
-  { id: "testing", label: "Kiểm tra kết nối", icon: Route },
-  { id: "policy", label: "Chính sách & OpenFlow", icon: ShieldCheck },
+  { id: "policy", label: "Chính sách bảo mật", icon: ShieldCheck },
+  { id: "sdn", label: "SDN & OpenFlow", icon: Waypoints },
   { id: "performance", label: "Hiệu năng", icon: ChartNoAxesCombined },
   { id: "events", label: "Sự kiện & nhật ký", icon: Bell },
 ];
@@ -46,11 +46,11 @@ export default function AppShell(props: Props) {
   const [theme, setTheme] = useState<"light" | "dark">(() => localStorage.getItem("cch-theme") === "dark" ? "dark" : "light");
   const visibleNavigation = props.user ? navigation.filter((item) => {
     if (props.user?.role === "admin" || props.user?.role === "operator") return true;
-    if (props.user?.role === "viewer") return item.id !== "testing" && item.id !== "events";
+    if (props.user?.role === "viewer") return item.id !== "events";
     return item.id === "overview" || item.id === "events";
   }) : [];
-  const monitoringNavigation = visibleNavigation.filter((item) => item.id === "overview" || item.id === "topology" || item.id === "testing");
-  const operationsNavigation = visibleNavigation.filter((item) => item.id === "policy" || item.id === "performance" || item.id === "events");
+  const monitoringNavigation = visibleNavigation.filter((item) => item.id === "overview" || item.id === "topology");
+  const operationsNavigation = visibleNavigation.filter((item) => item.id === "policy" || item.id === "sdn" || item.id === "performance" || item.id === "events");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -62,16 +62,21 @@ export default function AppShell(props: Props) {
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="brand-block">
-          <span className="brand-mark"><Network size={17} aria-hidden="true" /></span>
-          <div><strong>CCH Network</strong><span>Operations</span></div>
+          <span className="brand-mark">
+            <Network size={18} color="#ffffff" strokeWidth={2.3} aria-hidden="true" />
+          </span>
+          <div>
+            <strong>CCH Network</strong>
+            <span>Operations</span>
+          </div>
         </div>
         <nav aria-label="Điều hướng chính">
           <span className="nav-caption">Giám sát</span>
-          {monitoringNavigation.map((item) => <NavItem {...item} active={props.page === item.id} key={item.id} onClick={() => props.onPage(item.id)} />)}
+          {monitoringNavigation.map((item) => <NavItem {...item} active={props.page === item.id || (item.id === "topology" && props.page === "testing")} key={item.id} onClick={() => props.onPage(item.id)} />)}
           <span className="nav-caption">Vận hành</span>
           {operationsNavigation.map((item) => <NavItem {...item} active={props.page === item.id} key={item.id} onClick={() => props.onPage(item.id)} />)}
         </nav>
-        <div className="sidebar-workspace"><span className="workspace-icon"><Server size={15} /></span><span><strong>Mininet Lab</strong><small>Ubuntu · OpenFlow 1.3</small></span></div>
+        <div className="sidebar-workspace"><span className="workspace-icon"><Server size={15} color="#ffffff" strokeWidth={2.2} /></span><span><strong>Mininet Lab</strong><small>Ubuntu · OpenFlow 1.3</small></span></div>
       </aside>
       <div className="app-stage">
         <header className="app-header">

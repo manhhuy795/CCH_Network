@@ -13,11 +13,12 @@ const baseProps = {
 };
 
 describe("AppShell", () => {
-  it("renders six operational destinations", () => {
+  it("renders dedicated policy and SDN destinations (with testing merged into topology)", () => {
     render(<AppShell {...baseProps}>Nội dung</AppShell>);
-    for (const label of ["Tổng quan", "Topology", "Kiểm tra kết nối", "Chính sách & OpenFlow", "Hiệu năng", "Sự kiện & nhật ký"]) {
+    for (const label of ["Tổng quan", "Topology", "Chính sách bảo mật", "SDN & OpenFlow", "Hiệu năng", "Sự kiện & nhật ký"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: "Kiểm tra kết nối" })).not.toBeInTheDocument();
   });
 
   it("does not expose an operator token and shows the authenticated role", () => {
@@ -28,7 +29,6 @@ describe("AppShell", () => {
 
   it("limits viewer navigation to read-only destinations", () => {
     render(<AppShell {...baseProps} user={{ id: "u2", username: "viewer", role: "viewer" }}>Nội dung</AppShell>);
-    expect(screen.queryByRole("button", { name: "Kiểm tra kết nối" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sự kiện & nhật ký" })).not.toBeInTheDocument();
   });
 
@@ -37,6 +37,8 @@ describe("AppShell", () => {
     render(<AppShell {...baseProps} onPage={onPage}>Nội dung</AppShell>);
     fireEvent.click(screen.getByRole("button", { name: "Topology" }));
     expect(onPage).toHaveBeenCalledWith("topology");
+    fireEvent.click(screen.getByRole("button", { name: "SDN & OpenFlow" }));
+    expect(onPage).toHaveBeenCalledWith("sdn");
   });
 
   it("persists the selected color mode", () => {

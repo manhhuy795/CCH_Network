@@ -8,12 +8,13 @@ const payload: PolicyPayload = {
     key: "block_social_media",
     name: "Chặn Social Media",
     description: "Chặn mạng xã hội cho user nghiệp vụ.",
-    source: "VLAN 20 / 30 / 40",
+    source: "Managed user VLAN",
     destination: "hsocial",
     action: "DROP",
-    enforcement_point: "core_hq",
-    priority: 470,
-    cookie: "0x1304",
+    enforcement_point: "fw_hq / fw_telesale",
+    priority: 0,
+    cookie: "n/a",
+    enforcement_engine: "nftables",
     enabled: true,
     configuration_status: "Enabled",
     lifecycle_status: "Applied",
@@ -28,16 +29,18 @@ describe("PolicyPanel", () => {
     expect(screen.getByText("Enabled")).toBeInTheDocument();
     expect(screen.getByText("Applied")).toBeInTheDocument();
     expect(screen.getByText("Đã xác nhận")).toBeInTheDocument();
-    expect(screen.getByText("core_hq")).toBeInTheDocument();
-    expect(screen.getByText("0x1304")).toBeInTheDocument();
+    expect(screen.getByText("fw_hq / fw_telesale")).toBeInTheDocument();
+    expect(screen.getByText("n/a")).toBeInTheDocument();
+    expect(screen.getByText("Stateful nftables")).toBeInTheDocument();
+    expect(screen.queryByText(/5 ms/)).not.toBeInTheDocument();
   });
 
   it("requires confirmation with impact summary before toggling", async () => {
     const toggle = vi.fn().mockResolvedValue(undefined);
     render(<PolicyPanel policies={payload} onToggle={toggle} />);
     fireEvent.click(screen.getByRole("button", { name: "Tắt policy" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("core_hq");
-    expect(screen.getByRole("dialog")).toHaveTextContent("0x1304");
+    expect(screen.getByRole("dialog")).toHaveTextContent("fw_hq / fw_telesale");
+    expect(screen.getByRole("dialog")).toHaveTextContent("inet cch_filter");
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Tắt policy" }));
     await waitFor(() => expect(toggle).toHaveBeenCalledWith("block_social_media", false));
   });

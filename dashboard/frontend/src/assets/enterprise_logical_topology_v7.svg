@@ -1,41 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1050" viewBox="0 0 1900 1050">
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="880" viewBox="0 0 1900 880">
   <defs>
     <style>
-      text { font-family: Arial, Helvetica, sans-serif; }
-      .title { font-size: 30px; font-weight: 700; fill: #101828; }
-      .subtitle { font-size: 15px; font-weight: 500; fill: #475467; }
-      .site-title { font-size: 21px; font-weight: 700; fill: #173b67; }
-      .label { font-size: 13px; font-weight: 700; fill: #101828; }
-      .small { font-size: 11px; font-weight: 500; fill: #344054; }
-      .tiny { font-size: 10px; font-weight: 500; fill: #475467; }
-      .site { fill: #ffffff; stroke: #175cd3; stroke-width: 2; }
-      .group { fill: #ffffff; stroke: #98a2b3; stroke-width: 1.4; }
-      .fw-group { fill: #ffffff; stroke: #b42318; stroke-width: 1.8; }
-      .core-group { fill: #ffffff; stroke: #175cd3; stroke-width: 1.8; }
-      .ce-group { fill: #ffffff; stroke: #175cd3; stroke-width: 1.5; stroke-dasharray: 5 4; }
-      .device { fill: #ffffff; stroke: #175cd3; stroke-width: 2; }
-      .firewall { fill: #ffffff; stroke: #b42318; stroke-width: 2; }
-      .access { fill: #ffffff; stroke: #667085; stroke-width: 1.5; }
-      .shared { fill: #ffffff; stroke: #039855; stroke-width: 1.8; }
-      .partner { fill: #ffffff; stroke: #6941c6; stroke-width: 1.8; }
-      .wan-primary { fill: #ffffff; stroke: #d92d20; stroke-width: 2; }
-      .wan-backup { fill: #ffffff; stroke: #d92d20; stroke-width: 2; stroke-dasharray: 9 6; }
-      .normal-link { stroke: #344054; stroke-width: 2; fill: none; }
-      .lan-link { stroke: #175cd3; stroke-width: 2; fill: none; }
-      .ha-link { stroke: #b42318; stroke-width: 1.8; stroke-dasharray: 7 5; fill: none; }
-      .inter-switch { stroke: #344054; stroke-width: 2.2; fill: none; }
-      .l2-handoff { stroke: #175cd3; stroke-width: 2.4; fill: none; }
-      .ipsec-link { stroke: #027a48; stroke-width: 2.5; stroke-dasharray: 10 7; fill: none; }
-      .mpls-primary { stroke: #d92d20; stroke-width: 2.6; fill: none; }
-      .mpls-backup { stroke: #d92d20; stroke-width: 2.6; stroke-dasharray: 10 7; fill: none; }
-      .note-green { fill: #ffffff; stroke: #039855; stroke-width: 1.3; }
-      .note-blue { fill: #ffffff; stroke: #175cd3; stroke-width: 1.2; }
+      text { font-family: Outfit, "Segoe UI", system-ui, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: var(--text, #161616); }
+      .subtitle { font-size: 15px; font-weight: 500; fill: var(--text-muted, #56534e); }
+      .site-title { font-size: 21px; font-weight: 700; fill: var(--primary, #ca4810); }
+      .label { font-size: 13px; font-weight: 700; fill: var(--text, #161616); }
+      .small { font-size: 11px; font-weight: 500; fill: var(--text-muted, #56534e); }
+      .tiny { font-size: 10px; font-weight: 500; fill: var(--text-muted, #56534e); }
+      .site { fill: var(--surface, #ffffff); stroke: var(--primary, #ca4810); stroke-width: 2; }
+      .group { fill: var(--surface, #ffffff); stroke: var(--border, #e9e7e2); stroke-width: 1.4; }
+      .fw-group { fill: var(--surface, #ffffff); stroke: var(--danger, #b8322e); stroke-width: 1.8; }
+      .core-group { fill: var(--surface, #ffffff); stroke: var(--primary, #ca4810); stroke-width: 1.8; }
+      .ce-group { fill: var(--surface, #ffffff); stroke: var(--primary, #ca4810); stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .device { fill: var(--surface, #ffffff); stroke: var(--primary, #ca4810); stroke-width: 2; }
+      .firewall { fill: var(--surface, #ffffff); stroke: var(--danger, #b8322e); stroke-width: 2; }
+      .access { fill: var(--surface, #ffffff); stroke: var(--text-muted, #56534e); stroke-width: 1.5; }
+      .shared { fill: var(--surface, #ffffff); stroke: var(--success, #137452); stroke-width: 1.8; }
+      .partner { fill: var(--surface, #ffffff); stroke: var(--warning, #9a4d09); stroke-width: 1.8; }
+      .wan-primary { fill: var(--surface, #ffffff); stroke: var(--primary, #ca4810); stroke-width: 2; }
+      .wan-backup { fill: var(--surface, #ffffff); stroke: var(--primary, #ca4810); stroke-width: 2; stroke-dasharray: 9 6; }
+      .normal-link { stroke: var(--text-muted, #56534e); stroke-width: 2; fill: none; }
+      .lan-link { stroke: var(--primary, #ca4810); stroke-width: 2; fill: none; }
+      .ha-link { stroke: var(--danger, #b8322e); stroke-width: 1.8; stroke-dasharray: 7 5; fill: none; }
+      .inter-switch { stroke: var(--text-muted, #56534e); stroke-width: 2.2; fill: none; }
+      .l2-handoff { stroke: var(--primary, #ca4810); stroke-width: 2.4; fill: none; }
+      .ipsec-link { stroke: var(--success, #137452); stroke-width: 2.5; stroke-dasharray: 10 7; fill: none; }
+      .mpls-primary { stroke: var(--primary, #ca4810); stroke-width: 2.6; fill: none; }
+      .mpls-backup { stroke: var(--primary, #ca4810); stroke-width: 2.6; stroke-dasharray: 10 7; fill: none; }
     </style>
   </defs>
-  <rect x="0" y="0" width="1900" height="1050" fill="#ffffff"/>
+  <rect x="0" y="0" width="1900" height="880" fill="var(--surface, #ffffff)"/>
   <text x="950" y="38" text-anchor="middle" class="title">SƠ ĐỒ LOGIC MẠNG DOANH NGHIỆP</text>
   <text x="950" y="63" text-anchor="middle" class="subtitle">Trụ sở chính + Chi nhánh | Mô hình 2 tầng Collapsed Core / Distribution</text>
-  <rect x="30" y="90" width="780" height="880" rx="10" class="site"/>
+  <rect x="30" y="90" width="780" height="750" rx="10" class="site"/>
   <text x="55" y="122" class="site-title">TRỤ SỞ CHÍNH (HQ)</text>
   <rect x="55" y="170" width="165" height="112" rx="8" class="partner"/>
   <text x="138" y="195" text-anchor="middle" class="label">HỆ THỐNG ĐỐI TÁC</text>
@@ -68,10 +66,6 @@
   <text x="393" y="516" text-anchor="middle" class="label">CORE-DIST-HQ2</text>
   <line x1="393" y1="450" x2="393" y2="480" class="inter-switch"/>
   <text x="300" y="468" text-anchor="end" class="tiny">INTER-SWITCH LINK</text>
-  <rect x="485" y="492" width="145" height="58" rx="6" class="note-green"/>
-  <text x="558" y="511" text-anchor="middle" class="tiny">SVI / FHRP Gateway</text>
-  <text x="558" y="528" text-anchor="middle" class="tiny">VLAN 93: 10.10.93.1</text>
-  <text x="558" y="544" text-anchor="middle" class="tiny">Gateway đặt tại HQ</text>
   <line x1="475" y1="295" x2="475" y2="345" class="lan-link"/>
   <rect x="690" y="370" width="100" height="180" rx="8" class="ce-group"/>
   <text x="740" y="388" text-anchor="middle" class="tiny">CẶP CE</text>
@@ -81,10 +75,9 @@
   <text x="740" y="434" text-anchor="middle" class="label">CE-HQ1</text>
   <text x="740" y="514" text-anchor="middle" class="label">CE-HQ2</text>
   <line x1="650" y1="460" x2="690" y2="460" class="l2-handoff"/>
-  <rect x="640" y="437" width="60" height="18" fill="#ffffff"/>
+  <rect x="640" y="437" width="60" height="18" fill="var(--surface, #ffffff)"/>
   <text x="670" y="450" text-anchor="middle" class="tiny">VLAN 93</text>
   <text x="670" y="475" text-anchor="middle" class="tiny">L2 Handoff</text>
-  <text x="455" y="620" text-anchor="middle" class="tiny">Các Access Block dual-uplink tới cặp Core-Dist (biểu diễn logic)</text>
   <rect x="50" y="665" width="105" height="140" rx="7" class="access"/>
   <rect x="165" y="665" width="105" height="140" rx="7" class="shared"/>
   <rect x="280" y="665" width="105" height="140" rx="7" class="access"/>
@@ -112,11 +105,7 @@
   <line x1="465" y1="590" x2="448" y2="665" class="lan-link"/>
   <line x1="525" y1="590" x2="570" y2="665" class="lan-link"/>
   <line x1="585" y1="590" x2="708" y2="665" class="lan-link"/>
-  <rect x="175" y="840" width="285" height="85" rx="8" class="shared"/>
-  <text x="318" y="865" text-anchor="middle" class="label">VLAN 93 - DỰ ÁN DÙNG CHUNG</text>
-  <text x="318" y="887" text-anchor="middle" class="small">10.10.93.0/24</text>
-  <text x="318" y="907" text-anchor="middle" class="small">Gateway 10.10.93.1 tại HQ</text>
-  <rect x="1090" y="90" width="780" height="880" rx="10" class="site"/>
+  <rect x="1090" y="90" width="780" height="750" rx="10" class="site"/>
   <text x="1845" y="122" text-anchor="end" class="site-title">CHI NHÁNH</text>
   <text x="1480" y="103" text-anchor="middle" class="small">INTERNET</text>
   <rect x="1360" y="118" width="105" height="42" rx="20" class="device"/>
@@ -143,10 +132,6 @@
   <text x="1518" y="516" text-anchor="middle" class="label">CORE-DIST-BR2</text>
   <line x1="1518" y1="450" x2="1518" y2="480" class="inter-switch"/>
   <text x="1608" y="468" class="tiny">INTER-SWITCH LINK</text>
-  <rect x="1270" y="492" width="155" height="58" rx="6" class="note-green"/>
-  <text x="1348" y="511" text-anchor="middle" class="tiny">SVI/FHRP: VLAN nội bộ</text>
-  <text x="1348" y="528" text-anchor="middle" class="tiny">VLAN 93: KHÔNG SVI</text>
-  <text x="1348" y="544" text-anchor="middle" class="tiny">Không Gateway tại Branch</text>
   <line x1="1485" y1="295" x2="1485" y2="345" class="lan-link"/>
   <rect x="1110" y="370" width="100" height="180" rx="8" class="ce-group"/>
   <text x="1160" y="388" text-anchor="middle" class="tiny">CẶP CE</text>
@@ -156,10 +141,9 @@
   <text x="1160" y="434" text-anchor="middle" class="label">CE-BR1</text>
   <text x="1160" y="514" text-anchor="middle" class="label">CE-BR2</text>
   <line x1="1210" y1="460" x2="1250" y2="460" class="l2-handoff"/>
-  <rect x="1218" y="437" width="24" height="18" fill="#ffffff"/>
+  <rect x="1218" y="437" width="24" height="18" fill="var(--surface, #ffffff)"/>
   <text x="1230" y="450" text-anchor="middle" class="tiny">V93</text>
   <text x="1230" y="475" text-anchor="middle" class="tiny">L2 Handoff</text>
-  <text x="1445" y="620" text-anchor="middle" class="tiny">Access dual-uplink tới cặp Core-Dist (biểu diễn logic)</text>
   <rect x="1210" y="665" width="230" height="155" rx="8" class="shared"/>
   <rect x="1480" y="665" width="230" height="155" rx="8" class="access"/>
   <text x="1325" y="695" text-anchor="middle" class="label">DỰ ÁN 2</text>
@@ -179,15 +163,8 @@
   <line x1="1045" y1="430" x2="1132" y2="430" class="mpls-primary"/>
   <line x1="768" y1="510" x2="855" y2="510" class="mpls-backup"/>
   <line x1="1045" y1="510" x2="1132" y2="510" class="mpls-backup"/>
-  <text x="950" y="565" text-anchor="middle" class="small">Chỉ mở rộng Layer 2 cho VLAN 93</text>
-  <text x="950" y="584" text-anchor="middle" class="tiny">Primary = Active | Backup = Standby | Failover phụ thuộc dịch vụ MPLS L2VPN của nhà cung cấp</text>
   <line x1="625" y1="226" x2="1335" y2="226" class="ipsec-link"/>
-  <rect x="862" y="207" width="176" height="26" fill="#ffffff"/>
-  <text x="950" y="222" text-anchor="middle" class="small" fill="#027a48">IPsec L3 VPN</text>
-  <text x="950" y="233" text-anchor="middle" class="tiny" fill="#027a48">(qua Internet)</text>
-  <rect x="790" y="845" width="320" height="90" rx="8" class="group"/>
-  <text x="950" y="870" text-anchor="middle" class="label">DỰ PHÒNG WAN</text>
-  <text x="950" y="892" text-anchor="middle" class="small">CE1 + MPLS chính = đường hoạt động ưu tiên</text>
-  <text x="950" y="911" text-anchor="middle" class="small">CE2 + MPLS dự phòng = đường standby</text>
-  <text x="950" y="929" text-anchor="middle" class="tiny">Chi tiết dual-homing / failover phụ thuộc thiết bị và dịch vụ nhà cung cấp</text>
+  <rect x="862" y="207" width="176" height="26" fill="var(--surface, #ffffff)"/>
+  <text x="950" y="222" text-anchor="middle" class="small" fill="var(--success, #137452)">IPsec L3 VPN</text>
+  <text x="950" y="233" text-anchor="middle" class="tiny" fill="var(--success, #137452)">(qua Internet)</text>
 </svg>

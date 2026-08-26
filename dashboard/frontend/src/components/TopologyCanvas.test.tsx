@@ -89,37 +89,31 @@ const defaultProps = {
 };
 
 describe("TopologyCanvas (Enterprise v7)", () => {
-  it("renders Enterprise v7 title, description, and simulation honesty note", () => {
+  it("renders Enterprise v7 title without the simulation note", () => {
     render(<TopologyCanvas {...defaultProps} />);
     expect(screen.getByText(/Sơ đồ logic mạng doanh nghiệp · v7/)).toBeInTheDocument();
-    expect(screen.getByText(/Simulation Honesty \(v7\)/)).toBeInTheDocument();
-    expect(screen.getByTestId("topology-canvas")).toBeInTheDocument();
+    expect(screen.queryByText(/Simulation Honesty/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("topology-canvas")).toHaveClass("fixed-layout");
   });
 
-  it("renders view mode switcher and toggles between modes", () => {
-    render(<TopologyCanvas {...defaultProps} />);
-    const simTab = screen.getByRole("tab", { name: /Mô phỏng tương tác/ });
-    const archTab = screen.getByRole("tab", { name: /Sơ đồ chuẩn v7/ });
-    const integratedTab = screen.getByRole("tab", { name: /Chế độ kết hợp/ });
-
-    expect(simTab).toHaveAttribute("aria-selected", "true");
-    fireEvent.click(archTab);
-    expect(archTab).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByAltText(/Sơ đồ logic mạng doanh nghiệp v7/)).toBeInTheDocument();
-
-    fireEvent.click(integratedTab);
-    expect(integratedTab).toHaveAttribute("aria-selected", "true");
+  it("does not highlight source or destination before the operator chooses them", () => {
+    render(<TopologyCanvas {...defaultProps} source="" destination="" />);
+    expect(screen.queryByText("NGUỒN")).not.toBeInTheDocument();
+    expect(screen.queryByText("ĐÍCH")).not.toBeInTheDocument();
   });
 
-  it("provides zoom controls with zoom level indicator", () => {
+  it("renders Enterprise v7 interactive topology architecture underlay and quick search", () => {
     render(<TopologyCanvas {...defaultProps} />);
-    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Enterprise v7 Architecture/ })).toBeInTheDocument();
+    expect(screen.queryByText(/DỰ PHÒNG WAN/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Chỉ mở rộng Layer 2/)).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Tìm kiếm thiết bị" })).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Phóng to" }));
-    expect(screen.getByText("115%")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Reset Zoom" }));
-    expect(screen.getByText("100%")).toBeInTheDocument();
+  it("keeps the architecture fixed and provides fullscreen access", () => {
+    render(<TopologyCanvas {...defaultProps} />);
+    expect(screen.queryByRole("button", { name: "Phóng to" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toàn màn hình" })).toBeInTheDocument();
   });
 
   it("renders separate VLAN 93 presentation nodes for HQ and Branch", () => {
@@ -133,17 +127,33 @@ describe("TopologyCanvas (Enterprise v7)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Node core_hq" }));
 
     expect(screen.getByRole("complementary", { name: /Chi tiết Node · core_hq/ })).toBeInTheDocument();
-    expect(screen.getByText("Collapsed Core/Distribution HA (HQ)")).toBeInTheDocument();
+    expect(screen.getAllByText("Collapsed Core/Distribution HA (HQ)").length).toBeGreaterThanOrEqual(1);
   });
 
   it("allows selecting source and destination endpoints from node click", () => {
     const onSource = vi.fn();
     const onDestination = vi.fn();
-    render(<TopologyCanvas {...defaultProps} source="h93_01" onSource={onSource} onDestination={onDestination} />);
+    const { rerender } = render(<TopologyCanvas {...defaultProps} source="" destination="" onSource={onSource} onDestination={onDestination} />);
 
     const project1Node = screen.getByRole("button", { name: "Node Dự án 1" });
     fireEvent.click(project1Node);
     expect(onSource).toHaveBeenCalledWith("h101_01");
+    expect(screen.queryByRole("complementary", { name: /Chi tiết Node/ })).not.toBeInTheDocument();
+
+    rerender(<TopologyCanvas {...defaultProps} source="h101_01" destination="" onSource={onSource} onDestination={onDestination} />);
+    fireEvent.click(screen.getByRole("button", { name: "Node Dự án 2 · HQ" }));
+    expect(onDestination).toHaveBeenCalledWith("h93_01");
+
+    rerender(<TopologyCanvas {...defaultProps} source="h101_01" destination="h93_01" onSource={onSource} onDestination={onDestination} />);
+    fireEvent.click(screen.getByRole("button", { name: "Node Dự án 1" }));
+    expect(onSource).toHaveBeenLastCalledWith("");
+    rerender(<TopologyCanvas {...defaultProps} source="" destination="h93_01" onSource={onSource} onDestination={onDestination} />);
+    fireEvent.click(screen.getByRole("button", { name: "Node PBX / Contact Center" }));
+    expect(onSource).toHaveBeenLastCalledWith("h90");
+
+    rerender(<TopologyCanvas {...defaultProps} source="h101_01" destination="h93_01" onSource={onSource} onDestination={onDestination} />);
+    fireEvent.click(screen.getByRole("button", { name: "Node Dự án 2 · HQ" }));
+    expect(onDestination).toHaveBeenLastCalledWith("");
   });
 
   it("marks blocked_at with animated deny marker and stops path animation at blocked node", () => {
@@ -170,11 +180,13 @@ describe("TopologyCanvas (Enterprise v7)", () => {
 
     // Fail button on the UP link
     const failBtn = screen.getByRole("button", { name: /Ngắt thử nghiệm Primary · l2vpn_primary ↔ ce_branch1/ });
+    expect(failBtn).toHaveTextContent("Ngắt liên kết");
     fireEvent.click(failBtn);
     expect(onFail).toHaveBeenCalledWith("l2vpn_primary-ce_branch1");
 
     // Recover button on the DOWN link
     const recoverBtn = screen.getByRole("button", { name: /Khôi phục Primary · ce_hq1 ↔ l2vpn_primary/ });
+    expect(recoverBtn).toHaveTextContent("Khôi phục liên kết");
     fireEvent.click(recoverBtn);
     expect(onRecover).toHaveBeenCalledWith("ce_hq1-l2vpn_primary");
   });

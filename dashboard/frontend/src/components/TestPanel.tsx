@@ -142,7 +142,7 @@ export default function TestPanel(props: Props) {
   const policyNote = destinationPolicyId ? policyEntry?.notes[destinationPolicyId] : undefined;
   const metrics = props.result?.result || {};
   const decision = props.result?.decision;
-  const sameEndpoint = props.source === props.destination;
+  const sameEndpoint = Boolean(props.source && props.destination && props.source === props.destination);
   const canRun = !props.busy && !sameEndpoint && Boolean(props.source && props.destination);
   const websocketWarning = props.websocketState === "reconnecting" || props.websocketState === "error";
   const testIcons = { ping: Activity, tcp: Gauge, udp: Gauge, quality: PhoneCall };
@@ -182,7 +182,7 @@ export default function TestPanel(props: Props) {
             <div className="test-type-selector">
               {(Object.keys(testLabels) as NetworkTestType[]).map((type) => {
                 const Icon = testIcons[type];
-                return <button className={props.testType === type ? "active" : ""} disabled={props.busy} key={type} onClick={() => props.onTestType(type)}><Icon size={16} />{testLabels[type]}</button>;
+                return <button type="button" className={props.testType === type ? "active" : ""} disabled={props.busy} key={type} onClick={() => props.onTestType(type)}><Icon size={16} />{testLabels[type]}</button>;
               })}
             </div>
           </div>
