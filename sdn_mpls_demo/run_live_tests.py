@@ -43,19 +43,25 @@ def run_cmd(cmd: list[str]) -> str:
     return res.stdout.strip()
 
 
-def check_ovs_connections() -> dict[str, bool]:
-    out = run_cmd(["ovs-vsctl", "show"])
+def check_ovs_connections(timeout: int = 15) -> dict[str, bool]:
+    deadline = time.time() + timeout
     results = {}
-    current_bridge = None
-    for line in out.splitlines():
-        line = line.strip()
-        if line.startswith("Bridge "):
-            current_bridge = line.split()[1]
-        elif line.startswith("is_connected: true") and current_bridge in SWITCHES:
-            results[current_bridge] = True
-    for sw in SWITCHES:
-        if sw not in results:
-            results[sw] = False
+    while True:
+        out = run_cmd(["ovs-vsctl", "show"])
+        results = {}
+        current_bridge = None
+        for line in out.splitlines():
+            line = line.strip()
+            if line.startswith("Bridge "):
+                current_bridge = line.split()[1]
+            elif line.startswith("is_connected: true") and current_bridge in SWITCHES:
+                results[current_bridge] = True
+        for sw in SWITCHES:
+            if sw not in results:
+                results[sw] = False
+        if all(results.values()) or time.time() >= deadline:
+            break
+        time.sleep(1)
     return results
 
 
