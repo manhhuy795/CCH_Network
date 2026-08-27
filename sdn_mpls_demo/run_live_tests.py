@@ -210,6 +210,8 @@ def main():
         action_str = "REACHABLE" if passed else "DROPPED"
         exp_str = "REACHABLE" if expected_pass else "DROPPED"
         print(f"  [{status_str}] {desc:45}: Result={action_str} (Expected={exp_str})")
+        if not match:
+            print(f"    DEBUG {desc}: passed={passed}, res={res}")
         traffic_results.append({"desc": desc, "status": status_str, "action": action_str, "match": match})
         return match
 
@@ -297,6 +299,7 @@ except Exception as e:
     # 8. Failover VLAN 93 Test
     log("8. VLAN 93 FAILOVER TEST", "Testing Primary -> Backup L2VPN dynamic failover...")
     # Step A: Ping when primary is UP
+    test_ping("h93_01", "10.10.93.21", count=2)
     p1 = test_ping("h93_01", "10.10.93.21", count=3)  # h93_01 (HQ) -> h93_11 (Branch, 10.10.93.21)
     print(f"  Primary Link UP: Ping h93_01 -> h93_11: {'PASS' if p1.get('ok') else 'FAIL'}")
 
@@ -304,8 +307,8 @@ except Exception as e:
     print("  Shutting down Primary L2VPN path (core_hq-ce_hq1)...")
     down = test_set_link("core_hq-ce_hq1", "down")
     print(f"  Controller/agent link-down request: {'PASS' if down.get('ok') else 'FAIL'}")
-    time.sleep(10)
-    test_ping("h93_01", "10.10.93.21", count=1)
+    time.sleep(5)
+    test_ping("h93_01", "10.10.93.21", count=2)
 
     # Step C: Ping over backup
     p2 = test_ping("h93_01", "10.10.93.21", count=3)
@@ -315,8 +318,8 @@ except Exception as e:
     print("  Restoring Primary L2VPN path (core_hq-ce_hq1)...")
     restored_link = test_set_link("core_hq-ce_hq1", "up")
     print(f"  Controller/agent link-up request: {'PASS' if restored_link.get('ok') else 'FAIL'}")
-    time.sleep(10)
-    test_ping("h93_01", "10.10.93.21", count=1)
+    time.sleep(5)
+    test_ping("h93_01", "10.10.93.21", count=2)
 
     p3 = test_ping("h93_01", "10.10.93.21", count=3)
     print(f"  Primary Link RESTORED: Ping h93_01 -> h93_11: {'PASS' if p3.get('ok') else 'FAIL'}")

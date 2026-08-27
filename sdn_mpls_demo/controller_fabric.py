@@ -2230,7 +2230,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
             "ipv4_src": dst_ip,
             "ipv4_dst": src_ip,
         }
-        timeout = 60
+        timeout = 180
         if proto == 6:
             if dport is not None:
                 match_kwargs["tcp_src"] = dport
@@ -2243,7 +2243,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
                 match_kwargs["udp_dst"] = sport
         elif proto == 1:
             match_kwargs["icmpv4_type"] = 0  # ICMP Echo Reply only
-            timeout = 60
+            timeout = 180
 
         for sw_name in paths:
             sw_dpid = NAME_DPIDS.get(sw_name)
@@ -2375,7 +2375,11 @@ class FullSDNFabricController(app_manager.OSKenApp):
             is_last_rev_hop = (i == len(rev_path) - 1)
             if is_last_rev_hop:
                 # Source switch: output to source access port
-                rev_out_port = in_port if sw_name == src_switch else (src_host.get("port") if src_host else in_port)
+                rev_out_port = self._find_host_port(sw_dpid, src_host["name"], src_vlan) if src_host else None
+                if not rev_out_port and src_host:
+                    rev_out_port = src_host.get("port")
+                if not rev_out_port and sw_name == DPID_NAMES.get(datapath.id):
+                    rev_out_port = in_port
             else:
                 next_sw = rev_path[i + 1]
                 rev_egress_vlan = src_vlan if (is_inter_vlan and i >= rev_gateway_idx) else dst_vlan
@@ -2629,7 +2633,7 @@ class FullSDNFabricController(app_manager.OSKenApp):
         norm_name = host_name.replace("_", "-u") if ("_" in host_name and not host_name.startswith("iot_")) else host_name
         for p_no, prof in self.port_profiles[dpid].items():
             p_name = prof.get("name", "")
-            if prof.get("vlan") == vlan_id and (host_name == p_name or norm_name == p_name):
+            if prof.get("vlan") == vlan_id and (host_name == p_name or norm_name == p_name or prof.get("host") == host_name):
                 return p_no
         return None
 
