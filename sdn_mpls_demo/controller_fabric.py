@@ -605,25 +605,26 @@ class FullSDNFabricController(app_manager.OSKenApp):
         except Exception:
             pass
 
-    def _write_flows(self) -> None:
-        with self.file_lock:
-            data = json.dumps(self.installed_flows[-3000:], ensure_ascii=False, indent=2)
-            try:
-                temp_file = FABRIC_FLOWS_FILE.with_suffix(".tmp")
-                temp_file.write_text(data, encoding="utf-8")
-                temp_file.replace(FABRIC_FLOWS_FILE)
-            except Exception:
-                try:
-                    FABRIC_FLOWS_FILE.write_text(data, encoding="utf-8")
-                except Exception:
-                    pass
-            try:
-                FLOWS_FILE.write_text(data, encoding="utf-8")
-            except Exception:
-                pass
+    def _write_flows(self, force: bool = False) -> None:
+        now = time.time()
+        if not force and hasattr(self, "_last_flow_write") and (now - self._last_flow_write < 1.0):
+            return
+        self._last_flow_write = now
+        try:
+            data = json.dumps(self.installed_flows[-1000:], ensure_ascii=False, indent=2)
+            temp_file = FABRIC_FLOWS_FILE.with_suffix(".tmp")
+            temp_file.write_text(data, encoding="utf-8")
+            temp_file.replace(FABRIC_FLOWS_FILE)
+            FLOWS_FILE.write_text(data, encoding="utf-8")
+        except Exception:
+            pass
 
-    def _write_state(self) -> None:
-        with self.file_lock:
+    def _write_state(self, force: bool = False) -> None:
+        now = time.time()
+        if not force and hasattr(self, "_last_state_write") and (now - self._last_state_write < 1.0):
+            return
+        self._last_state_write = now
+        try:
             state = {
                 "timestamp": utc_now(),
                 "switches": {
@@ -651,21 +652,19 @@ class FullSDNFabricController(app_manager.OSKenApp):
                     for c in circuits
                 ],
             }
-            try:
-                temp = FABRIC_STATE_FILE.with_suffix(".tmp")
-                temp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-                temp.replace(FABRIC_STATE_FILE)
-            except Exception:
-                try:
-                    FABRIC_STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-                except Exception:
-                    pass
+            temp = FABRIC_STATE_FILE.with_suffix(".tmp")
+            temp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            temp.replace(FABRIC_STATE_FILE)
+        except Exception:
+            pass
 
     def _record_event(self, event_type: str, details: dict[str, Any]) -> None:
         payload = {"timestamp": utc_now(), "event_type": event_type, **details}
-        with self.file_lock:
+        try:
             with EVENTS_FILE.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
         self._write_state()
 
     def _record_flow(
