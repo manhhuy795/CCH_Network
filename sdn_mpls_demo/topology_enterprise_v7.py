@@ -461,6 +461,7 @@ def build_topology() -> None:
     controller.start()
     for switch in switches.values():
         switch.start([controller])
+        switch.cmd(f"ovs-vsctl set controller {switch.name} inactivity_probe=60000")
     net.waitConnected(timeout=15)
     service_net.start([])
     for node in ce_nodes.values():

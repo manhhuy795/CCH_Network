@@ -44,6 +44,8 @@ def run_cmd(cmd: list[str]) -> str:
 
 
 def check_ovs_connections(timeout: int = 15) -> dict[str, bool]:
+    for sw in SWITCHES:
+        run_cmd(["ovs-vsctl", "set", "controller", sw, "inactivity_probe=60000"])
     deadline = time.time() + timeout
     results = {}
     while True:
