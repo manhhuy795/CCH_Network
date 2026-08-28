@@ -421,21 +421,7 @@ class EnterpriseV7CLI(CLI):
 
 
 def _preflight_cleanup() -> None:
-    """Safely tear down any duplicate mininet processes and leftover virtual interfaces."""
-    current_pid = os.getpid()
-    parent_pid = os.getppid()
-    try:
-        out = subprocess.run(["pgrep", "-f", "topology_enterprise_v7.py"], capture_output=True, text=True)
-        for pid_str in out.stdout.split():
-            try:
-                p = int(pid_str)
-                if p not in (current_pid, parent_pid):
-                    os.kill(p, signal.SIGKILL)
-            except (ValueError, ProcessLookupError, PermissionError):
-                pass
-    except Exception:
-        pass
-
+    """Safely tear down any leftover virtual interfaces and bridges from previous runs."""
     try:
         subprocess.run(["mn", "-c"], capture_output=True)
     except Exception:
