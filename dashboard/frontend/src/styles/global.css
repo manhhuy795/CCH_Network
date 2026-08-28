@@ -872,32 +872,33 @@ th { background: var(--surface-muted); color: var(--text-muted); position: stick
 .topology-viewport-container {
   position: relative;
   width: 100%;
-  height: clamp(620px, calc(100vh - 250px), 950px);
-  min-height: 520px;
-  overflow: hidden;
+  height: clamp(750px, calc(100vh - 180px), 1200px);
+  min-height: 700px;
+  overflow: auto;
   background: #ffffff;
   user-select: none;
 }
 
 .topology-page.fullscreen .topology-viewport-container {
-  height: calc(100vh - 180px);
+  height: calc(100vh - 120px);
 }
 
 .topology-canvas-stage {
   width: 100%;
   height: 100%;
+  min-width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.05s ease-out;
+  transition: transform 0.12s ease-out;
 }
 
 .topology-clean-arch-view,
 .topology-interactive-stage {
   position: relative;
   width: 100%;
-  max-width: 1900px;
-  aspect-ratio: 1900 / 1050;
+  max-width: 100%;
+  aspect-ratio: 1900 / 880;
   max-height: 100%;
   display: flex;
   align-items: center;

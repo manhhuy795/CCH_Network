@@ -41,7 +41,7 @@ function endpointLabel(host?: Host) {
 
 function groupBucket(host: Host) {
   if (host.kind === "service") return host.group === "h90" ? "HQ · Voice" : "Internet / Services";
-  return `${host.site} · ${host.group_label} · VLAN ${host.vlan}`;
+  return `${host.site.toUpperCase()} · ${host.group_label} · VLAN ${host.vlan}`;
 }
 
 function EndpointCombobox({
@@ -67,8 +67,7 @@ function EndpointCombobox({
     const needle = query.trim().toLowerCase();
     return hosts
       .filter((host) => host.name !== exclude)
-      .filter((host) => !needle || hostText(host).includes(needle))
-      .slice(0, 60);
+      .filter((host) => !needle || hostText(host).includes(needle));
   }, [hosts, query, exclude]);
   useEffect(() => setActive(0), [query]);
   const groups = useMemo(() => {

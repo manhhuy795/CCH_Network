@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, Download, Maximize2, Minimize2, Network, Search } from "lucide-react";
+import { Activity, Download, Maximize2, Minimize2, Network, Search, ZoomIn, ZoomOut } from "lucide-react";
 import type { Decision, Host, Link, Topology } from "../api/client";
 import topologyV7Svg from "../assets/enterprise_logical_topology_v7.svg?raw";
 import Drawer from "./ui/Drawer";
@@ -217,6 +217,11 @@ export default function TopologyCanvas({
     return flows.filter((flow) => flow.switch === selectedNode.id || flow.device === selectedNode.id);
   }, [flows, selectedNode]);
 
+  const [zoom, setZoom] = useState(1);
+  const handleZoomIn = () => setZoom((z) => Math.min(2.5, +(z + 0.15).toFixed(2)));
+  const handleZoomOut = () => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)));
+  const handleZoomReset = () => setZoom(1);
+
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
     if (document.fullscreenElement) await document.exitFullscreen?.();
@@ -244,6 +249,9 @@ export default function TopologyCanvas({
           {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Xóa tìm kiếm">Xóa</button>}
         </div>
         <div className="topology-zoom-tools" aria-label="Điều khiển canvas">
+          <button type="button" onClick={handleZoomOut} title="Thu nhỏ (Zoom Out)" aria-label="Thu nhỏ"><ZoomOut size={15} /></button>
+          <button type="button" onClick={handleZoomReset} className="zoom-value" title="Đặt lại 100%" aria-label="Đặt lại 100%">{Math.round(zoom * 100)}%</button>
+          <button type="button" onClick={handleZoomIn} title="Phóng to (Zoom In)" aria-label="Phóng to"><ZoomIn size={15} /></button>
           <button type="button" onClick={toggleFullscreen} title="Toàn màn hình" aria-label="Toàn màn hình">{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
           <a href="/assets/enterprise_logical_topology_v7.svg" download className="download-link-btn" title="Tải sơ đồ SVG" aria-label="Tải sơ đồ SVG"><Download size={15} /></a>
         </div>
@@ -251,7 +259,7 @@ export default function TopologyCanvas({
 
       <div className="topology-viewport-container">
         <div className="topology-canvas-stage">
-          <div className="topology-interactive-stage">
+          <div className="topology-interactive-stage" style={{ transform: `scale(${zoom})`, transformOrigin: "center center", transition: "transform 0.12s ease-out" }}>
             <div role="img" aria-label="Enterprise v7 Architecture" className="topology-vector-underlay" dangerouslySetInnerHTML={{ __html: topologyV7Svg }} />
             <svg viewBox="0 0 1900 880" className="topology-overlay-svg" aria-label="CCH Enterprise v7 topology canvas">
               {activePathPoints.length > 1 && (

@@ -64,13 +64,13 @@ export default function OverviewPage({
   const runtimeReady = requiredRuntimeComponents.filter((key) => components[key]?.status === "online").length;
   const l2vpn = topology?.l2vpn || {};
   const configuredVlan = Number(l2vpn.customer_vlan);
-  const vlan = Number.isFinite(configuredVlan) ? configuredVlan : 40;
-  const l2vpnConfigured = topology?.summary.l2vpn_service_count === 1 && vlan === 40;
+  const vlan = Number.isFinite(configuredVlan) ? configuredVlan : 93;
+  const l2vpnConfigured = (topology?.summary.l2vpn_service_count ?? 1) >= 1 && (vlan === 93 || vlan === 40);
   const l2vpnLinkIds = new Set((topology?.links || []).filter((link) => link.type === "l2vpn").map((link) => link.id));
   const failedAttachments = failedLinks.filter((linkId) => l2vpnLinkIds.has(linkId));
   const summary = preflight?.summary || {};
   const preflightCases = preflight?.cases || [];
-  const l2Cases = preflightCases.filter((item) => item.id.startsWith("vlan40_"));
+  const l2Cases = preflightCases.filter((item) => item.id.startsWith("vlan93_") || item.id.startsWith("vlan40_"));
   const l2Passed = l2Cases.filter((item) => item.passed).length;
   const hasL2Evidence = l2vpnConfigured && l2Cases.length === 2;
   const measuredOnline = numberOr(summary.endpoints_online, onlineHosts);
@@ -487,7 +487,7 @@ export default function OverviewPage({
             <div className="health-checks">
               <HealthCheck ok={components.controller?.status === "online"} title="OS-Ken controller" detail={componentEvidence(components.controller, "6653/TCP")} />
               <HealthCheck ok={switchesReady > 0 && switchesReady === switchesExpected} title="Open vSwitch" detail={preflightAvailable ? `${switchesReady}/${switchesExpected} bridge · ${flowEntries} flow` : "Chờ inventory ovs-ofctl"} />
-              <HealthCheck ok={hasL2Evidence && l2Passed === 2} title="VLAN 40 continuity" detail={hasL2Evidence ? `${l2Passed}/2 hướng ping đạt` : "Chưa chạy phép đo HQ ↔ Branch"} />
+              <HealthCheck ok={hasL2Evidence && l2Passed === 2} title="Dự án 2 (VLAN 93) continuity" detail={hasL2Evidence ? `${l2Passed}/2 hướng ping đạt` : "Chưa chạy phép đo HQ ↔ Branch"} />
               <HealthCheck ok={!failedLinks.length} title="Link state" detail={failedLinks.length ? `${failedLinks.length} link đang down` : "0 link down trong Control Agent"} />
             </div>
           </section>
