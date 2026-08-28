@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
+import signal
+import subprocess
+import sys
 import time
 from pathlib import Path
-import os
-import sys
 
 import yaml
 from mininet.cli import CLI
@@ -418,7 +420,56 @@ class EnterpriseV7CLI(CLI):
             info(self.mn.get(name).cmd("nft -a list table inet cch_filter"))
 
 
+def _preflight_cleanup() -> None:
+    """Safely tear down any duplicate mininet processes and leftover virtual interfaces."""
+    current_pid = os.getpid()
+    try:
+        out = subprocess.run(["pgrep", "-f", "topology_enterprise_v7.py"], capture_output=True, text=True)
+        for pid_str in out.stdout.split():
+            try:
+                p = int(pid_str)
+                if p != current_pid:
+                    os.kill(p, signal.SIGKILL)
+            except (ValueError, ProcessLookupError, PermissionError):
+                pass
+    except Exception:
+        pass
+
+    try:
+        subprocess.run(["mn", "-c"], capture_output=True)
+    except Exception:
+        pass
+
+    try:
+        res = subprocess.run(["ip", "-o", "link", "show"], capture_output=True, text=True)
+        protected = {"lo", "eth0", "ens33", "ens32", "ens160"}
+        for line in res.stdout.splitlines():
+            parts = line.split(":")
+            if len(parts) >= 2:
+                name = parts[1].strip().split("@")[0]
+                if name not in protected and not name.startswith("ens") and not name.startswith("docker"):
+                    if any(prefix in name for prefix in [
+                        "svc-", "inf-", "core-", "bd-", "f1-", "f2-", "br-", "inet-",
+                        "h101", "h93", "h103", "h104", "h110", "iot", "guest",
+                        "fw_", "tele_", "hq_", "ipsec", "ceh", "ceb", "v93-", "v100-",
+                        "v101-", "v103-", "v104-", "v110-", "v120-", "v140-", "v50-"
+                    ]):
+                        subprocess.run(["ip", "link", "del", name], capture_output=True)
+    except Exception:
+        pass
+
+    stale_bridges = [
+        "service_net", "ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2",
+        "l2vpn_primary", "l2vpn_backup", "access_floor1", "access_floor2",
+        "core_hq", "access_branch", "dist_branch", "infra_access"
+    ]
+    for br in stale_bridges:
+        subprocess.run(["ovs-vsctl", "--if-exists", "del-br", br], capture_output=True)
+        subprocess.run(["ip", "link", "del", br], capture_output=True)
+
+
 def build_topology() -> None:
+    _preflight_cleanup()
     started = time.monotonic()
     policy = load_policy()
     net = Mininet(controller=None, switch=legacy.ReliableOVSKernelSwitch, link=TCLink, autoSetMacs=True, build=False, waitConnected=True)
