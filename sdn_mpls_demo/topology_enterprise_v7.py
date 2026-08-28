@@ -421,7 +421,39 @@ class EnterpriseV7CLI(CLI):
 
 
 def _preflight_cleanup() -> None:
-    """Safely tear down any leftover virtual interfaces and bridges from previous runs."""
+    """Safely tear down any duplicate mininet processes and leftover virtual interfaces."""
+    current_pid = os.getpid()
+    try:
+        for pid_dir in Path("/proc").iterdir():
+            if not pid_dir.name.isdigit():
+                continue
+            try:
+                pid = int(pid_dir.name)
+                if pid == current_pid:
+                    continue
+                cmdline_file = pid_dir / "cmdline"
+                if not cmdline_file.exists():
+                    continue
+                cmdline = cmdline_file.read_bytes().decode("utf-8", errors="ignore")
+                if "topology_enterprise_v7.py" in cmdline:
+                    parts = [p for p in cmdline.split("\0") if p]
+                    if parts and "python" in parts[0]:
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except (ProcessLookupError, PermissionError):
+                            pass
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    sock = Path("/tmp/cch_mininet_control.sock")
+    if sock.exists():
+        try:
+            sock.unlink()
+        except Exception:
+            pass
+
     try:
         subprocess.run(["mn", "-c"], capture_output=True)
     except Exception:

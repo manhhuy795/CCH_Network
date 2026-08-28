@@ -559,9 +559,10 @@ class MininetControlAgent:
         mode = self.socket_path.lstat().st_mode
         if not stat.S_ISSOCK(mode):
             raise RuntimeError(f"Khong xoa file khong phai socket: {self.socket_path}")
-        if self._socket_is_active():
-            raise RuntimeError(f"Mininet control agent dang chay tai {self.socket_path}")
-        self.socket_path.unlink()
+        try:
+            self.socket_path.unlink()
+        except Exception:
+            pass
 
     def _socket_is_active(self) -> bool:
         probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
