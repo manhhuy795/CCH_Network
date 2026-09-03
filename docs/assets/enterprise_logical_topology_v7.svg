@@ -23,7 +23,7 @@
       .primary-box { fill: #ecfdf3; stroke: #16865c; stroke-width: 1.8; }
       .backup-box { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.8; stroke-dasharray: 7 5; }
       .pill { fill: #ffffff; stroke: #d8dee9; stroke-width: 1.1; }
-      .control { fill: none; stroke: #2563eb; stroke-width: 1.5; stroke-dasharray: 5 5; opacity: .62; }
+      .control { fill: none; stroke: #2563eb; stroke-width: 1.2; stroke-dasharray: 5 5; opacity: .42; }
       .data { fill: none; stroke: #475569; stroke-width: 2; stroke-linejoin: round; }
       .external-link { fill: none; stroke: #c2410c; stroke-width: 2.2; stroke-linejoin: round; }
       .routed { fill: none; stroke: #0f766e; stroke-width: 2.2; stroke-dasharray: 8 5; stroke-linejoin: round; }
@@ -54,7 +54,7 @@
   <text x="30" y="214" class="section">HQ</text>
   <text x="1410" y="214" text-anchor="end" class="section">BRANCH</text>
 
-  <!-- All connectors are orthogonal and remain behind node blocks. -->
+  <!-- Long-haul links use routing lanes; short hierarchy branches stay direct. -->
   <!-- Row 2: firewalls and external services -->
   <path d="M320 250 H600 M840 250 H1120" class="external-link"/>
   <path d="M160 278 V326 H300 V350 M1280 278 V326 H1140 V350" class="data"/>
@@ -65,10 +65,10 @@
   <path d="M420 400 H540 V426 H560 M880 426 H940 V400 H1020" class="backup"/>
 
   <!-- Row 3 to row 4: internal OVS fabric -->
-  <path d="M240 420 V466 H155 V520 M300 420 V483 H395 V520 M360 420 V500 H675 V520 M1140 420 V520" class="data"/>
+  <path d="M240 420 L155 520 M300 420 L395 520 M360 420 L675 520 M1140 420 L1165 520" class="data"/>
 
   <!-- Row 4 to row 5: endpoint attachment -->
-  <path d="M120 580 V638 H85 V690 M205 580 V650 H230 V690 M340 580 V638 H375 V690 M400 580 V650 H495 V690 M465 580 V662 H635 V690 M675 580 V690 M1120 580 V650 H1065 V690 M1210 580 V638 H1295 V690" class="data"/>
+  <path d="M120 580 L85 690 M205 580 L230 690 M340 580 L375 690 M400 580 L495 690 M465 580 L635 690 M675 580 L805 690 M1120 580 L1065 690 M1210 580 L1295 690" class="data"/>
 
   <rect x="80" y="225" width="240" height="53" rx="10" class="firewall"/>
   <text x="200" y="248" text-anchor="middle" class="label">FIREWALL HQ</text>
