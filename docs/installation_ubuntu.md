@@ -1,41 +1,31 @@
-# C?i ??t Ubuntu
+# Cài đặt Ubuntu 24.04
 
-## Dependency h? th?ng
+## Dependency hệ thống
 
-Khuy?n ngh? Ubuntu 22.04 ho?c 24.04 ?? c? Python t??ng th?ch project.
-
-~~~bash
+```bash
 sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip mininet openvswitch-switch iperf3 nftables curl nodejs npm
-~~~
+```
 
-Kh?ng thay Python h? th?ng. M?i th?nh ph?n d?ng virtualenv ri?ng theo script setup hi?n c?.
+Không thay Python hệ thống và không dùng `sudo pip`.
 
-## Clone v? chu?n b?
+## Chuẩn bị repository
 
-~~~bash
+```bash
 git clone https://github.com/manhhuy795/CCH_Network.git
 cd CCH_Network
 chmod +x scripts/*.sh sdn_mpls_demo/*.sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-~~~
+sudo ./sdn_mpls_demo/setup_ubuntu_24_04.sh
+./scripts/start_demo.sh --install
+```
 
-Chu?n b? OS-Ken theo sdn_mpls_demo/setup_ubuntu_24_04.sh v? backend theo dashboard/backend/requirements.txt. Frontend d?ng package-lock.json:
+OS-Ken dùng virtualenv riêng tại `sdn_mpls_demo/.venv`; dashboard backend dùng `dashboard/backend/.venv`; frontend cài chính xác theo `package-lock.json`.
 
-~~~bash
-cd dashboard/frontend
-npm ci
-npm run build
-cd ../..
-~~~
+## Kiểm tra
 
-## Ki?m tra c?i ??t
+```bash
+sdn_mpls_demo/.venv/bin/python -m pytest -q tests/test_full_sdn_fabric.py
+npm run build --prefix dashboard/frontend
+```
 
-~~~bash
-.venv/bin/python scripts/validate_vars.py
-.venv/bin/python scripts/verify_network.py
-bash scripts/phase46_automation_docs_gate.sh preflight --reuse-running
-~~~
-
-N?u ch?a c? runtime, preflight ph?i b?o BLOCKED cho th?nh ph?n thi?u; kh?ng coi ?? l? PASS.
+Mininet live tests chỉ chạy sau khi controller/topology đã sẵn sàng.

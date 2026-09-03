@@ -1,5 +1,7 @@
 # Phase 49: Ma trận RBAC
 
+> **Legacy / Historical Reference** — Ma trận theo mốc triển khai, được giữ để truy vết thiết kế Dashboard/RBAC.
+
 | Chức năng | admin | operator | viewer | auditor |
 |---|---:|---:|---:|---:|
 | Đăng nhập, xem phiên của mình | Có | Có | Có | Có |

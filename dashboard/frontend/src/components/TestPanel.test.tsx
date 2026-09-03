@@ -5,17 +5,17 @@ import TestPanel from "./TestPanel";
 import type { NetworkTestType } from "./testWorkflow";
 
 const hosts: Host[] = [
-  { name: "h20_01", label: "Dự án A - User 1", ip: "172.10.20.11", kind: "user", group: "project_a", group_label: "Dự án A", vlan: 20, site: "HQ" },
-  { name: "h30_01", label: "Dự án B - User 1", ip: "172.10.30.11", kind: "user", group: "project_b", group_label: "Dự án B", vlan: 30, site: "HQ" },
-  { name: "h90", label: "Voice service", ip: "172.10.90.10", kind: "service", group: "h90", group_label: "Voice", vlan: 90, site: "HQ" },
+  { name: "h101_01", label: "Dự án 1 - User 1", ip: "10.10.101.11", kind: "user", group: "project_1", group_label: "Dự án 1", vlan: 101, site: "hq" },
+  { name: "h103_01", label: "Dự án 3 - User 1", ip: "10.10.103.11", kind: "user", group: "project_3", group_label: "Dự án 3", vlan: 103, site: "hq" },
+  { name: "h90", label: "Partner PBX", ip: "10.250.10.10", kind: "service", group: "partner", group_label: "Partner services", vlan: null, site: "internet" },
 ];
 
 const policyMap: Topology["policy_map"] = {
-  project_a: {
-    title: "Project A",
+  project_1: {
+    title: "Project 1",
     allow: ["h90"],
-    deny: ["project_b"],
-    notes: { h90: "Được phép dùng Voice", project_b: "Cô lập dự án" },
+    deny: ["project_3"],
+    notes: { h90: "Được phép dùng Voice", project_3: "Cô lập dự án" },
   },
 };
 
@@ -23,7 +23,7 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof TestPanel>> = 
   return {
     hosts,
     policyMap,
-    source: "h20_01",
+    source: "h101_01",
     destination: "h90",
     seconds: 5,
     testType: "ping",
@@ -50,14 +50,14 @@ describe("TestPanel", () => {
       decision: {
         action: "allow",
         reason: "Voice được cho phép",
-        path: ["project_a", "access_floor1", "dist_hq_1", "core_hq", "infra_access", "h90"],
+        path: ["project_1", "access_floor1", "core_hq", "fw_hq", "h90"],
         enforcement_switch: "core_hq",
       },
     };
     render(<TestPanel {...baseProps({ result })} />);
     expect(screen.getByText("Ping thành công")).toBeInTheDocument();
     expect(screen.getByText("12.4 ms")).toBeInTheDocument();
-    expect(screen.getByText(/project_a → access_floor1 → dist_hq_1 → core_hq/)).toBeInTheDocument();
+    expect(screen.getByText(/project_1 → access_floor1 → core_hq → fw_hq/)).toBeInTheDocument();
     expect(screen.getByText("core_hq")).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe("TestPanel", () => {
     expect(screen.getByRole("button", { name: /Chạy UDP Jitter/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Ping" })).toBeDisabled();
     expect(screen.getByLabelText("Nguồn endpoint")).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Dự án A/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Dự án 1/ })).toBeDisabled();
   });
 
   it("does not report a disconnected realtime channel before monitoring starts", () => {
@@ -156,7 +156,7 @@ describe("TestPanel", () => {
   });
 
   it("prevents source and destination from being identical", () => {
-    render(<TestPanel {...baseProps({ source: "h20_01", destination: "h20_01" })} />);
+    render(<TestPanel {...baseProps({ source: "h101_01", destination: "h101_01" })} />);
     expect(screen.getByText("Nguồn và đích phải khác nhau.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Chạy Ping/ })).toBeDisabled();
   });

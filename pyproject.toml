@@ -1,7 +1,7 @@
 [project]
-name = "network-automation-callcenter-bpo"
+name = "cch-enterprise-full-sdn-lab"
 version = "0.1.0"
-description = "Network-as-Code automation for Call Center BPO topology"
+description = "Enterprise Full-SDN research and simulation lab"
 requires-python = ">=3.10"
 
 [tool.pytest.ini_options]

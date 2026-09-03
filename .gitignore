@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+scratch/
+.codex_*
+.vm_out.txt
 pytest-of-root/
 pip-metadata-*/
 pip-unpack-*/

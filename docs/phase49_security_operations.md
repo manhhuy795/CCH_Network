@@ -1,5 +1,7 @@
 # Phase 49: Vận hành bảo mật
 
+> **Legacy / Historical Reference** — Runbook theo mốc triển khai; xác minh lệnh với runtime hiện hành trước khi sử dụng.
+
 ## Bootstrap admin
 
 Chạy từ root repository:

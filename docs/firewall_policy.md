@@ -1,22 +1,27 @@
-# Firewall Policy
+# Firewall policy
 
-Firewall policy is rendered as vendor-neutral YAML-like text because the final
-firewall vendor is unknown.
+Firewall runtime dùng nftables namespaces `fw_hq` và `fw_telesale` để biểu diễn boundary của từng site. Policy canonical nằm tại `vars/firewall_policies.yml`.
 
-Current intent:
+## Mặc định
 
-- NAT outbound for user/voice VLANs.
-- Block social media categories for HQ VLAN 20/30/40 and Branch VLAN 50/60.
-- Allow Zalo through placeholder FQDN/App-ID object.
-- Allow Call App through placeholder FQDN/IP/port object.
-- Log deny traffic.
+- family/table: `inet cch_filter`;
+- input/forward policy: drop;
+- allow established/related;
+- drop invalid;
+- counter và rate-limited drop log;
+- NAT runtime tắt vì service zone dùng routed simulation.
 
-Before production:
+## HQ
 
-- Replace placeholder Zalo FQDN/App-ID with vendor-supported objects.
-- Replace Call App placeholder with actual FQDN, IP ranges and ports.
-- Confirm policy order on the target firewall.
-- Enable logging and retention according to compliance requirements.
+- Project 1/2/3/4 và IT Support được truy cập Partner PBX/CRM hoặc General Internet khi policy flag cho phép.
+- Social Media bị deny.
+- Guest chỉ được General Internet.
+- VLAN 93 dùng gateway tại HQ nên traffic Internet/Partner của Project 2 Branch đi L2 về HQ trước khi qua `fw_hq`.
 
-An optional FortiGate-style example template is provided in
-`templates/firewall/fortigate_example.j2`.
+## Branch
+
+Branch firewall sở hữu VLAN 50. Branch IoT chỉ được các infrastructure services đã khai báo qua routed intersite abstraction; không có broad Internet allow.
+
+## Boundary
+
+Một nftables namespace đại diện active firewall HA cluster trong lab. Không tuyên bố appliance HA failover, production NAT, cryptographic IPsec hoặc vendor-specific policy parity.

@@ -25,7 +25,7 @@ interface Vlan{{ vlan.id }}
 !
 {% endfor %}
 {% if 93 in device.no_svi_vlans %}
-! VLAN 93 is Layer-2 stretched to HQ; no interface Vlan93 is generated here.
+! VLAN 93 is Layer-2 stretched to HQ; no Branch SVI is generated here.
 {% endif %}
 {% for trunk in interfaces.trunks %}
 interface {{ trunk.name }}

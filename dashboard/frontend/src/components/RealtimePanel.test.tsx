@@ -3,8 +3,8 @@ import type { Host } from "../api/client";
 import RealtimePanel from "./RealtimePanel";
 
 const hosts: Host[] = [
-  { name: "h30_01", label: "Project B User 1", ip: "172.10.30.11", kind: "user", group: "project_b", group_label: "Dự án B", vlan: 30, site: "HQ" },
-  { name: "h90", label: "Voice", ip: "172.10.90.10", kind: "service", group: "h90", group_label: "Voice", vlan: 90, site: "HQ" },
+  { name: "h101_01", label: "Project 1 User 1", ip: "10.10.101.11", kind: "user", group: "project_1", group_label: "Dự án 1", vlan: 101, site: "hq" },
+  { name: "h90", label: "Partner PBX", ip: "10.250.10.10", kind: "service", group: "partner", group_label: "Partner services", vlan: null, site: "internet" },
 ];
 
 class FakeWebSocket {
@@ -33,15 +33,15 @@ describe("RealtimePanel", () => {
 
   it("starts WebSocket monitoring for the selected pair and shows real counters", () => {
     const status = vi.fn();
-    render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={status} />);
+    render(<RealtimePanel hosts={hosts} source="h101_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={status} />);
     expect(screen.getByText(/bấm Bắt đầu/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));
     const socket = FakeWebSocket.instances[0];
-    expect(socket.url).toContain("source=h30_01");
+    expect(socket.url).toContain("source=h101_01");
     act(() => socket.onopen?.());
     act(() => socket.onmessage?.({ data: JSON.stringify({
       timestamp: new Date().toISOString(),
-      source: "h30_01",
+      source: "h101_01",
       destination: "h90",
       ok: true,
       delay_ms: 8,
@@ -63,7 +63,7 @@ describe("RealtimePanel", () => {
   });
 
   it("stops monitoring without starting iperf", () => {
-    render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
+    render(<RealtimePanel hosts={hosts} source="h101_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));
     fireEvent.click(screen.getByRole("button", { name: "Dừng" }));
     expect(FakeWebSocket.instances).toHaveLength(1);
@@ -71,12 +71,12 @@ describe("RealtimePanel", () => {
   });
 
   it("does not render zero when the backend reports unavailable throughput", () => {
-    render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
+    render(<RealtimePanel hosts={hosts} source="h101_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^B/ }));
     const socket = FakeWebSocket.instances[0];
     act(() => socket.onmessage?.({ data: JSON.stringify({
       timestamp: new Date().toISOString(),
-      source: "h30_01",
+      source: "h101_01",
       destination: "h90",
       ok: false,
       throughput_mbps: null,
@@ -91,7 +91,7 @@ describe("RealtimePanel", () => {
 
   it("reconnects after an unexpected WebSocket close", () => {
     vi.useFakeTimers();
-    render(<RealtimePanel hosts={hosts} source="h30_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
+    render(<RealtimePanel hosts={hosts} source="h101_01" destination="h90" onSource={vi.fn()} onDestination={vi.fn()} onStatus={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));
     act(() => FakeWebSocket.instances[0].onclose?.());
     expect(screen.getByText("WebSocket reconnect lần 1")).toBeInTheDocument();

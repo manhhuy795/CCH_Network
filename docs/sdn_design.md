@@ -1,38 +1,55 @@
-# Thiết kế SDN trong repository
+# Thiết kế SDN Full-SDN
 
-Repository có hai lớp SDN khác nhau và không nên gọi lẫn nhau.
+## Controller và switch fabric
 
-## Lớp SDN intent của Network Automation
+`sdn_mpls_demo/controller_fabric.py` là OS-Ken OpenFlow 1.3 controller cho 6 OVS. Switch dùng `fail-mode=secure`; controller cài explicit output actions và không dựa vào `OFPP_NORMAL`.
 
-Các file `vars/sdn.yml`, template intent và
-`scripts/generate_sdn_policies.py` sinh policy JSON cho quy trình automation.
-Chế độ `generic_rest` chỉ là điểm tích hợp API mẫu; tự nó không phải OpenFlow
-Controller và không chứng minh dataplane đã được lập trình.
+## Pipeline bốn bảng
 
-## Lab SDN runtime
+| Table | Chức năng | Chuyển tiếp hợp lệ |
+|---:|---|---|
+| 0 | Kiểm tra ingress port và VLAN | `goto_table:10` |
+| 10 | ARP/IPv4 classification, Port ↔ VLAN ↔ Subnet IP anti-spoofing | `goto_table:20` |
+| 20 | Project/Guest/IoT/IT policy, default-deny, dynamic 5-tuple return flow | `goto_table:30` |
+| 30 | Explicit L2/L3 forwarding, VLAN push/pop, MAC rewrite, TTL decrement | output port |
 
-`sdn_mpls_demo/` là demo SDN chạy thật:
+ARP hợp lệ được xử lý có kiểm soát để phục vụ Proxy ARP và virtual gateway. IPv6 bị drop vì lab chỉ hỗ trợ IPv4.
 
-- OS-Ken Controller.
-- OpenFlow 1.3.
-- 7 Open vSwitch.
-- 110 user + 5 service trong Mininet.
-- Flow allow/drop được cài và đọc lại bằng `ovs-ofctl`.
+## L2/L3 forwarding
 
-## Quan hệ với MPLS
+Controller học endpoint theo VLAN, tính shortest path trong 6-OVS fabric và cài flow hai chiều trên mọi switch dọc đường đi. Với traffic được route, Table 30 áp MAC rewrite và giảm TTL. Trên biên access/trunk, controller dùng OpenFlow VLAN push/pop khi đường đi yêu cầu.
 
-SDN không thay thế và không điều khiển MPLS Core. MPLS L3VPN đóng vai trò WAN
-transport giữa HQ và Branch:
+## Session return
+
+Khi IT Support hoặc một luồng TCP/UDP hợp lệ khởi tạo phiên, controller có thể cài return flow priority cao hơn theo reverse 5-tuple:
 
 ```text
-HQ Core → CE HQ → MPLS L3VPN Logic Cloud → CE Branch → Branch Distribution
+protocol + source IP + destination IP + source port + destination port
 ```
 
-Trong lab, CE/MPLS là namespace/bridge mô phỏng đường vận chuyển, không phải
-provider-grade MPLS hoặc MP-BGP.
+Flow có timeout và không biến thành broad reverse allow. Traffic unsolicited vẫn bị Table 20 drop.
 
-Xem hướng dẫn đầy đủ tại:
+## Security policy
 
-- `sdn_mpls_demo/README.md`
-- `sdn_mpls_demo/docs/sdn_design_vi.md`
-- `sdn_mpls_demo/docs/demo_script_vi.md`
+- Same-project: allow.
+- Cross-project: deny.
+- Guest: DHCP/DNS/NTP và General Internet; deny internal.
+- IoT: DHCP/DNS/NTP/NMS; deny user lateral và broad Internet.
+- IT Support: quyền quản trị được khai báo; deny unsolicited reverse.
+- Policy miss: deny.
+
+## DHCP Relay
+
+Controller theo dõi client attachment, relay DHCP request tới `hdhcp` trên `infra_access` và gửi response về đúng switch/port/VLAN của client. Unit suite kiểm tra Discover/Offer delivery; live DORA cần Ubuntu runtime và DHCP daemon thật.
+
+## VLAN 93 failover
+
+Topology agent quản lý trạng thái Primary/Backup attachment path. Controller theo dõi port/link state và purge selective VLAN 93 flows để forwarding được học/cài lại trên path active. Đây là attachment-link failover, không phải carrier-grade fast reroute.
+
+## Không tuyên bố
+
+- static Port ↔ MAC binding;
+- full Zero Trust architecture;
+- queue/DSCP/end-to-end QoS;
+- provider MPLS control plane hoặc cryptographic IPsec;
+- production readiness.

@@ -1,103 +1,76 @@
-# SDN MPLS Demo - Call Center BPO
+# Full-SDN Enterprise Runtime
 
-Day la lab mo phong **Hybrid MPLS L3VPN Logic + SDN Edge Policy** cho hai
-site vat ly: HQ va Branch Telesale. Lab khong thay the MPLS provider-grade,
-MP-BGP, PE/P core hay firewall appliance production.
+Đây là runtime chính của CCH_Network: Mininet + 6 Open vSwitch + OS-Ken OpenFlow 1.3.
 
-## Mo hinh dieu khien
-
-OS-Ken dieu khien dung 8 OVS bang OpenFlow 1.3:
+## Thành phần
 
 ```text
-access_floor1  access_floor2  dist_hq_1  dist_hq_2
-core_hq       infra_access   access_branch  dist_branch
+OS-Ken: controller_fabric.py
+OVS:    access_floor1, access_floor2, core_hq,
+        access_branch, dist_branch, infra_access
+WAN:    VLAN 93 L2VPN Primary/Backup Linux bridges
+Edge:   nftables firewall namespaces và Internet/Partner simulators
 ```
 
-CE, firewall va MPLS logic cloud khong phai OpenFlow switch:
+CE, L2VPN, firewall và service zone không phải OpenFlow target.
+
+## Pipeline
 
 ```text
-ce_hq  ce_telesale  fw_hq  fw_telesale  mpls_primary  mpls_backup
+Table 0  Ingress/VLAN validation
+   ↓
+Table 10 Protocol classification + Port/VLAN/Subnet IP anti-spoofing
+   ↓
+Table 20 Security policy + default-deny + dynamic 5-tuple return
+   ↓
+Table 30 Explicit L2/L3 forwarding + VLAN push/pop
 ```
 
-`service_net` chi la Linux bridge noi cac service namespace; no khong duoc
-tinh vao inventory OVS.
+Controller không dùng `OFPP_NORMAL`.
 
-## VLAN va endpoint
+## Runtime inventory
 
-- VLAN 20/30/40: Project A/B/C.
-- VLAN 50: Telesale tai Branch.
-- VLAN 60/70: BackOffice va IT Support tai HQ Floor 2.
-- VLAN 90: Voice service.
-- VLAN 100: Infrastructure Services.
-- VLAN 110: IoT HQ; VLAN 111: IoT Branch.
-- VLAN 120: Guest.
+- 90 corporate users: Project 1/2/3/4 và IT Support.
+- Project 2 dùng VLAN 93 cho 10 user HQ + 10 user Branch.
+- Guest VLAN 120, HQ IoT VLAN 140, Branch IoT VLAN 50.
+- 7 infrastructure services tại VLAN 100.
+- 5 Internet/Partner service simulators.
 
-Topology co 110 user, 5 service nghiep vu va 9 service ha tang.
-Guest/IoT dung reservation hoac DHCP relay theo policy. DHCP runtime trong
-lab hien la phan can xac nhan rieng; khong coi IP tinh la DHCP lease.
+## Chạy
 
-## Data path
-
-- Traffic noi HQ: access -> distribution -> `core_hq` -> dich vu HQ.
-- Traffic Telesale toi HQ: access -> `dist_branch` -> `ce_telesale` ->
-  `mpls_primary` (metric 10) hoac `mpls_backup` (metric 100) -> `ce_hq` ->
-  `core_hq`.
-- Internet local breakout: user -> firewall cua site -> Internet zone.
-- Traffic lien site khong di qua firewall Internet.
-- Controller chi la control path, khong nam tren duong di packet.
-
-## Policy chinh
-
-- Co lap Project A/B/C tai `core_hq`.
-- Co lap Telesale va BackOffice theo chieu nguon tai `dist_branch` va
-  `core_hq`.
-- Cho phep Voice, Zalo, Call App/CRM va Internet theo policy.
-- Chan Social Media, ke ca IT Support.
-- Guest chi ra Internet va toi dich vu ha tang duoc cap.
-- IoT chi toi DHCP/DNS/NTP va monitoring/NVR duoc cap.
-- Default deny cho traffic khong match.
-
-## Chay lab tren Ubuntu
+Terminal 1:
 
 ```bash
-cd ~/Downloads/CCH_Network
-source .venv/bin/activate
-python3 scripts/validate_redesigned_topology.py
-sudo bash sdn_mpls_demo/run_topology.sh
+./sdn_mpls_demo/run_controller.sh
 ```
 
-Trong terminal khac:
+Terminal 2:
 
 ```bash
-cd ~/Downloads/CCH_Network
-sudo bash scripts/test_data_flows_runtime.py
-sudo bash scripts/test_redesigned_topology_runtime.py
-sudo bash scripts/test_mpls_failover_runtime.py
+sudo ./sdn_mpls_demo/run_topology.sh
 ```
 
-## Kiem tra policy va flow
+Terminal 3:
 
 ```bash
-sudo ovs-ofctl -O OpenFlow13 dump-flows core_hq
-sudo ovs-ofctl -O OpenFlow13 dump-flows dist_branch
-sudo ovs-ofctl -O OpenFlow13 dump-flows access_floor1
-sudo ovs-ofctl -O OpenFlow13 dump-flows access_floor2
+./scripts/start_demo.sh
 ```
 
-Xem ma tran ping:
+## Kiểm thử
 
 ```bash
-sudo python3 scripts/test_data_flows_runtime.py
+python -m pytest -q tests/test_full_sdn_fabric.py
+sudo -E sdn_mpls_demo/.venv/bin/python sdn_mpls_demo/run_live_tests.py
 ```
 
-Xem bao cao trong `runtime_reports/`. Bao cao runtime chi duoc tao khi
-Mininet, OVS va control agent thuc su dang chay.
+Suite tương ứng có 24 unit cases và 27 live traffic cases.
 
-## Don dep
+## VLAN 93 failover
 
-```bash
-sudo mn -c
-```
+Primary và Backup là attachment paths riêng. Backup ở standby khi Primary healthy. Fail/recover attachment link Primary làm control agent đổi path active; không tuyên bố carrier protection hoặc hội tụ tức thời.
 
-Chi ket luan runtime PASS sau khi chay tren Ubuntu co Mininet, Open vSwitch
-va OS-Ken. Kiem tra static tren Windows khong phai runtime validation.
+## Giới hạn
+
+IPv4-only, không static MAC binding, không end-to-end QoS proof, không cryptographic IPsec/provider MPLS control-plane proof và chưa production-ready.
+
+Xem [README chính](../README.md), [thiết kế SDN](../docs/sdn_design.md) và [demo script](../DEMO_SCRIPT.md).

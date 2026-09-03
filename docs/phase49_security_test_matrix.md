@@ -1,5 +1,7 @@
 # Phase 49: Security Test Matrix
 
+> **Legacy / Historical Reference** — Ma trận test theo mốc triển khai, được giữ làm bằng chứng lịch sử.
+
 | Nhóm | Case | Kết quả cần đạt |
 |---|---|---|
 | Authentication | Thiếu session gọi runtime | 401 `AUTH_REQUIRED` |

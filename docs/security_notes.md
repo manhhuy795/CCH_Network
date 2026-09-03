@@ -1,23 +1,31 @@
-# Ghi ch? b?o m?t
+# Ghi chú bảo mật
 
-## Token
+## Enforcement
 
-Operator token ??c t? logs/operator.token v?i quy?n file h?n ch?. Kh?ng commit token, kh?ng ??a token v?o URL, stdout, JSON summary, screenshot ho?c frontend bundle. Gate redaction token tr??c khi l?u output.
+- OpenFlow trên 6 OVS thực thi ingress/VLAN validation, Port ↔ VLAN ↔ Subnet IP anti-spoofing, segmentation và default-deny.
+- nftables namespaces thực thi firewall boundary cho Internet/Partner và routed intersite traffic.
+- Dynamic return flow chỉ mở reverse 5-tuple của phiên hợp lệ và có timeout.
+- Không coi `installed_flows.json` là bằng chứng dataplane; phải đọc live flow bằng `ovs-ofctl`.
 
-Control agent d?ng UNIX socket v? token n?i b?. HEALTH ph?i l? request th?t; socket file ??n ??c kh?ng ch?ng minh agent c?n s?ng.
+## Dashboard security
 
-## Quy?n
+Dashboard dùng server-side session cookie, CSRF và RBAC. Operator token/control-agent token là secret runtime cục bộ:
 
-Backend c?n quy?n ??c namespace Mininet. Ch?y b?ng user c? sudo policy ph? h?p v? kh?ng d?ng sudo pip. Gate runtime d?ng quy?n root ?? ??c OVS/namespace, kh?ng thay Python h? th?ng.
+- không commit;
+- không đưa vào URL, screenshot, frontend bundle hoặc report;
+- không in bằng `set -x`;
+- giới hạn permission file.
 
-## Command execution
+API không nhận raw shell command từ client; backend dùng command allowlist/argv cho runtime operations.
 
-API kh?ng nh?n raw shell command. Command n?i b? d?ng argv list v? shell=False. C?c script stop ch? d?ng PID do ch?nh script t?o; kh?ng d?ng killall, pkill r?ng ho?c thao t?c cleanup chung kh?ng c? operator ch? ??ng.
+## Claim boundary
 
-## Network policy
+Lab dùng least-privilege segmentation nhưng không tuyên bố một kiến trúc Zero Trust hoàn chỉnh. Anti-spoofing dựa trên Port/VLAN/Subnet IP, không phải static MAC binding. Voice flow priority không chứng minh queue/DSCP hay end-to-end QoS.
 
-OpenFlow enforcement v? nftables boundary l? hai l?p kh?c nhau. Kh?ng coi file installed_flows.json l? flow s?ng. Kh?ng c?p full access ch? v? user c?i softphone; SIP registration, RTP, SBC/NAT v? QoS ph?i ???c ki?m tra ri?ng.
+## Giới hạn
 
-## Gi?i h?n
-
-??y l? simulation/lab. Kh?ng d?ng k?t qu? ping/iperf c?a lab l?m b?ng ch?ng production. Tr??c tri?n khai th?t ph?i c? change approval, backup, rollback, logging, RBAC, secrets management v? ki?m th? failure/recovery.
+- IPv4-only; IPv6 bị drop.
+- Attachment-link failover VLAN 93 chỉ là cơ chế lab.
+- CE/MPLS/IPsec và firewall HA là abstraction.
+- Không dùng kết quả ping/iperf làm bằng chứng production.
+- Chưa production-ready; triển khai thật cần hardening, secrets management, change control, backup/rollback, monitoring và failure testing.

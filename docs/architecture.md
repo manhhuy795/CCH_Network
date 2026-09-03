@@ -1,107 +1,69 @@
-# Kiến trúc hệ thống v7
+# Kiến trúc hệ thống Full-SDN
 
 ## Phạm vi
 
-CCH_Network là lab logic cho kiến trúc Call Center/BPO gồm HQ + 1 Branch. Hệ thống kết hợp Network Automation, SDN/OpenFlow, firewall nftables, MPLS L2VPN behavior và routed intersite tunnel abstraction.
+CCH_Network mô phỏng mạng doanh nghiệp gồm HQ, một Branch, vùng Infrastructure, Firewall/Internet và Partner services. OS-Ken điều khiển **6 OVS** bằng OpenFlow 1.3. Đây là lab nghiên cứu IPv4, chưa phải cấu hình production.
 
-Đây không phải cấu hình production hoàn chỉnh và không mô phỏng provider MPLS control plane hoặc cryptographic IPsec.
+## Các lớp kiến trúc
 
-## Lớp kiến trúc
+| Lớp | Thành phần |
+|---|---|
+| Source of truth | `vars/network_model.yml`, VLAN/routing/ACL/firewall/interface mapping |
+| Data plane | Mininet hosts, 6 OVS, CE/L2VPN Linux bridges, firewall namespaces |
+| Control plane | OS-Ken tại `127.0.0.1:6653`, OpenFlow 1.3 |
+| Policy | `sdn_mpls_demo/policy.yml`, default-deny và least privilege |
+| Operations | FastAPI, React dashboard, control-agent socket và runtime reports |
 
-- **Network Automation**: `vars/`, `templates/`, `inventories/`, `playbooks/`, `scripts/`, `generated_configs/`.
-- **Data plane lab**: Mininet hosts/namespaces, 6 controlled OVS, transparent CE/L2VPN bridges, firewall namespaces và service simulators.
-- **Control plane**: OS-Ken điều khiển OpenFlow 1.3 trên 6 OVS; controller không nằm trên data path.
-- **Operations plane**: FastAPI, React dashboard, control-agent Unix socket và runtime evidence.
+## SDN domain
 
-## HQ
-
-HQ dùng 2-tier collapsed Core/Distribution. Runtime dùng `core_hq` làm một logical OVS đại diện cho cặp Core/Distribution HA trong thiết kế.
-
-Các VLAN chính:
-
-- VLAN 101 — Project 1.
-- VLAN 93 — Project 2 shared HQ + Branch.
-- VLAN 103 — Project 3.
-- VLAN 104 — Project 4.
-- VLAN 100 — Infrastructure server farm.
-
-Gateway VLAN 93 là `10.10.93.1` tại HQ.
-
-## Branch
-
-Branch dùng `dist_branch` làm collapsed Core/Distribution runtime abstraction.
-
-- VLAN 93 — Project 2, **không có SVI tại Branch**.
-- VLAN 50 — Branch IoT, routed local gateway `10.20.50.1`.
-
-## MPLS L2VPN
-
-Chỉ VLAN 93 được Layer-2 stretch.
-
-Primary:
+Các OVS được controller quản lý:
 
 ```text
-core_hq -> ce_hq1 -> l2vpn_primary -> ce_branch1 -> dist_branch
+HQ:     access_floor1, access_floor2, core_hq, infra_access
+Branch: access_branch, dist_branch
 ```
 
-Backup:
+Các thành phần ngoài SDN domain: CE bridge, L2VPN Primary/Backup bridge, `fw_hq`, `fw_telesale`, routed intersite abstraction và Internet/Partner zone.
 
-```text
-core_hq -> ce_hq2 -> l2vpn_backup -> ce_branch2 -> dist_branch
+## Data path
+
+- L2 trong cùng VLAN: access OVS → explicit multi-hop forwarding → access OVS.
+- L3 liên VLAN được phép: Proxy ARP/virtual gateway → MAC rewrite, TTL decrement và explicit output.
+- Internet/Partner: user fabric → firewall namespace của site → service zone.
+- Routed intersite ngoài VLAN 93: firewall HQ → IPv4 routed abstraction → firewall Branch.
+- VLAN 93: HQ và Branch dùng cùng broadcast domain; gateway `10.10.93.1` chỉ đặt tại HQ.
+
+## OpenFlow pipeline
+
+```mermaid
+flowchart LR
+  A[Table 0<br/>Ingress/VLAN] --> B[Table 10<br/>Protocol/IP anti-spoof]
+  B --> C[Table 20<br/>Security policy]
+  C --> D[Table 30<br/>L2/L3 forwarding]
+  A -. invalid .-> X[DROP]
+  B -. spoof .-> X
+  C -. deny/miss .-> X
 ```
 
-CE/L2VPN nodes là Linux bridge abstraction. Backup path được giữ standby để tránh loop Layer 2.
-
-## Routed intersite / IPsec abstraction
-
-Non-VLAN93 traffic đi theo kiến trúc:
-
-```text
-HQ Core-Dist -> Firewall HQ -> IPsec overlay -> Firewall Branch -> Branch Core-Dist
-```
-
-Runtime biểu diễn tunnel bằng:
-
-```text
-fw_hq -> ipsec_l3 -> fw_telesale
-```
-
-`ipsec_l3` chỉ chứng minh routed path behavior giữa hai firewall namespaces. Không có IKE/ESP/XFRM hoặc cryptographic proof. VLAN 93 không được route qua tunnel này.
-
-## DHCP tập trung
-
-DHCP Server là `10.10.100.10` tại HQ. DHCP relay được khai báo trong `vars/routing.yml` và được sinh vào candidate Cisco config:
-
-- HQ: VLAN 93, 101, 103, 104, 110, 120, 140.
-- Branch: VLAN 50.
-- Branch không có SVI VLAN 93 nên không có DHCP relay cho VLAN 93 tại Branch.
-
-## Firewall và Internet
-
-- HQ local breakout qua `fw_hq`.
-- Branch local breakout qua `fw_telesale` (runtime compatibility name cho firewall Branch).
-- Mỗi namespace nftables đại diện cho active firewall HA cluster của site.
-- Hai firewall có logical tunnel attachment cho routed intersite traffic.
-- HQ và Branch có circuit ISP Primary/Backup riêng; object Primary/Backup dùng chung trong automation chỉ là role, không phải một circuit vật lý dùng chung.
-- Project 2 Branch dùng gateway tại HQ, nên Internet/Partner traffic của VLAN 93 về HQ trước khi breakout.
+Pipeline không dùng `OFPP_NORMAL`. VLAN push/pop, L2/L3 forwarding và output port được thể hiện bằng OpenFlow actions.
 
 ## Security boundary
 
+- Port/VLAN/source subnet phải khớp source of truth.
 - Project VLANs bị cách ly lẫn nhau.
-- Project chỉ được truy cập DHCP, DNS, AD, File và NTP trong Server VLAN 100.
-- Guest chỉ được bootstrap services và General Internet.
-- HQ/Branch IoT chỉ được các infrastructure service đã khai báo.
-- Candidate config không tự suy diễn Port-channel, StackWise, VSS, MLAG hay cơ chế multi-chassis khi platform chưa được xác nhận.
+- Guest, IoT và IT Support chỉ có quyền đã khai báo.
+- Table 20 dùng default-deny.
+- Flow chiều về động được giới hạn theo 5-tuple của phiên hợp lệ.
+- Không tuyên bố static Port ↔ MAC binding hoặc một triển khai Zero Trust hoàn chỉnh.
 
-## Partner services
+## VLAN 93 resilience
 
-- `h90` — Partner PBX / Contact Center.
-- `hcall` — Partner CRM.
+Primary và Backup là hai attachment paths riêng. Backup ở standby để tránh L2 loop. Control agent tự đổi active path khi Primary attachment link bị fail/recover và controller purge flow VLAN 93 liên quan. Cơ chế này không chứng minh carrier protection signaling và không cam kết hội tụ tức thời.
 
-Các service này nằm ngoài Server Farm nội bộ.
+## Giới hạn
 
-## Source of truth
-
-`vars/network_model.yml` là nguồn topology runtime chính. VLAN, routing, firewall và interface mapping phải đồng bộ với nó.
-
-Dashboard không được biến design-only object thành runtime evidence. Mọi trạng thái live phải đến từ control agent, OVS, nftables hoặc runtime report.
+- IPv4-only; IPv6 bị drop.
+- CE/MPLS/IPsec chỉ là runtime abstraction.
+- Không có provider MPLS control plane, IKE/ESP/XFRM, appliance HA hay physical MLAG/FHRP proof.
+- Voice flow priority không phải end-to-end QoS.
+- Lab chưa production-ready.

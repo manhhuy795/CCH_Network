@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import TopologyCanvas from "./TopologyCanvas";
 import type { Topology } from "../api/client";
 
-const switches = ["access_floor1", "access_floor2", "core_hq", "ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2", "dist_branch", "access_branch", "infra_access"];
+const switches = ["access_floor1", "access_floor2", "core_hq", "dist_branch", "access_branch", "infra_access"];
+const ceNodes = ["ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2"];
 
 const topology: Topology = {
   nodes: [
@@ -17,10 +18,11 @@ const topology: Topology = {
     { id: "l2vpn_primary", label: "MPLS L2VPN Primary", type: "l2vpn" },
     { id: "l2vpn_backup", label: "MPLS L2VPN Backup", type: "l2vpn" },
     { id: "ipsec_l3", label: "IPsec L3 Tunnel", type: "ipsec" },
-    { id: "h90", label: "PBX / Contact Center", type: "service", ip: "10.10.90.10" },
-    { id: "hcall", label: "Partner CRM", type: "service", ip: "10.10.90.20" },
+    { id: "h90", label: "PBX / Contact Center", type: "service", ip: "10.250.10.10" },
+    { id: "hcall", label: "Partner CRM", type: "service", ip: "10.250.10.20" },
     { id: "hdhcp", label: "DHCP Server", type: "infrastructure_service", vlan: 100, ip: "10.10.100.10" },
     ...switches.map((id) => ({ id, label: id, type: "switch" })),
+    ...ceNodes.map((id) => ({ id, label: id, type: "ce_bridge" })),
   ],
   groups: [
     {
@@ -54,7 +56,7 @@ const topology: Topology = {
     { name: "h101_01", label: "User 101-01", ip: "10.10.101.11", kind: "user", group: "project_1", group_label: "Dự án 1", vlan: 101, site: "hq" },
     { name: "h93_01", label: "User 93 HQ", ip: "10.10.93.11", kind: "user", group: "project_2", group_label: "Dự án 2", vlan: 93, site: "hq" },
     { name: "h93_02", label: "User 93 Branch", ip: "10.10.93.12", kind: "user", group: "project_2", group_label: "Dự án 2", vlan: 93, site: "branch" },
-    { name: "h90", label: "PBX / Contact Center", ip: "10.10.90.10", kind: "service", group: "partner", group_label: "Partner", vlan: 90, site: "hq" },
+    { name: "h90", label: "PBX / Contact Center", ip: "10.250.10.10", kind: "service", group: "partner", group_label: "Partner", vlan: null, site: "internet" },
   ],
   links: [
     { id: "project_1-access_floor1", source: "project_1", target: "access_floor1", type: "access", status: "up" },
@@ -70,7 +72,7 @@ const topology: Topology = {
     { id: "ipsec_l3-fw_telesale", source: "ipsec_l3", target: "fw_telesale", type: "ipsec", status: "up" },
   ],
   policy_map: {},
-  summary: { user_count: 50, service_count: 5, controlled_ovs_count: 8 },
+  summary: { user_count: 90, service_count: 5, controlled_ovs_count: 6 },
 };
 
 const defaultProps = {
@@ -88,10 +90,12 @@ const defaultProps = {
   onDestination: vi.fn(),
 };
 
-describe("TopologyCanvas (Enterprise v7)", () => {
-  it("renders Enterprise v7 title without the simulation note", () => {
+describe("TopologyCanvas (Enterprise Full-SDN)", () => {
+  it("renders the Full-SDN title without a stale simulation note", () => {
     render(<TopologyCanvas {...defaultProps} />);
-    expect(screen.getByText(/Sơ đồ logic mạng doanh nghiệp · v7/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Enterprise Full-SDN topology/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Simulation Honesty/)).not.toBeInTheDocument();
     expect(screen.getByTestId("topology-canvas")).toHaveClass("fixed-layout");
   });
@@ -102,9 +106,9 @@ describe("TopologyCanvas (Enterprise v7)", () => {
     expect(screen.queryByText("ĐÍCH")).not.toBeInTheDocument();
   });
 
-  it("renders Enterprise v7 interactive topology architecture underlay and quick search", () => {
+  it("renders the Full-SDN interactive architecture underlay and quick search", () => {
     render(<TopologyCanvas {...defaultProps} />);
-    expect(screen.getByRole("img", { name: /Enterprise v7 Architecture/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Enterprise Full-SDN architecture/ })).toBeInTheDocument();
     expect(screen.queryByText(/DỰ PHÒNG WAN/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Chỉ mở rộng Layer 2/)).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Tìm kiếm thiết bị" })).toBeInTheDocument();
@@ -112,7 +116,7 @@ describe("TopologyCanvas (Enterprise v7)", () => {
 
   it("keeps the architecture fixed and provides fullscreen access", () => {
     render(<TopologyCanvas {...defaultProps} />);
-    expect(screen.queryByRole("button", { name: "Phóng to" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Phóng to" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toàn màn hình" })).toBeInTheDocument();
   });
 
@@ -203,12 +207,12 @@ describe("TopologyCanvas (Enterprise v7)", () => {
     expect(branchAccess.getAttribute("class")).toContain("dimmed");
   });
 
-  it("renders Enterprise v7 legend explaining VLAN 93, MPLS, IPsec, and Partner zones", () => {
+  it("renders the Full-SDN legend explaining VLAN 93, routed abstraction, and Partner zones", () => {
     render(<TopologyCanvas {...defaultProps} />);
-    const legend = screen.getByLabelText("Chú thích sơ đồ mạng v7");
+    const legend = screen.getByLabelText("Chú thích Enterprise Full-SDN");
     expect(legend).toHaveTextContent("VLAN 93");
     expect(legend).toHaveTextContent("MPLS L2VPN");
-    expect(legend).toHaveTextContent("IPsec L3");
+    expect(legend).toHaveTextContent("IPv4 routed abstraction");
     expect(legend).toHaveTextContent("Partner PBX/CRM");
   });
 });

@@ -1,22 +1,31 @@
-# Routing Design
+# Routing design
 
-## HQ Core
+## HQ gateway
 
-- Default route points to HQ firewall inside IP `10.10.254.2`.
-- Branch prefixes `172.16.50.0/24` and `172.16.60.0/24` point to HQ CE LAN IP
-  `10.10.255.2`.
+`hq_l3_gateway` dùng default route qua `fw_hq` tại `10.10.254.2`. Prefix Branch IoT `10.20.50.0/24` cũng đi tới firewall HQ để vào routed intersite abstraction.
 
-## Branch Distribution
+## Branch gateway
 
-- Default route points to Branch firewall inside IP `10.20.254.2`.
-- HQ summarized route `172.16.0.0/16` points to Branch CE LAN IP
-  `10.20.255.2`.
+`telesale_l3_gateway` dùng default route qua `fw_telesale` tại `10.20.254.2`. Các mạng HQ được khai báo đi qua firewall Branch và routed intersite abstraction.
 
-## CE Routers
+## VLAN 93 exception
 
-- HQ CE internal VLAN routes point back to HQ Core `10.10.255.1`.
-- HQ CE branch MPLS routes point only to local ISP PE `203.0.113.1`.
-- Branch CE internal VLAN routes point back to Distribution `10.20.255.1`.
-- Branch CE HQ MPLS route points only to local ISP PE `198.51.100.1`.
+VLAN 93 không được route giữa hai site:
 
-The CE routers never use the remote CE LAN/WAN IP as a static route next-hop.
+- cùng subnet `10.10.93.0/24`;
+- gateway `10.10.93.1` chỉ tại HQ;
+- Branch không có SVI VLAN 93;
+- Ethernet frames đi qua L2VPN Primary hoặc Backup attachment path.
+
+## Transit links
+
+| Link | CIDR |
+|---|---|
+| HQ gateway ↔ Firewall HQ | `10.10.254.0/30` |
+| Firewall HQ ↔ routed abstraction | `10.255.20.0/30` |
+| routed abstraction ↔ Firewall Branch | `10.255.20.4/30` |
+| Firewall Branch ↔ Branch gateway | `10.20.254.0/30` |
+| Firewall HQ ↔ Internet zone | `10.255.10.0/30` |
+| Firewall Branch ↔ Internet zone | `10.255.10.4/30` |
+
+`ipsec_l3` chỉ mô phỏng IPv4 routed path; không có IKE/ESP/XFRM encryption.

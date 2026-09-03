@@ -6,7 +6,7 @@ metadata:
   controller: "127.0.0.1:6653"
   design_diagram: "docs/assets/enterprise_logical_topology_v7.svg"
   runtime_note: "Mininet keeps one logical OVS per HA Core/Distribution pair and one nftables namespace per firewall HA pair. IPsec is a routed tunnel abstraction between the firewall namespaces without IKE/XFRM encryption. MPLS L2VPN primary/backup is Ethernet transport logic, not a provider PE/P control plane."
-  runtime_scale_note: "User counts are intentionally scaled for the lab. The approved drawing shows about 70 Project 2 agents at Branch; runtime uses 10 Branch Project 2 endpoints to keep the VM deterministic."
+  runtime_scale_note: "The deterministic lab runtime contains 90 corporate users; Project 2 has 10 endpoints at HQ and 10 at Branch."
 
 sites:
   hq: {label: "HQ - Tru so chinh", kind: physical}
@@ -31,7 +31,6 @@ host_groups:
     vlan: 93
     site: hq
     count: 20
-    design_branch_users_approx: 70
     prefix: h93
     subnet: 10.10.93.0/24
     gateway: 10.10.93.1

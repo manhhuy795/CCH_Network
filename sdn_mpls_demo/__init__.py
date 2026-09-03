@@ -1,1 +1,1 @@
-"""Hybrid MPLS L3VPN + SDN Edge Policy demo."""
+"""CCH Enterprise Full-SDN runtime demo."""

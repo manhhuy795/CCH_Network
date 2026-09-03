@@ -1,5 +1,7 @@
 # Phase 49: Inventory và Threat Model
 
+> **Legacy / Historical Reference** — Inventory và threat model theo mốc triển khai, không phải mô tả topology canonical.
+
 ## Inventory trước khi sửa
 
 - Backend FastAPI: `dashboard/backend/app/{main,api,security,models,activity}.py`.

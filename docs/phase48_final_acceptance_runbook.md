@@ -1,45 +1,38 @@
-# Phase 48: Runbook nghiệm thu cuối trên Ubuntu
+# Phase 48 final acceptance runbook — Full-SDN
 
-## Mục đích
+> **Legacy / Historical Reference** — Runbook theo mốc triển khai; dùng [Demo script](../DEMO_SCRIPT.md) và [Testing và acceptance](testing_and_acceptance.md) cho lần chạy hiện hành.
 
-Phase 48 là cổng nghiệm thu cuối cho mô hình Hybrid MPLS L3VPN Logic Simulation + SDN Edge Policy. Đây là kiểm thử runtime thật trên Ubuntu, Mininet, Open vSwitch, OS-Ken, FastAPI và React. Không dùng dữ liệu giả để kết luận PASS.
+## Chuẩn bị
 
-## Điều kiện
+```bash
+cd ~/CCH_Network
+sudo mn -c
+./sdn_mpls_demo/run_controller.sh
+```
 
-    cd /home/huy/Downloads/CCH_Network
-    git status --short
-    git switch feature/phase48-final-ubuntu-acceptance
+Mở terminal khác:
 
-Topology phải đang chạy bằng /usr/bin/python3 cho Mininet. Backend, frontend và controller có thể được khởi động bằng script dự án. Token operator chỉ đọc từ logs/operator.token; không dán token vào terminal log.
+```bash
+sudo ./sdn_mpls_demo/run_topology.sh
+```
 
-## Các mode của gate
+Mở terminal thứ ba:
 
-    bash scripts/phase48_final_ubuntu_acceptance.sh preflight
-    bash scripts/phase48_final_ubuntu_acceptance.sh static
-    sudo -n bash scripts/phase48_final_ubuntu_acceptance.sh runtime --reuse-running
-    sudo -n bash scripts/phase48_final_ubuntu_acceptance.sh full --reuse-running
-    bash scripts/phase48_final_ubuntu_acceptance.sh clean-clone --clean-clone-dir /tmp/cch-phase48-clean
+```bash
+./scripts/start_demo.sh
+```
 
---start-missing chỉ dùng khi operator đã chủ động xác nhận việc khởi động các thành phần còn thiếu. --keep-running dành cho wrapper vận hành; gate không tự dừng topology đang được tái sử dụng.
+## Chạy gates
 
-## Runtime bắt buộc
+```bash
+./scripts/phase47_full_regression_gate.sh static
+./scripts/phase47_full_regression_gate.sh frontend
+sudo -E ./scripts/phase47_full_regression_gate.sh runtime
+sudo -E sdn_mpls_demo/.venv/bin/python sdn_mpls_demo/run_live_tests.py
+```
 
-Kiểm tra controller 6653, backend 8000, frontend 5173, namespace Mininet, socket Control Agent HEALTH, 8 OVS bridge, 2 firewall namespace, flow OpenFlow 1.3, dashboard health, ping allow/deny, firewall counter, dashboard smoke, link fail/recover và log lỗi transport.
+## Acceptance
 
-Các bài đo phải lấy kết quả từ API/runtime thật. Khi policy DENY, response phải giữ đúng contract DENY/POLICY_DENIED, không biến thành lỗi server.
+Kết luận PASS chỉ khi checklist trong [phase48_acceptance_checklist.md](phase48_acceptance_checklist.md) hoàn tất và evidence cho thấy 24/24 unit, 27/27 live traffic, 6/6 OVS, pipeline bốn bảng, policy và VLAN 93 attachment-link failover đúng.
 
-## Failure bundle
-
-Khi gate FAIL:
-
-    bash scripts/phase48_failure_bundle.sh --report-dir runtime_reports/phase48_final_acceptance_<UTC>
-
-Bundle chỉ lấy report đã tạo, snapshot hệ thống tối thiểu và git metadata. Script bỏ qua token, mật khẩu, credential, private key, cookie và browser data. Không đọc ~/.git-credentials, khóa SSH riêng hoặc toàn bộ home.
-
-## Quy tắc kết luận
-
-- PASS: mọi case trong mode đều PASS và có artifact/manifest.
-- FAIL: có lệnh thật chạy nhưng kết quả sai.
-- BLOCKED: thiếu dependency, quyền hoặc runtime nên chưa thể kiểm chứng.
-- Không đổi expected result để biến FAIL thành PASS.
-- Không chạy Phase 49 trong Phase 48.
+Không tuyên bố production readiness, cryptographic IPsec, carrier MPLS protection, full Zero Trust, static MAC binding hoặc end-to-end QoS.

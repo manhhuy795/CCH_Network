@@ -1,39 +1,81 @@
-# Testing v? acceptance
+# Testing và acceptance
 
-## Static
+## Kết quả chuẩn
 
-~~~bash
-.venv/bin/python -m py_compile scripts/phase46_automation_docs_gate.py
-bash -n scripts/phase46_automation_docs_gate.sh
-.venv/bin/python -m pytest --collect-only -q
-.venv/bin/python -m pytest -q
-cd dashboard/frontend
-npm ci
-npm run build
-~~~
+| Suite | Phạm vi | Kết quả gần nhất |
+|---|---|---|
+| Full-SDN unit | Pipeline, no `OFPP_NORMAL`, VLAN push/pop, policy, anti-spoofing, DHCP relay, 5-tuple, failover | **24/24 PASS** |
+| Live traffic | 6 OVS connection, pipeline, allow/drop, Guest/IoT/IT, anti-spoofing, L3 rewrite, VLAN 93 failover | **27/27 PASS** |
+| Repository Python/backend | Unit, API, auth/RBAC, transport, topology/contract | Chạy lại bằng `pytest -q` |
+| Frontend | ESLint, Vitest, TypeScript, Vite build | Chạy lại bằng npm gates |
 
-Static PASS ch? ch?ng minh source, test v? build h?p l? tr?n m?y ch?y l?nh; kh?ng ch?ng minh Mininet ?ang s?ng.
+Mốc live 27/27 được ghi nhận trên Ubuntu lab ngày 2026-08-26. Kết quả live không được suy ra từ static tests và chỉ có giá trị cho runtime đã tạo evidence.
 
-## Automation/docs
+## Static/Python
 
-~~~bash
-bash scripts/phase46_automation_docs_gate.sh automation --reuse-running
-bash scripts/phase46_automation_docs_gate.sh docs --reuse-running
-~~~
+```bash
+python -m pytest -q tests/test_full_sdn_fabric.py
+python -m pytest -q
+python scripts/validate_vars.py
+python scripts/validate_redesigned_topology.py
+```
 
-Automation ki?m tra validate_vars, verify_network, permissions v? clean clone. Docs ki?m tra 6 t?i li?u b?t bu?c v? link n?i b?.
+Kỳ vọng file `tests/test_full_sdn_fabric.py` thu đúng 24 cases.
 
-## Live runtime
+## Backend
 
-~~~bash
-sudo -E env LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1   bash scripts/phase46_automation_docs_gate.sh runtime --reuse-running --verbose
-~~~
+```bash
+python -m pytest -q \
+  tests/test_dashboard_health_api.py \
+  tests/test_phase38_activity_history.py \
+  tests/test_phase49_auth_rbac.py \
+  tests/test_mininet_control_timeouts.py \
+  tests/test_mininet_control_transport.py
+```
 
-Gate phai co bang chung that cho controller, 3 port, 8 OVS, flow OpenFlow 1.3, HEALTH agent, 110 user, 2 firewall namespace, khong co iperf3 mo coi va cac checker Phase 44/45.
+Các test này dùng mock/contract phù hợp và không kết luận OVS/Mininet đang sống.
 
-## Ph?n lo?i
+## Frontend
 
-- PASS: case ?? ch?y v? ??t.
-- FAIL: case ?? ch?y nh?ng h?nh vi sai.
-- BLOCKED: thi?u ?i?u ki?n, b? skip ho?c kh?ng c? runtime evidence.
-- Kh?ng ???c ??i expected, x?a test ho?c bi?n case skip th?nh PASS.
+```bash
+npm ci --prefix dashboard/frontend
+npm run lint --prefix dashboard/frontend
+npm run test --prefix dashboard/frontend
+npm run typecheck --prefix dashboard/frontend
+npm run build --prefix dashboard/frontend
+```
+
+## Live Ubuntu
+
+Khởi động controller, topology và dashboard trước, sau đó:
+
+```bash
+sudo -E sdn_mpls_demo/.venv/bin/python sdn_mpls_demo/run_live_tests.py
+```
+
+Runner có đúng 27 traffic cases và kiểm tra thêm failover sequence. PASS yêu cầu:
+
+- 6/6 OVS connected;
+- không có `actions=NORMAL`;
+- pipeline `0 → 10 → 20 → 30`;
+- same-project allow, cross-project drop;
+- Guest/IoT/IT policy đúng;
+- Port ↔ VLAN ↔ Subnet IP anti-spoofing;
+- L3 rewrite/TTL decrement hiện diện;
+- VLAN 93 reachable trên Primary, Backup và sau restore.
+
+## GitHub Actions
+
+Workflow `.github/workflows/ci.yml` có ba job:
+
+1. 24 Full-SDN unit cases.
+2. Backend và các repository contracts còn lại.
+3. Frontend lint/test/typecheck/build.
+
+GitHub-hosted runner không chạy Mininet/OVS/root integration. Live suite phải chạy trên Ubuntu lab hoặc self-hosted runner chuyên dụng.
+
+## Ý nghĩa trạng thái
+
+- **PASS**: case đã chạy và kết quả khớp.
+- **FAIL**: case đã chạy nhưng hành vi sai.
+- **BLOCKED/NOT RUN**: thiếu runtime/dependency/quyền; không được đổi thành PASS.

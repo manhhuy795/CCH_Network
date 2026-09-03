@@ -1,25 +1,31 @@
-# ACL Design
+# ACL và segmentation design
 
-## HQ Project Isolation
+`vars/acl_policies.yml` là source of truth cho policy intent; OpenFlow Table 20 là enforcement point trong Full-SDN runtime.
 
-Inbound ACLs are applied to SVI VLAN 20, 30 and 40.
+## Project isolation
 
-- VLAN 20 denies VLAN 30 and VLAN 40.
-- VLAN 30 denies VLAN 20 and VLAN 40.
-- VLAN 40 denies VLAN 20 and VLAN 30.
-- Each project VLAN can reach Voice VLAN 90 when needed.
-- Project VLANs are denied to Management VLAN 10 by default.
-- Remaining traffic is permitted so internet traffic can continue to the
-  firewall default path.
+| Source VLAN | Deny destination VLANs |
+|---:|---|
+| 101 | 93, 103, 104 |
+| 93 | 101, 103, 104 |
+| 103 | 93, 101, 104 |
+| 104 | 93, 101, 103 |
 
-## Management VLAN
+Project chỉ được mở tới DHCP, DNS, AD, File và NTP trong VLAN 100 theo allowlist; NMS/Backup không mở mặc định.
 
-`admin_allowed_sources` in `vars/acl_policies.yml` is the placeholder for
-admin/jump hosts. Update it with real NMS, jump server, and admin workstation
-sources before production.
+## Guest và IoT
 
-## Branch VLANs
+- Guest VLAN 120: DHCP/DNS/NTP + General Internet; deny internal.
+- HQ IoT VLAN 140: DHCP/DNS/NTP/NMS; deny user lateral và Internet.
+- Branch IoT VLAN 50: chỉ infrastructure services qua routed firewall abstraction; deny VLAN 93 và default-deny.
 
-VLAN 50 and VLAN 60 have separate policy objects. Full two-way access is not
-opened by default. Explicit application/service permits should be added after
-real service IPs and ports are known.
+## IT Support
+
+VLAN 110 được chủ động quản trị các nhóm endpoint trên protocol/port được duyệt. Traffic unsolicited từ user/Guest/IoT vào VLAN 110 bị drop. Đây là least-privilege access, không phải full bypass.
+
+## Enforcement notes
+
+- Port ↔ VLAN ↔ Subnet IP được kiểm tra ở Table 0/10.
+- Table 20 default-deny xử lý policy miss.
+- Dynamic 5-tuple return flow chỉ phục vụ phiên hợp lệ và có timeout.
+- Không tuyên bố static MAC binding hoặc full Zero Trust.

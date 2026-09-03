@@ -22,7 +22,7 @@ from .security import cors_origin_regex, cors_origins, websocket_principal
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-app = FastAPI(title="Hybrid MPLS + SDN Dashboard API", version="0.1.0")
+app = FastAPI(title="CCH Enterprise Full-SDN Dashboard API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

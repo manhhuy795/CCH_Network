@@ -29,7 +29,7 @@ from mininet.node import RemoteController
 
 try:
     from scripts.network_model import build_host_inventory, dpid_map, load_network_model, runtime_switch_name
-    from sdn_mpls_demo import topology_hybrid_sdn as legacy
+    from sdn_mpls_demo import runtime_support
     from sdn_mpls_demo.firewall_nftables import apply_to_mininet, expose_named_firewall_namespaces, remove_named_firewall_namespaces
     from sdn_mpls_demo.policy_engine import PolicyEngine
     from sdn_mpls_demo.runtime_contract import source_truth_runtime_links
@@ -38,7 +38,7 @@ except ImportError:
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.network_model import build_host_inventory, dpid_map, load_network_model, runtime_switch_name
-    import topology_hybrid_sdn as legacy
+    import runtime_support
     from firewall_nftables import apply_to_mininet, expose_named_firewall_namespaces, remove_named_firewall_namespaces
     from policy_engine import PolicyEngine
     from runtime_contract import source_truth_runtime_links
@@ -92,7 +92,7 @@ BACKUP_L2_SEGMENTS = [
 ]
 
 # Reuse the mature socket control agent with the v7 composed-link map.
-legacy.LOGICAL_LINK_SEGMENTS = {
+runtime_support.LOGICAL_LINK_SEGMENTS = {
     "core_hq-fw_hq": [("core_hq", "hq_l3_gateway"), ("hq_l3_gateway", "fw_hq")],
     "fw_hq-core_hq": [("fw_hq", "hq_l3_gateway"), ("hq_l3_gateway", "core_hq")],
     "fw_hq-ipsec_l3": [("fw_hq", "ipsec_l3")],
@@ -107,8 +107,8 @@ legacy.LOGICAL_LINK_SEGMENTS = {
     "internet_zone-fw_telesale": [("internet_zone", "fw_telesale")],
 }
 for service_name in NETWORK_MODEL["services"]:
-    legacy.LOGICAL_LINK_SEGMENTS[f"internet_zone-{service_name}"] = [("internet_zone", "service_net"), ("service_net", service_name)]
-    legacy.LOGICAL_LINK_SEGMENTS[f"{service_name}-internet_zone"] = [(service_name, "service_net"), ("service_net", "internet_zone")]
+    runtime_support.LOGICAL_LINK_SEGMENTS[f"internet_zone-{service_name}"] = [("internet_zone", "service_net"), ("service_net", service_name)]
+    runtime_support.LOGICAL_LINK_SEGMENTS[f"{service_name}-internet_zone"] = [(service_name, "service_net"), ("service_net", "internet_zone")]
 
 
 def _logical_node_name(name: str) -> str:
@@ -351,7 +351,7 @@ def _set_segments(net: Mininet, segments: list[tuple[str, str]], state: str) -> 
         net.configLinkStatus(_logical_node_name(left), _logical_node_name(right), state)
 
 
-class EnterpriseV7ControlAgent(legacy.MininetControlAgent):
+class EnterpriseV7ControlAgent(runtime_support.MininetControlAgent):
     """Add loop-safe VLAN 93 primary/backup switching to the existing agent."""
 
     def _set_link(self, link_id: str, state: str) -> dict:
@@ -491,21 +491,21 @@ def build_topology() -> None:
     _preflight_cleanup()
     started = time.monotonic()
     policy = load_policy()
-    net = Mininet(controller=None, switch=legacy.ReliableOVSKernelSwitch, link=TCLink, autoSetMacs=True, build=False, waitConnected=True)
+    net = Mininet(controller=None, switch=runtime_support.ReliableOVSKernelSwitch, link=TCLink, autoSetMacs=True, build=False, waitConnected=True)
     controller = net.addController("c0", controller=RemoteController, ip="127.0.0.1", port=6653)
     switches = {
         name: net.addSwitch(_logical_node_name(name), dpid=dpid, protocols="OpenFlow13", failMode="secure")
         for name, dpid in DPIDS.items()
     }
-    service_net = net.addSwitch("service_net", cls=legacy.LinuxBridgeSwitch, dpid=SERVICE_NET_DPID)
-    ce_nodes = {name: net.addSwitch(name, cls=legacy.LinuxBridgeSwitch, dpid=dpid) for name, dpid in CE_DPIDS.items()}
-    l2vpn_nodes = {name: net.addSwitch(name, cls=legacy.LinuxBridgeSwitch, dpid=dpid) for name, dpid in L2VPN_DPIDS.items()}
-    hq_l3 = net.addHost("hq_l3_gateway", cls=legacy.LinuxRouter, ip=None)
-    branch_l3 = net.addHost("telesale_l3_gateway", cls=legacy.LinuxRouter, ip=None)
-    ipsec_l3 = net.addHost("ipsec_l3", cls=legacy.LinuxRouter, ip=None)
-    fw_hq = net.addHost("fw_hq", cls=legacy.LinuxRouter, ip=None)
-    fw_br = net.addHost("fw_telesale", cls=legacy.LinuxRouter, ip=None)
-    internet_zone = net.addHost("internet_zone", cls=legacy.LinuxRouter, ip=None)
+    service_net = net.addSwitch("service_net", cls=runtime_support.LinuxBridgeSwitch, dpid=SERVICE_NET_DPID)
+    ce_nodes = {name: net.addSwitch(name, cls=runtime_support.LinuxBridgeSwitch, dpid=dpid) for name, dpid in CE_DPIDS.items()}
+    l2vpn_nodes = {name: net.addSwitch(name, cls=runtime_support.LinuxBridgeSwitch, dpid=dpid) for name, dpid in L2VPN_DPIDS.items()}
+    hq_l3 = net.addHost("hq_l3_gateway", cls=runtime_support.LinuxRouter, ip=None)
+    branch_l3 = net.addHost("telesale_l3_gateway", cls=runtime_support.LinuxRouter, ip=None)
+    ipsec_l3 = net.addHost("ipsec_l3", cls=runtime_support.LinuxRouter, ip=None)
+    fw_hq = net.addHost("fw_hq", cls=runtime_support.LinuxRouter, ip=None)
+    fw_br = net.addHost("fw_telesale", cls=runtime_support.LinuxRouter, ip=None)
+    internet_zone = net.addHost("internet_zone", cls=runtime_support.LinuxRouter, ip=None)
 
     group_hosts = add_group_hosts(net, policy, switches)
     _add_service_hosts(net, service_net)

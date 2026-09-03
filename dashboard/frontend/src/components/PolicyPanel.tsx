@@ -24,7 +24,7 @@ function formatTime(value: string) {
 
 function policyCategory(key: string): { label: string; tone: "project" | "voice" | "wan" | "security" } {
   if (key.includes("isolate") || key.includes("project")) return { label: "Zero-Trust & Phân đoạn", tone: "project" };
-  if (key.includes("voice") || key.includes("softphone") || key.includes("call")) return { label: "Thoại & QoS", tone: "voice" };
+  if (key.includes("voice") || key.includes("softphone") || key.includes("call")) return { label: "Thoại & flow priority", tone: "voice" };
   if (key.includes("vpn") || key.includes("ipsec") || key.includes("intersite")) return { label: "WAN & Intersite", tone: "wan" };
   return { label: "Internet & Bảo mật Biên", tone: "security" };
 }
@@ -73,7 +73,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
       <div className="section-title">
         <div>
           <h2>Trung tâm chính sách mạng</h2>
-          <span>Quản lý chính sách bảo mật, phân đoạn L2/L3 và chất lượng dịch vụ QoS trên toàn mạng</span>
+          <span>Quản lý chính sách bảo mật, phân đoạn L2/L3 và flow priority cho Voice</span>
         </div>
         <StatusBadge
           status={inventory.some((item) => item.lifecycle_status === "Failed") ? "offline" : inventory.some((item) => item.lifecycle_status !== "Applied") ? "degraded" : "online"}
@@ -149,7 +149,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
             className={categoryFilter === "voice" ? "active" : ""}
             onClick={() => setCategoryFilter("voice")}
           >
-            Thoại & QoS
+            Thoại & flow priority
           </button>
           <button
             type="button"

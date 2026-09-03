@@ -1,5 +1,7 @@
 # Phase 49: Thiết kế Authentication
 
+> **Legacy / Historical Reference** — Hồ sơ thiết kế theo mốc triển khai, được giữ để truy vết quyết định Dashboard/RBAC.
+
 ## Phạm vi
 
 Dashboard dùng human authentication cho người vận hành và giữ operator token như một kênh machine-to-machine riêng cho script runtime. Frontend không lưu hoặc hiển thị operator token.

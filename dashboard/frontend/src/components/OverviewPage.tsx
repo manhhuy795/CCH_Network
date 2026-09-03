@@ -65,18 +65,18 @@ export default function OverviewPage({
   const l2vpn = topology?.l2vpn || {};
   const configuredVlan = Number(l2vpn.customer_vlan);
   const vlan = Number.isFinite(configuredVlan) ? configuredVlan : 93;
-  const l2vpnConfigured = (topology?.summary.l2vpn_service_count ?? 1) >= 1 && (vlan === 93 || vlan === 40);
+  const l2vpnConfigured = Boolean(topology && (topology.summary.l2vpn_service_count ?? 1) >= 1 && vlan === 93);
   const l2vpnLinkIds = new Set((topology?.links || []).filter((link) => link.type === "l2vpn").map((link) => link.id));
   const failedAttachments = failedLinks.filter((linkId) => l2vpnLinkIds.has(linkId));
   const summary = preflight?.summary || {};
   const preflightCases = preflight?.cases || [];
-  const l2Cases = preflightCases.filter((item) => item.id.startsWith("vlan93_") || item.id.startsWith("vlan40_"));
+  const l2Cases = preflightCases.filter((item) => item.id.startsWith("vlan93_"));
   const l2Passed = l2Cases.filter((item) => item.passed).length;
   const hasL2Evidence = l2vpnConfigured && l2Cases.length === 2;
   const measuredOnline = numberOr(summary.endpoints_online, onlineHosts);
   const measuredTotal = numberOr(summary.endpoints_total, totalHosts);
   const switchesReady = numberOr(summary.switches_ready, 0);
-  const switchesExpected = numberOr(summary.switches_expected, topology?.summary.controlled_ovs_count || 8);
+  const switchesExpected = numberOr(summary.switches_expected, topology?.summary.controlled_ovs_count || 6);
   const flowEntries = numberOr(summary.flow_entries, 0);
   const checksPassed = numberOr(summary.checks_passed, 0);
   const checksTotal = numberOr(summary.checks_total, 0);
@@ -146,7 +146,7 @@ export default function OverviewPage({
       <div className="overview-heading">
         <div>
           <h1>Tổng quan hệ thống</h1>
-          <p>Mininet namespaces · OpenFlow inventory · VPWS VLAN 40 · cập nhật UI {lastUpdated || "chưa có dữ liệu"}</p>
+          <p>Mininet namespaces · 6-OVS OpenFlow inventory · VLAN {vlan} L2VPN · cập nhật UI {lastUpdated || "chưa có dữ liệu"}</p>
         </div>
         <div className="overview-heading-actions">
           <button onClick={onRefresh}><RefreshCw size={16} />Làm mới</button>
@@ -157,7 +157,7 @@ export default function OverviewPage({
       <section className="overview-metrics" aria-label="Số liệu vận hành chính">
         <Metric icon={MonitorDot} label="Endpoint Mininet" value={`${measuredOnline}/${measuredTotal}`} note={preflightAvailable ? "Đọc từ namespace inventory" : "Chưa có mẫu preflight"} tone={allHostsOnline ? "online" : "degraded"} />
         <Metric icon={DatabaseZap} label="OpenFlow inventory" value={preflightAvailable ? `${flowEntries} entries` : "Chờ preflight"} note={`${switchesReady}/${switchesExpected} bridge OVS`} tone={!preflightAvailable ? "unknown" : switchesReady === switchesExpected && flowEntries > 0 ? "online" : "degraded"} />
-        <Metric icon={Waypoints} label={`VLAN ${vlan} · VPWS`} value={hasL2Evidence ? `${l2Passed}/2 phép thử` : "Chờ mẫu đo"} note="HQ ↔ Branch Telesale" tone={serviceTone} />
+        <Metric icon={Waypoints} label={`VLAN ${vlan} · L2VPN`} value={hasL2Evidence ? `${l2Passed}/2 phép thử` : "Chờ mẫu đo"} note="HQ ↔ Branch" tone={serviceTone} />
         <Metric icon={AlertTriangle} label="Cảnh báo liên kết" value={failedLinks.length ? `${failedLinks.length} link down` : "0 liên kết lỗi"} note={failedLinks.length ? failedLinks.join(", ") : "Control Agent không ghi nhận lỗi"} tone={failedLinks.length ? "degraded" : "online"} />
       </section>
 
@@ -200,7 +200,7 @@ export default function OverviewPage({
               <ChevronRight size={20} />
             </button>
 
-            {/* SLIDE 0: Đường dịch vụ Dự án 2 (VLAN 40/93) MPLS VPWS */}
+            {/* SLIDE 0: Đường dịch vụ Dự án 2 VLAN 93 L2VPN */}
             {activeSlide === 0 && (
               <div className="carousel-slide-content">
                 <div className="overview-panel-heading">
@@ -223,7 +223,7 @@ export default function OverviewPage({
                   <rect className="overview-site" x="12" y="38" width="345" height="198" rx="15" />
                   <rect className="overview-site" x="623" y="38" width="345" height="198" rx="15" />
                   <text x="30" y="65">HQ (Trụ sở chính)</text><text className="overview-svg-muted" x="30" y="84">Dự án 2 · Collapsed Core</text>
-                  <text x="641" y="65">Chi nhánh (Branch Telesale)</text><text className="overview-svg-muted" x="641" y="84">Dự án 2 · Collapsed Core</text>
+                  <text x="641" y="65">Chi nhánh (Branch)</text><text className="overview-svg-muted" x="641" y="84">Dự án 2 · Collapsed Core</text>
 
                   <path className="overview-path-track" d="M 77 151 L 197 151 L 305 151 C 365 151 405 112 490 112 C 575 112 615 151 675 151 L 782 151 L 895 151" />
                   <path className={`overview-l2vpn-path${serviceDown ? " failed" : ""}`} d="M 77 151 L 197 151 L 305 151 C 365 151 405 112 490 112 C 575 112 615 151 675 151 L 782 151 L 895 151" />
@@ -261,19 +261,19 @@ export default function OverviewPage({
               </div>
             )}
 
-            {/* SLIDE 1: Kênh Bảo Mật IPsec Site-to-Site & Định tuyến Intersite */}
+            {/* SLIDE 1: IPv4 routed intersite abstraction */}
             {activeSlide === 1 && (
               <div className="carousel-slide-content">
                 <div className="overview-panel-heading">
                   <div className="overview-panel-title">
                     <span><ShieldCheck size={17} /></span>
                     <div>
-                      <h2>Hầm bảo mật IPsec liên Site & Định tuyến an toàn</h2>
-                      <p>Mã hóa dữ liệu liên Site cho VLAN 101, 103, 104 qua mạng Internet công cộng</p>
+                      <h2>Định tuyến IPv4 liên site qua Firewall</h2>
+                      <p>Routed path abstraction cho các mạng ngoài VLAN 93; không mô phỏng IKE/ESP/XFRM</p>
                     </div>
                   </div>
                   <div className="service-path-actions">
-                    <StatusBadge status="online" label="IPsec Đang hoạt động · AES-256" />
+                    <StatusBadge status="online" label="Routed abstraction · Lab" />
                     <button onClick={() => onNavigate("topology")}>Xem Topology</button>
                   </div>
                 </div>
@@ -281,8 +281,8 @@ export default function OverviewPage({
                 <svg className="overview-path" viewBox="0 0 980 280" role="img">
                   <rect className="overview-site" x="12" y="38" width="345" height="198" rx="15" />
                   <rect className="overview-site" x="623" y="38" width="345" height="198" rx="15" />
-                  <text x="30" y="65">Vùng An ninh HQ</text><text className="overview-svg-muted" x="30" y="84">Tường lửa HA Chính/Dự phòng</text>
-                  <text x="641" y="65">Vùng An ninh Chi nhánh</text><text className="overview-svg-muted" x="641" y="84">Tường lửa HA Telesale</text>
+                  <text x="30" y="65">Firewall boundary HQ</text><text className="overview-svg-muted" x="30" y="84">nftables runtime abstraction</text>
+                  <text x="641" y="65">Firewall boundary Branch</text><text className="overview-svg-muted" x="641" y="84">nftables runtime abstraction</text>
 
                   {/* Secure Tunnel Line */}
                   <path className="overview-path-track" d="M 120 151 L 280 151 C 380 151 420 100 490 100 C 560 100 600 151 700 151 L 860 151" />
@@ -295,7 +295,7 @@ export default function OverviewPage({
                   <text x="277" y="144" textAnchor="middle">FW-HQ HA</text><text className="overview-svg-muted" x="277" y="165" textAnchor="middle">Chính / Dự phòng</text>
 
                   <path className="overview-cloud" d="M428 70 C444 46 474 44 494 60 C514 40 553 53 554 82 C577 90 574 123 549 128 L434 128 C405 127 403 86 428 70 Z" />
-                  <text x="490" y="88" textAnchor="middle">Kênh WAN Internet</text><text className="overview-svg-muted" x="490" y="108" textAnchor="middle">Đường hầm IPsec ESP</text>
+                  <text x="490" y="88" textAnchor="middle">WAN / Internet</text><text className="overview-svg-muted" x="490" y="108" textAnchor="middle">IPv4 routed path</text>
 
                   <rect className="overview-pe" x="645" y="116" width="115" height="70" rx="11" />
                   <text x="702" y="144" textAnchor="middle">FW-BR HA</text><text className="overview-svg-muted" x="702" y="165" textAnchor="middle">Chính / Dự phòng</text>
@@ -304,30 +304,30 @@ export default function OverviewPage({
                   <text x="865" y="143" textAnchor="middle">Mạng LAN Chi nhánh</text><text className="overview-svg-muted" x="865" y="164" textAnchor="middle">Telesale & Thiết bị IoT</text>
 
                   <rect className="overview-service-chip" x="400" y="18" width="180" height="28" rx="14" />
-                  <text className="overview-service-chip-text" x="490" y="37" textAnchor="middle">HẦM BẢO MẬT IPSEC AES-256</text>
+                  <text className="overview-service-chip-text" x="490" y="37" textAnchor="middle">ROUTED LAB ABSTRACTION</text>
                 </svg>
 
                 <div className="service-facts">
-                  <Fact icon={CheckCircle2} value="IKEv2 / ESP Tunnel" label="Giao thức bảo mật" />
-                  <Fact icon={Server} value="AES-256-GCM / SHA-384" label="Thuật toán mã hóa" />
-                  <Fact icon={ShieldCheck} value="Tự động chuyển Dual-ISP" label="Dự phòng liên kết" />
+                  <Fact icon={CheckCircle2} value="IPv4 routing" label="Hành vi được mô phỏng" />
+                  <Fact icon={Server} value="No IKE / ESP / XFRM" label="Giới hạn cryptographic" />
+                  <Fact icon={ShieldCheck} value="HQ ↔ Branch firewall" label="Boundary được kiểm tra" />
                 </div>
               </div>
             )}
 
-            {/* SLIDE 2: Giám Sát Băng Thông & QoS SLA Realtime */}
+            {/* SLIDE 2: Lab performance measurements */}
             {activeSlide === 2 && (
               <div className="carousel-slide-content">
                 <div className="overview-panel-heading">
                   <div className="overview-panel-title">
                     <span><Activity size={17} /></span>
                     <div>
-                      <h2>Đo kiểm Băng thông & SLA Thời gian thực (QoS Telemetry)</h2>
-                      <p>Giám sát lưu lượng iperf3, độ trễ và rung pha (jitter) liên tục giữa HQ và Chi nhánh</p>
+                      <h2>Đo kiểm lab: băng thông, RTT và packet loss</h2>
+                      <p>Mẫu ping/iperf3 theo yêu cầu giữa các Mininet namespace; không phải cam kết SLA</p>
                     </div>
                   </div>
                   <div className="service-path-actions">
-                    <StatusBadge status="online" label="SLA Đạt 99.99% · 0.82ms" />
+                    <StatusBadge status="online" label="Runtime sample · Không SLA" />
                     <button onClick={() => onNavigate("performance")}>Xem Hiệu năng</button>
                   </div>
                 </div>
@@ -335,36 +335,36 @@ export default function OverviewPage({
                 <svg className="overview-path" viewBox="0 0 980 280" role="img">
                   <rect className="overview-site" x="12" y="38" width="345" height="198" rx="15" />
                   <rect className="overview-site" x="623" y="38" width="345" height="198" rx="15" />
-                  <text x="30" y="65">Nút đo kiểm HQ</text><text className="overview-svg-muted" x="30" y="84">Máy phát iperf3 (h101_01)</text>
-                  <text x="641" y="65">Nút đo kiểm Chi nhánh</text><text className="overview-svg-muted" x="641" y="84">Máy nhận iperf3 (h93_01)</text>
+                  <text x="30" y="65">Nguồn đo kiểm</text><text className="overview-svg-muted" x="30" y="84">Mininet namespace do operator chọn</text>
+                  <text x="641" y="65">Đích đo kiểm</text><text className="overview-svg-muted" x="641" y="84">Mininet namespace do operator chọn</text>
 
                   {/* Flow stream line */}
                   <path className="overview-path-track" d="M 120 151 L 300 151 C 390 151 430 110 490 110 C 550 110 590 151 680 151 L 860 151" />
                   <path d="M 120 151 L 300 151 C 390 151 430 110 490 110 C 550 110 590 151 680 151 L 860 151" fill="none" stroke="#10b981" strokeWidth="4" />
 
                   <rect className="overview-endpoint" x="50" y="118" width="140" height="66" rx="11" />
-                  <text x="120" y="143" textAnchor="middle">Máy phát iperf3</text><text className="overview-svg-muted" x="120" y="164" textAnchor="middle">10.10.101.11 (HQ)</text>
+                  <text x="120" y="143" textAnchor="middle">Nguồn</text><text className="overview-svg-muted" x="120" y="164" textAnchor="middle">Operator-selected</text>
 
                   <rect className="overview-pe" x="235" y="116" width="105" height="70" rx="11" />
-                  <text x="287" y="144" textAnchor="middle">Bộ đệm phát (Tx)</text><text className="overview-svg-muted" x="287" y="165" textAnchor="middle">942.8 Mbps</text>
+                  <text x="287" y="144" textAnchor="middle">iperf3 / ping</text><text className="overview-svg-muted" x="287" y="165" textAnchor="middle">On demand</text>
 
                   <path className="overview-cloud" d="M428 75 C444 51 474 49 494 65 C514 45 553 58 554 87 C577 95 574 128 549 133 L434 133 C405 132 403 91 428 75 Z" />
-                  <text x="490" y="92" textAnchor="middle">Lõi mạng MPLS</text><text className="overview-svg-muted" x="490" y="114" textAnchor="middle">Cam kết CIR 1 Gbps</text>
+                  <text x="490" y="92" textAnchor="middle">Lab data path</text><text className="overview-svg-muted" x="490" y="114" textAnchor="middle">Theo policy/active path</text>
 
                   <rect className="overview-pe" x="640" y="116" width="105" height="70" rx="11" />
-                  <text x="692" y="144" textAnchor="middle">Bộ đệm nhận (Rx)</text><text className="overview-svg-muted" x="692" y="165" textAnchor="middle">0% Mất gói</text>
+                  <text x="692" y="144" textAnchor="middle">Kết quả đo</text><text className="overview-svg-muted" x="692" y="165" textAnchor="middle">Runtime evidence</text>
 
                   <rect className="overview-endpoint" x="790" y="118" width="140" height="66" rx="11" />
-                  <text x="860" y="143" textAnchor="middle">Máy nhận iperf3</text><text className="overview-svg-muted" x="860" y="164" textAnchor="middle">10.10.93.71 (Chi nhánh)</text>
+                  <text x="860" y="143" textAnchor="middle">Đích</text><text className="overview-svg-muted" x="860" y="164" textAnchor="middle">Operator-selected</text>
 
                   <rect className="overview-service-chip" x="400" y="18" width="180" height="28" rx="14" />
-                  <text className="overview-service-chip-text" x="490" y="37" textAnchor="middle">SLA KHẢ DỤNG 99.99%</text>
+                  <text className="overview-service-chip-text" x="490" y="37" textAnchor="middle">LAB MEASUREMENT · NOT SLA</text>
                 </svg>
 
                 <div className="service-facts">
-                  <Fact icon={CheckCircle2} value="942.8 Mbps" label="Băng thông đo kiểm" />
-                  <Fact icon={Server} value="0.82 ms (Rung pha 0.08ms)" label="Độ trễ RTT hai chiều" />
-                  <Fact icon={ShieldCheck} value="0.00% (Không mất gói)" label="Tỉ lệ mất gói" />
+                  <Fact icon={CheckCircle2} value="iperf3 on-demand" label="Băng thông lab" />
+                  <Fact icon={Server} value="ping RTT" label="Độ trễ lab" />
+                  <Fact icon={ShieldCheck} value="packet loss" label="Kết quả theo lần đo" />
                 </div>
               </div>
             )}
@@ -377,7 +377,7 @@ export default function OverviewPage({
                     <span><DatabaseZap size={17} /></span>
                     <div>
                       <h2>Trục Điều khiển OS-Ken SDN & Đường ống Luồng (Flow Pipeline)</h2>
-                      <p>Mặt phẳng điều khiển OpenFlow 1.3 · Phân định luồng thông minh và chuyển hướng dưới 50ms</p>
+                      <p>OS-Ken điều khiển 6 OVS · Pipeline 0 → 10 → 20 → 30 · explicit forwarding</p>
                     </div>
                   </div>
                   <div className="service-path-actions">
@@ -389,17 +389,17 @@ export default function OverviewPage({
                 <svg className="overview-path" viewBox="0 0 980 280" role="img">
                   <rect className="overview-site" x="12" y="38" width="345" height="198" rx="15" />
                   <rect className="overview-site" x="623" y="38" width="345" height="198" rx="15" />
-                  <text x="30" y="65">Cụm Switch OpenFlow HQ</text><text className="overview-svg-muted" x="30" y="84">Core-Dist HQ & Access</text>
-                  <text x="641" y="65">Cụm Switch Chi nhánh</text><text className="overview-svg-muted" x="641" y="84">Core-Dist Chi nhánh & Access</text>
+                  <text x="30" y="65">OpenFlow fabric HQ</text><text className="overview-svg-muted" x="30" y="84">4 controlled OVS</text>
+                  <text x="641" y="65">OpenFlow fabric Branch</text><text className="overview-svg-muted" x="641" y="84">2 controlled OVS</text>
 
                   {/* SDN Control plane links */}
                   <path d="M 180 151 L 490 85 L 800 151" fill="none" stroke="#2563eb" strokeWidth="3" strokeDasharray="5 5" />
 
                   <rect className="overview-endpoint" x="60" y="118" width="130" height="66" rx="11" />
-                  <text x="125" y="143" textAnchor="middle">Core-Dist HQ</text><text className="overview-svg-muted" x="125" y="164" textAnchor="middle">dpid: 0000..01</text>
+                  <text x="125" y="143" textAnchor="middle">core_hq</text><text className="overview-svg-muted" x="125" y="164" textAnchor="middle">DPID 3 · OF 1.3</text>
 
                   <rect className="overview-pe" x="230" y="116" width="105" height="70" rx="11" />
-                  <text x="282" y="144" textAnchor="middle">Access HQ</text><text className="overview-svg-muted" x="282" y="165" textAnchor="middle">24 Cổng OF13</text>
+                  <text x="282" y="144" textAnchor="middle">HQ access/infra</text><text className="overview-svg-muted" x="282" y="165" textAnchor="middle">3 controlled OVS</text>
 
                   {/* Controller Hub */}
                   <rect className="overview-endpoint" x="405" y="55" width="170" height="70" rx="12" stroke="#2563eb" strokeWidth="2" />
@@ -407,19 +407,19 @@ export default function OverviewPage({
                   <text className="overview-svg-muted" x="490" y="105" textAnchor="middle">Cổng TCP 6653 · OF 1.3</text>
 
                   <rect className="overview-pe" x="645" y="116" width="105" height="70" rx="11" />
-                  <text x="697" y="144" textAnchor="middle">Access Chi nhánh</text><text className="overview-svg-muted" x="697" y="165" textAnchor="middle">24 Cổng OF13</text>
+                  <text x="697" y="144" textAnchor="middle">access_branch</text><text className="overview-svg-muted" x="697" y="165" textAnchor="middle">DPID 4 · OF 1.3</text>
 
                   <rect className="overview-endpoint" x="790" y="118" width="130" height="66" rx="11" />
-                  <text x="855" y="143" textAnchor="middle">Core-Dist Chi nhánh</text><text className="overview-svg-muted" x="855" y="164" textAnchor="middle">dpid: 0000..02</text>
+                  <text x="855" y="143" textAnchor="middle">dist_branch</text><text className="overview-svg-muted" x="855" y="164" textAnchor="middle">DPID 5 · OF 1.3</text>
 
                   <rect className="overview-service-chip" x="400" y="12" width="180" height="28" rx="14" />
                   <text className="overview-service-chip-text" x="490" y="31" textAnchor="middle">OPENFLOW V1.3 SẴN SÀNG</text>
                 </svg>
 
                 <div className="service-facts">
-                  <Fact icon={CheckCircle2} value="OS-Ken SDN (6653/TCP)" label="Bộ điều khiển trung tâm" />
-                  <Fact icon={Server} value="56 Luật luồng nạp sẵn" label="Tập luật luồng đã cài" />
-                  <Fact icon={ShieldCheck} value="< 45 ms khi đứt kết nối" label="Tốc độ chuyển hướng sự cố" />
+                  <Fact icon={CheckCircle2} value="6/6 OVS" label="OpenFlow controller targets" />
+                  <Fact icon={Server} value="0 → 10 → 20 → 30" label="Pipeline bốn bảng" />
+                  <Fact icon={ShieldCheck} value="Zero OFPP_NORMAL" label="Explicit forwarding" />
                 </div>
               </div>
             )}
@@ -438,14 +438,14 @@ export default function OverviewPage({
                 className={`carousel-dot${activeSlide === 1 ? " active" : ""}`}
                 onClick={() => { setActiveSlide(1); setProgress(0); }}
               >
-                2. Hầm Bảo Mật IPsec
+                2. Routed Intersite Lab
               </button>
               <button
                 type="button"
                 className={`carousel-dot${activeSlide === 2 ? " active" : ""}`}
                 onClick={() => { setActiveSlide(2); setProgress(0); }}
               >
-                3. Đo Kiểm SLA & QoS
+                3. Đo Kiểm Hiệu Năng
               </button>
               <button
                 type="button"

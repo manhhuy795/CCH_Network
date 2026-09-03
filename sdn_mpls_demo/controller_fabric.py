@@ -47,7 +47,7 @@ CRITICAL ARCHITECTURAL GUARANTEES:
   1. ZERO usage of OFPP_NORMAL. Every action is explicit OFPActionOutput(port).
   2. Multi-hop flow installation on all switches in path (both forward and reverse).
   3. Real Primary (core-eth93p <-> bd-eth93p) and Backup (core-eth93b <-> bd-eth93b) L2VPN failover.
-  4. Honest QoS: Flow-level priority in Table 20 transitioning to Table 30 (no fake queues).
+  4. Voice uses flow-level precedence only; no queue, DSCP, or end-to-end QoS guarantee.
 """
 
 from __future__ import annotations

@@ -13,7 +13,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "topology_hybrid_sdn.py"
+TOPOLOGY_PATH = REPO_ROOT / "sdn_mpls_demo" / "runtime_support.py"
 
 
 class _Node:

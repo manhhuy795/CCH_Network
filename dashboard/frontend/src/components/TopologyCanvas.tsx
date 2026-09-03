@@ -51,32 +51,35 @@ type Hotspot = {
 
 /** Coordinates mapped directly to enterprise_logical_topology_v7.svg (1900 x 880). */
 export const V7_HOTSPOTS: Record<string, Hotspot> = {
-  c0: { x: 860, y: 15, width: 180, height: 45, rx: 6, label: "OS-Ken SDN Controller", center: [950, 38] },
-  project_1: { x: 50, y: 665, width: 105, height: 140, rx: 7, label: "Dự án 1", center: [102.5, 735] },
-  project_2_hq: { x: 165, y: 665, width: 105, height: 140, rx: 7, label: "Dự án 2 · HQ", center: [217.5, 735] },
-  project_3: { x: 280, y: 665, width: 105, height: 140, rx: 7, label: "Dự án 3", center: [332.5, 735] },
-  project_4: { x: 395, y: 665, width: 105, height: 140, rx: 7, label: "Dự án 4", center: [447.5, 735] },
-  infra_access: { x: 510, y: 665, width: 120, height: 140, rx: 7, label: "Hạ tầng", center: [570, 735] },
-  hdhcp: { x: 645, y: 665, width: 125, height: 140, rx: 7, label: "Server Farm / DHCP", center: [707.5, 735] },
-  access_floor1: { x: 50, y: 635, width: 220, height: 24, rx: 4, label: "HQ Access A", center: [160, 647] },
-  access_floor2: { x: 280, y: 635, width: 220, height: 24, rx: 4, label: "HQ Access B", center: [390, 647] },
-  core_hq: { x: 260, y: 345, width: 390, height: 245, rx: 8, label: "CORE-DIST HQ", center: [455, 467] },
-  fw_hq: { x: 325, y: 180, width: 300, height: 115, rx: 8, label: "Firewall HQ HA", center: [475, 237] },
-  partner: { x: 55, y: 170, width: 165, height: 112, rx: 8, label: "Hệ thống Đối tác", center: [137.5, 226] },
-  hcall: { x: 65, y: 205, width: 145, height: 34, rx: 5, label: "Partner CRM", center: [137.5, 222] },
-  h90: { x: 65, y: 240, width: 145, height: 34, rx: 5, label: "PBX / Contact Center", center: [137.5, 257] },
-  ce_hq1: { x: 712, y: 402, width: 56, height: 56, isCircle: true, label: "CE-HQ1", center: [740, 430] },
-  ce_hq2: { x: 712, y: 482, width: 56, height: 56, isCircle: true, label: "CE-HQ2", center: [740, 510] },
-  l2vpn_primary: { x: 855, y: 400, width: 190, height: 60, rx: 28, label: "MPLS L2VPN Primary", center: [950, 430] },
-  l2vpn_backup: { x: 855, y: 480, width: 190, height: 60, rx: 28, label: "MPLS L2VPN Backup", center: [950, 510] },
-  ipsec_l3: { x: 862, y: 207, width: 176, height: 26, rx: 6, label: "IPsec L3 VPN", center: [950, 220] },
-  ce_branch1: { x: 1132, y: 402, width: 56, height: 56, isCircle: true, label: "CE-BR1", center: [1160, 430] },
-  ce_branch2: { x: 1132, y: 482, width: 56, height: 56, isCircle: true, label: "CE-BR2", center: [1160, 510] },
-  dist_branch: { x: 1250, y: 345, width: 390, height: 245, rx: 8, label: "CORE-DIST Branch", center: [1445, 467] },
-  access_branch: { x: 1210, y: 635, width: 230, height: 24, rx: 4, label: "Branch Access", center: [1325, 647] },
-  project_2_branch: { x: 1210, y: 665, width: 230, height: 155, rx: 8, label: "Dự án 2 · Branch", center: [1325, 742] },
-  iot_branch: { x: 1480, y: 665, width: 230, height: 155, rx: 8, label: "Mạng IoT Branch", center: [1595, 742] },
-  fw_telesale: { x: 1335, y: 180, width: 300, height: 115, rx: 8, label: "Firewall Branch HA", center: [1485, 237] },
+  c0: { x: 760, y: 80, width: 380, height: 65, rx: 13, label: "OS-Ken SDN Controller", center: [950, 112.5] },
+  project_1: { x: 45, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 1", center: [110, 756] },
+  project_2_hq: { x: 185, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 2 · HQ", center: [250, 756] },
+  project_3: { x: 325, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 3", center: [390, 756] },
+  project_4: { x: 465, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 4", center: [530, 756] },
+  it_support: { x: 605, y: 710, width: 150, height: 42, rx: 9, label: "IT Support", center: [680, 731] },
+  guest: { x: 605, y: 760, width: 70, height: 42, rx: 9, label: "Guest", center: [640, 781] },
+  iot_hq: { x: 685, y: 760, width: 70, height: 42, rx: 9, label: "HQ IoT", center: [720, 781] },
+  infra_access: { x: 535, y: 520, width: 220, height: 60, rx: 10, label: "Infrastructure Access", center: [645, 550] },
+  hdhcp: { x: 535, y: 620, width: 220, height: 72, rx: 10, label: "Infrastructure / DHCP", center: [645, 656] },
+  access_floor1: { x: 60, y: 590, width: 260, height: 60, rx: 10, label: "HQ Access Floor 1", center: [190, 620] },
+  access_floor2: { x: 340, y: 590, width: 260, height: 60, rx: 10, label: "HQ Access Floor 2", center: [470, 620] },
+  core_hq: { x: 270, y: 430, width: 230, height: 70, rx: 11, label: "CORE-DIST HQ", center: [385, 465] },
+  fw_hq: { x: 270, y: 240, width: 230, height: 70, rx: 11, label: "Firewall HQ", center: [385, 275] },
+  partner: { x: 820, y: 185, width: 260, height: 82, rx: 12, label: "Internet / Partner services", center: [950, 226] },
+  hcall: { x: 835, y: 217, width: 110, height: 36, rx: 8, label: "Partner CRM", center: [890, 235] },
+  h90: { x: 955, y: 217, width: 110, height: 36, rx: 8, label: "PBX / Contact Center", center: [1010, 235] },
+  ce_hq1: { x: 700, y: 350, width: 90, height: 50, rx: 9, label: "CE-HQ1", center: [745, 375] },
+  ce_hq2: { x: 700, y: 440, width: 90, height: 50, rx: 9, label: "CE-HQ2", center: [745, 465] },
+  l2vpn_primary: { x: 840, y: 350, width: 220, height: 50, rx: 24, label: "VLAN 93 L2VPN Primary", center: [950, 375] },
+  l2vpn_backup: { x: 840, y: 440, width: 220, height: 50, rx: 24, label: "VLAN 93 L2VPN Backup", center: [950, 465] },
+  ipsec_l3: { x: 805, y: 286, width: 290, height: 38, rx: 18, label: "IPv4 routed intersite abstraction", center: [950, 305] },
+  ce_branch1: { x: 1110, y: 350, width: 90, height: 50, rx: 9, label: "CE-BR1", center: [1155, 375] },
+  ce_branch2: { x: 1110, y: 440, width: 90, height: 50, rx: 9, label: "CE-BR2", center: [1155, 465] },
+  dist_branch: { x: 1360, y: 430, width: 230, height: 70, rx: 11, label: "CORE-DIST Branch", center: [1475, 465] },
+  access_branch: { x: 1305, y: 590, width: 260, height: 60, rx: 10, label: "Branch Access", center: [1435, 620] },
+  project_2_branch: { x: 1150, y: 710, width: 260, height: 92, rx: 9, label: "Dự án 2 · Branch", center: [1280, 756] },
+  iot_branch: { x: 1450, y: 710, width: 260, height: 92, rx: 9, label: "Mạng IoT Branch", center: [1580, 756] },
+  fw_telesale: { x: 1400, y: 240, width: 230, height: 70, rx: 11, label: "Firewall Branch", center: [1515, 275] },
 };
 
 export const positions: Record<string, [number, number]> = Object.fromEntries(
@@ -143,11 +146,11 @@ function nodeSubtitle(node: DisplayNode) {
   if (node.id === "dist_branch") return "Collapsed Core/Distribution HA (Branch)";
   if (node.id === "fw_hq") return "Firewall HA Cluster (HQ)";
   if (node.id === "fw_telesale") return "Firewall HA Cluster (Branch)";
-  if (node.id === "l2vpn_primary") return "MPLS L2VPN Đường chính (Active)";
-  if (node.id === "l2vpn_backup") return "MPLS L2VPN Đường dự phòng (Standby)";
-  if (node.id === "ipsec_l3") return "IPsec L3 Routed Overlay (Internet)";
-  if (node.id === "h90") return "PBX / Contact Center (VLAN 90)";
-  if (node.id === "hcall") return "Partner CRM (VLAN 90)";
+  if (node.id === "l2vpn_primary") return "VLAN 93 L2VPN Primary (Active)";
+  if (node.id === "l2vpn_backup") return "VLAN 93 L2VPN Backup (Standby)";
+  if (node.id === "ipsec_l3") return "IPv4 routed intersite abstraction";
+  if (node.id === "h90") return "External Partner PBX / Contact Center";
+  if (node.id === "hcall") return "External Partner CRM";
   if (node.subnet) return `${node.subnet} · VLAN ${node.vlan ?? "-"}`;
   if (node.ip) return `IP: ${node.ip}`;
   return String(node.type || "Thiết bị mạng");
@@ -233,12 +236,12 @@ export default function TopologyCanvas({
       <header className="topology-command-header">
         <div className="topology-title-row">
           <span className="topology-header-icon"><Network size={20} /></span>
-          <div><h2>Sơ đồ logic mạng doanh nghiệp · v7</h2><p>HQ và Branch · Collapsed Core/Distribution · Dual MPLS L2VPN · IPsec Routed</p></div>
+          <div><h2>Enterprise Full-SDN topology</h2><p>6 OVS · OS-Ken/OpenFlow 1.3 · HQ/Branch · VLAN 93 Primary/Backup</p></div>
         </div>
         <div className="topology-health-strip" aria-label="Trạng thái kiến trúc mạng">
           <span><i className="online" />Gateway VLAN 93 <strong>HQ · 10.10.93.1</strong></span>
-          <span><i className={primaryDown ? "down" : "online"} />MPLS Primary <strong>{primaryDown ? "Degraded" : "Active"}</strong></span>
-          <span><i className={backupDown ? "down" : "standby"} />MPLS Backup <strong>{backupDown ? "Down" : "Standby"}</strong></span>
+          <span><i className={primaryDown ? "down" : "online"} />VLAN 93 Primary <strong>{primaryDown ? "Degraded" : "Active"}</strong></span>
+          <span><i className={backupDown ? "down" : "standby"} />VLAN 93 Backup <strong>{backupDown ? "Down" : "Standby"}</strong></span>
         </div>
       </header>
 
@@ -260,8 +263,8 @@ export default function TopologyCanvas({
       <div className="topology-viewport-container">
         <div className="topology-canvas-stage">
           <div className="topology-interactive-stage" style={{ transform: `scale(${zoom})`, transformOrigin: "center center", transition: "transform 0.12s ease-out" }}>
-            <div role="img" aria-label="Enterprise v7 Architecture" className="topology-vector-underlay" dangerouslySetInnerHTML={{ __html: topologyV7Svg }} />
-            <svg viewBox="0 0 1900 880" className="topology-overlay-svg" aria-label="CCH Enterprise v7 topology canvas">
+            <div role="img" aria-label="Enterprise Full-SDN architecture" className="topology-vector-underlay" dangerouslySetInnerHTML={{ __html: topologyV7Svg }} />
+            <svg viewBox="0 0 1900 880" className="topology-overlay-svg" aria-label="CCH Enterprise Full-SDN topology canvas">
               {activePathPoints.length > 1 && (
                 <g className="active-path-glow-layer">
                   <polyline points={activePathPoints.map((point) => point.join(",")).join(" ")} className="packet-trail-halo" />
@@ -318,7 +321,7 @@ export default function TopologyCanvas({
             </svg>
           </div>
         </div>
-        <div className="topology-canvas-caption"><span><i className="hq" />HQ</span><b>VLAN 93 L2 extension</b><span>Branch<i className="branch" /></span></div>
+        <div className="topology-canvas-caption"><span><i className="hq" />HQ</span><b>VLAN 93 L2VPN Primary / Backup</b><span>Branch<i className="branch" /></span></div>
         {hoveredNode && (
           <div className="topology-quick-tooltip" role="tooltip">
             <span className="tooltip-kicker">{String(hoveredNode.site || hoveredNode.type || "network node")}</span>
@@ -331,7 +334,7 @@ export default function TopologyCanvas({
       {liveLinkControl && authenticated && l2Controls.length > 0 && (
         <div className="topology-live-controls-card">
           <div className="controls-card-header">
-            <div><Activity size={16} /><span><strong>Mininet runtime</strong> · Điều khiển tuyến MPLS Primary</span></div>
+            <div><Activity size={16} /><span><strong>Mininet runtime</strong> · Điều khiển VLAN 93 Primary attachment path</span></div>
             {linkOperation && <span className={`operation-pill ${linkOperation.status}`}>{linkOperation.message}</span>}
           </div>
           <div className="link-buttons-row">
@@ -355,11 +358,11 @@ export default function TopologyCanvas({
         </div>
       )}
 
-      <footer className="topology-v7-legend" aria-label="Chú thích sơ đồ mạng v7">
+      <footer className="topology-v7-legend" aria-label="Chú thích Enterprise Full-SDN">
         <span><i className="legend-line vlan" /><strong>VLAN 93</strong> Gateway duy nhất tại HQ</span>
         <span><i className="legend-line mpls" /><strong>MPLS L2VPN</strong> Primary / Backup</span>
-        <span><i className="legend-line ipsec" /><strong>IPsec L3</strong> Routed qua Firewall HA</span>
-        <span><i className="legend-line partner" /><strong>Partner PBX/CRM</strong> Kết nối riêng</span>
+        <span><i className="legend-line ipsec" /><strong>IPv4 routed abstraction</strong> Qua firewall boundaries</span>
+        <span><i className="legend-line partner" /><strong>Partner PBX/CRM</strong> External service zone</span>
       </footer>
 
       <Drawer open={Boolean(selectedNode)} onClose={() => setSelectedNode(null)} title={`Chi tiết Node · ${selectedNode?.id || ""}`}>

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-sdn-unit:
+    name: Full-SDN unit (24 cases)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install unit-test dependencies
+        run: python -m pip install pytest PyYAML
+      - name: Run Full-SDN unit suite
+        run: python -m pytest -q tests/test_full_sdn_fabric.py
+
+  backend-and-contracts:
+    name: Backend and repository contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt -r dashboard/backend/requirements.txt
+      - name: Run backend and remaining contract tests
+        run: python -m pytest -q --ignore=tests/test_full_sdn_fabric.py
+
+  frontend:
+    name: Frontend lint, test and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard/frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run typecheck
+      - run: npm run build
+
+# Mininet/OVS/root live integration is intentionally excluded from GitHub-hosted
+# runners. Run sdn_mpls_demo/run_live_tests.py on the Ubuntu lab or a dedicated
+# self-hosted runner after starting OS-Ken and topology_enterprise_v7.py.

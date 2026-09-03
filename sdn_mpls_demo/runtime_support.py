@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Topology 110 user cho Hybrid MPLS L3VPN + SDN Edge Policy."""
+"""Shared Mininet runtime helpers for the enterprise Full-SDN topology.
+
+The executable topology is ``topology_enterprise_v7.py``. Historical builder
+functions remain here only because the control-agent transport tests exercise
+the same runtime primitives; they are not the documented architecture.
+"""
 
 from __future__ import annotations
 
@@ -559,6 +564,8 @@ class MininetControlAgent:
         mode = self.socket_path.lstat().st_mode
         if not stat.S_ISSOCK(mode):
             raise RuntimeError(f"Khong xoa file khong phai socket: {self.socket_path}")
+        if self._socket_is_active():
+            raise RuntimeError(f"Mininet control agent dang chay: {self.socket_path}")
         try:
             self.socket_path.unlink()
         except Exception:
@@ -1570,7 +1577,7 @@ def configure_vlan_switching(switches):
     switches["dist_branch"].cmd("ovs-vsctl set port bd-eth01 vlan_mode=trunk trunks=40,50,111")
     switches["dist_branch"].cmd("ovs-vsctl set port bd-eth02 vlan_mode=trunk trunks=50,111")
     # The unmanaged bridge strips the provider implementation detail from the
-    # customer service: both attachment circuits are access ports in VLAN 40.
+    # Historical compatibility builder: both attachment circuits use one access VLAN.
     switches["dist_hq_2"].cmd("ovs-vsctl set port d2-eth40 tag=40")
     switches["dist_branch"].cmd("ovs-vsctl set port bd-eth40 tag=40")
     switches["dist_hq_1"].cmd("ovs-vsctl set port d1-eth02 vlan_mode=trunk trunks=20,30,90,100,110,120")
@@ -1899,7 +1906,7 @@ def build_topology_legacy_reference():
         cls=TCLink, bw=1000, delay="1ms",
     )
 
-    info("*** Khá»Ÿi Ä‘á»™ng topology Hybrid MPLS L3VPN + SDN Edge Policy\n")
+    info("*** Starting historical compatibility topology\n")
     net.build()
     controller.start()
     for switch in switches.values():
@@ -1929,7 +1936,7 @@ def build_topology_legacy_reference():
             1 for name in group_hosts if policy["hosts"].get(name, {}).get("kind") in {"guest", "iot"}
         )
         emit(f"Topology da tao: {corporate_user_count} user + 5 service + {enterprise_count} Guest/IoT/UPS endpoint")
-        emit("Legacy builder: controller inventory was superseded by the eight-OVS redesign.")
+        emit("Legacy builder: controller inventory was superseded by topology_enterprise_v7.py.")
         emit(
             "nftables active: "
             + ", ".join(
@@ -2046,7 +2053,7 @@ def build_topology():
         emit(f"Enterprise topology ready: {len([n for n in group_hosts if policy['hosts'].get(n, {}).get('kind') == 'user'])} users")
         emit("Data path: Access -> Distribution -> Core -> service/firewall; Controller chi la control path.")
         emit("MPLS L3VPN logic: Primary metric 10, Backup metric 100; khong noi hai cloud truc tiep.")
-        emit("MPLS L2VPN logic: VLAN 40 VPWS HQ <-> Branch qua transparent bridge l2vpn40; gateway chi tai HQ.")
+        emit("Historical L2VPN service uses its declared transparent bridge; gateway remains at HQ.")
         emit("Gioi han: khong mo phong MPLS label stack, LDP/RSVP/BGP signaling hay PE/P control plane.")
         if os.environ.get("CCH_AUTO_TEST_POLICY", "1") != "0":
             run_policy_tests(net, policy, title="Kiem tra policy enterprise bang ping that")

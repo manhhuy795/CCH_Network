@@ -1,67 +1,49 @@
-# Dashboard Hybrid MPLS L3VPN + SDN
+# CCH Full-SDN Dashboard
 
-Note: `fw_hq` va `fw_telesale` la **stateful nftables firewall** trong Mininet lab. Dashboard phai hien thi chung la Internet policy enforcement point, nhung khong dien giai thanh firewall appliance production.
+Dashboard vận hành cho lab Full-SDN gồm FastAPI backend và React/Vite frontend.
 
-Dashboard gồm:
+## Nội dung hiển thị
 
-- FastAPI backend tại cổng `8000`.
-- React/TypeScript frontend tại cổng `5173`.
-- Trang HTML tích hợp tại `http://127.0.0.1:8000` để dự phòng khi không cần
-  chạy Node.js.
+- health của OS-Ken, 6 OVS, backend và Mininet control agent;
+- enterprise topology HQ/Branch/Infrastructure/Firewall/Internet;
+- VLAN 93 L2VPN Primary/Backup và attachment-link fail/recover;
+- OpenFlow pipeline `0 → 10 → 20 → 30`, flow inventory và policy decision;
+- endpoint/host inventory, event log, test/preflight evidence;
+- bandwidth/RTT/loss samples của lab, không gắn nhãn production SLA.
 
-Kết quả ping, iperf3 và flow counter lấy trực tiếp từ Mininet/OVS. Packet path,
-MPLS và link failure trên sơ đồ là lớp mô hình logic phục vụ giải thích kiến
-trúc.
+Dashboard không biến design metadata hoặc mock thành runtime PASS.
 
-## Điều kiện
-
-Chạy trước:
+## Cài đặt
 
 ```bash
-./sdn_mpls_demo/run_controller.sh
-sudo ./sdn_mpls_demo/run_topology.sh
+./scripts/start_demo.sh --install
 ```
 
-## Backend
+Các lần sau:
 
 ```bash
-./dashboard/run_live_dashboard.sh
+./scripts/start_demo.sh
 ```
 
-Backend không crash khi Mininet chưa chạy; API trả trạng thái và thông báo lỗi
-tiếng Việt.
+- Frontend: `http://127.0.0.1:5173`
+- Backend: `http://127.0.0.1:8000`
+- API docs: `http://127.0.0.1:8000/docs`
 
-## Frontend
+Topology Mininet phải được khởi động riêng bằng `sudo ./sdn_mpls_demo/run_topology.sh`.
+
+## Test frontend
 
 ```bash
-cd dashboard/frontend
-npm install
-npm run dev -- --host 0.0.0.0
+npm ci --prefix dashboard/frontend
+npm run lint --prefix dashboard/frontend
+npm run test --prefix dashboard/frontend
+npm run typecheck --prefix dashboard/frontend
+npm run build --prefix dashboard/frontend
 ```
 
-Mở `http://<IP-Ubuntu-VM>:5173`.
+## Claim boundary
 
-## API
-
-```text
-GET  /api/topology
-GET  /api/policies
-GET  /api/flows
-GET  /api/metrics/current
-GET  /api/live/status
-POST /api/test/ping
-POST /api/test/iperf
-POST /api/test/call-quality
-POST /api/simulate/path
-POST /api/policy/toggle
-POST /api/link/fail
-POST /api/link/recover
-WS   /ws/metrics
-```
-
-## Giới hạn
-
-- Mininet có 110 user thật nhưng sơ đồ gom thành 6 nhóm, gồm phòng IT Support.
-- MPLS L3VPN Logic Cloud là WAN transport mô phỏng, không phải MPLS provider-grade.
-- Controller không điều khiển CE, Firewall hoặc MPLS L3VPN Logic Cloud.
-- Link failure/reroute hiện là mô phỏng logic trên dashboard.
+- IPsec hiển thị là IPv4 routed intersite abstraction, không phải bằng chứng IKE/ESP/XFRM.
+- Performance panel là sample từ ping/iperf, không phải QoS/SLA guarantee.
+- VLAN 93 resilience là attachment-link failover trong lab.
+- Hệ thống chưa production-ready.
