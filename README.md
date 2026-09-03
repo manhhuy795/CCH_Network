@@ -25,45 +25,6 @@
 
 ![Enterprise Full-SDN topology](docs/assets/enterprise_logical_topology_v7.svg)
 
-```mermaid
-flowchart TB
-  C[OS-Ken Controller<br/>OpenFlow 1.3 :6653]
-
-  subgraph HQ[HQ]
-    U1[Project 1 / Project 2 / Guest / IoT] --> A1[access_floor1]
-    U2[Project 3 / Project 4 / IT Support] --> A2[access_floor2]
-    A1 --> CH[core_hq]
-    A2 --> CH
-    S[Infrastructure VLAN 100<br/>DHCP · DNS · AD · File · NMS · Backup · NTP] --> IA[infra_access]
-    IA --> CH
-    CH --> FWH[Firewall HQ]
-  end
-
-  subgraph WAN[VLAN 93 L2VPN]
-    P[Primary attachment path]
-    B[Backup attachment path · standby]
-  end
-
-  subgraph BR[Branch]
-    UB[Project 2 VLAN 93 / IoT VLAN 50] --> AB[access_branch]
-    AB --> DB[dist_branch]
-    DB --> FWB[Firewall Branch]
-  end
-
-  CH --> P --> DB
-  CH -. failover .-> B -.-> DB
-  FWH --> NET[Internet / Partner services]
-  FWB --> NET
-  FWH -. IPv4 routed intersite abstraction .-> FWB
-
-  C -. control .-> A1
-  C -. control .-> A2
-  C -. control .-> CH
-  C -. control .-> IA
-  C -. control .-> AB
-  C -. control .-> DB
-```
-
 Sáu OVS được điều khiển là:
 
 ```text

@@ -1,213 +1,165 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="880" viewBox="0 0 1900 880">
-  <title>Enterprise Full-SDN topology — 6 OVS, OS-Ken and VLAN 93 failover</title>
-  <desc>HQ and Branch enterprise lab. OS-Ken controls six Open vSwitches with OpenFlow 1.3. VLAN 93 uses primary and backup L2VPN attachment paths. Firewalls, CE bridges and service zones remain outside the OpenFlow domain.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Enterprise Full-SDN architecture</title>
+  <desc id="desc">Five-level enterprise architecture with an OS-Ken controller, firewalls and Internet services, HQ and Branch forwarding, VLAN 93 primary and backup paths, six Open vSwitches, and endpoint groups.</desc>
   <defs>
     <style>
       text { font-family: Inter, "Segoe UI", system-ui, sans-serif; }
-      .title { font-size: 29px; font-weight: 750; fill: var(--text, #172033); }
-      .subtitle { font-size: 14px; font-weight: 500; fill: var(--text-muted, #667085); }
-      .site-title { font-size: 18px; font-weight: 750; fill: var(--primary, #c2410c); letter-spacing: .6px; }
-      .label { font-size: 13px; font-weight: 700; fill: var(--text, #172033); }
-      .small { font-size: 11px; font-weight: 500; fill: var(--text-muted, #667085); }
-      .tiny { font-size: 9.5px; font-weight: 600; fill: var(--text-muted, #667085); }
-      .site { fill: var(--surface, #fff); stroke: var(--border, #d8dee9); stroke-width: 1.5; }
-      .wan-zone { fill: var(--surface-muted, #f8fafc); stroke: var(--border, #d8dee9); stroke-width: 1.2; stroke-dasharray: 6 5; }
+      .title { font-size: 30px; font-weight: 750; fill: #172033; }
+      .subtitle { font-size: 15px; font-weight: 550; fill: #526079; }
+      .section { font-size: 16px; font-weight: 750; fill: #c2410c; letter-spacing: .7px; }
+      .label { font-size: 16px; font-weight: 750; fill: #172033; }
+      .small { font-size: 14px; font-weight: 500; fill: #526079; }
+      .note { font-size: 12px; font-weight: 550; fill: #667085; }
+      .canvas { fill: #ffffff; }
+      .band { fill: #f8fafc; stroke: #d8dee9; stroke-width: 1.2; }
       .controller { fill: #eff6ff; stroke: #2563eb; stroke-width: 2.2; }
-      .ovs { fill: var(--surface, #fff); stroke: #2563eb; stroke-width: 2; }
-      .endpoint { fill: var(--surface, #fff); stroke: var(--border-strong, #98a2b3); stroke-width: 1.4; }
+      .ovs { fill: #ffffff; stroke: #2563eb; stroke-width: 2; }
+      .firewall { fill: #fff1f2; stroke: #be123c; stroke-width: 1.8; }
+      .external { fill: #fff7ed; stroke: #c2410c; stroke-width: 1.8; }
+      .endpoint { fill: #ffffff; stroke: #98a2b3; stroke-width: 1.3; }
       .project93 { fill: #ecfdf3; stroke: #16865c; stroke-width: 1.7; }
       .infra { fill: #fffbeb; stroke: #b7791f; stroke-width: 1.6; }
-      .firewall { fill: #fff1f2; stroke: #be123c; stroke-width: 1.8; }
-      .external { fill: #fff7ed; stroke: #c2410c; stroke-width: 1.7; }
-      .ce { fill: var(--surface, #fff); stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 5 4; }
-      .primary-box { fill: #ecfdf3; stroke: #16865c; stroke-width: 2; }
-      .backup-box { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 2; stroke-dasharray: 8 5; }
-      .data { fill: none; stroke: #64748b; stroke-width: 2; }
-      .trunk { fill: none; stroke: #2563eb; stroke-width: 2.3; }
-      .primary { fill: none; stroke: #16865c; stroke-width: 3; }
-      .backup { fill: none; stroke: #7c3aed; stroke-width: 3; stroke-dasharray: 9 6; }
-      .routed { fill: none; stroke: #c2410c; stroke-width: 2.3; }
-      .tunnel { fill: none; stroke: #0f766e; stroke-width: 2.4; stroke-dasharray: 9 6; }
-      .control { fill: none; stroke: #2563eb; stroke-width: 1.5; stroke-dasharray: 5 5; opacity: .65; }
-      .pill { fill: var(--surface, #fff); stroke: var(--border, #d8dee9); stroke-width: 1; }
+      .wan { fill: none; stroke: #cbd5e1; stroke-width: 1.3; stroke-dasharray: 6 5; }
+      .primary-box { fill: #ecfdf3; stroke: #16865c; stroke-width: 1.8; }
+      .backup-box { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.8; stroke-dasharray: 7 5; }
+      .pill { fill: #ffffff; stroke: #d8dee9; stroke-width: 1.1; }
+      .control { fill: none; stroke: #2563eb; stroke-width: 1.5; stroke-dasharray: 5 5; opacity: .62; }
+      .data { fill: none; stroke: #475569; stroke-width: 2; stroke-linejoin: round; }
+      .external-link { fill: none; stroke: #c2410c; stroke-width: 2.2; stroke-linejoin: round; }
+      .routed { fill: none; stroke: #0f766e; stroke-width: 2.2; stroke-dasharray: 8 5; stroke-linejoin: round; }
+      .primary { fill: none; stroke: #16865c; stroke-width: 3; stroke-linejoin: round; }
+      .backup { fill: none; stroke: #7c3aed; stroke-width: 3; stroke-dasharray: 9 6; stroke-linejoin: round; }
     </style>
   </defs>
 
-  <rect width="1900" height="880" fill="var(--surface, #ffffff)"/>
-  <text x="950" y="35" text-anchor="middle" class="title">ENTERPRISE FULL-SDN RUNTIME</text>
-  <text x="950" y="59" text-anchor="middle" class="subtitle">6 OVS · OS-Ken · OpenFlow 1.3 · Pipeline 0 → 10 → 20 → 30 · Zero OFPP_NORMAL</text>
+  <rect width="1440" height="900" class="canvas"/>
+  <text x="720" y="34" text-anchor="middle" class="title">ENTERPRISE FULL-SDN ARCHITECTURE</text>
+  <text x="720" y="59" text-anchor="middle" class="subtitle">6 OVS · OS-Ken · OpenFlow 1.3 · Pipeline 0 → 10 → 20 → 30 · No OFPP_NORMAL</text>
 
-  <rect x="760" y="80" width="380" height="65" rx="13" class="controller"/>
-  <text x="950" y="107" text-anchor="middle" class="label">OS-KEN SDN CONTROLLER</text>
-  <text x="950" y="128" text-anchor="middle" class="small">OpenFlow 1.3 · tcp:127.0.0.1:6653 · 6/6 controlled OVS</text>
+  <!-- Row 1: controller -->
+  <rect x="500" y="82" width="440" height="66" rx="13" class="controller"/>
+  <text x="720" y="109" text-anchor="middle" class="label">OS-KEN SDN CONTROLLER</text>
+  <text x="720" y="132" text-anchor="middle" class="small">OpenFlow 1.3 · tcp:127.0.0.1:6653 · 6 controlled OVS</text>
 
-  <rect x="25" y="170" width="760" height="680" rx="14" class="site"/>
-  <text x="48" y="202" class="site-title">HQ</text>
-  <text x="48" y="222" class="small">4 controlled OVS · 80 corporate users · Infrastructure services</text>
+  <!-- Connector legend and dedicated control-plane routing bus -->
+  <path d="M720 148 V178 H25 M720 178 H1415" class="control"/>
+  <path d="M25 178 V550 H50 M450 178 V385 H420 M510 178 V550 H500 M930 178 V550 H780 M990 178 V385 H1020 M1415 178 V550 H1270" class="control"/>
+  <line x1="505" y1="190" x2="545" y2="190" class="control"/>
+  <text x="553" y="194" class="note">Control plane</text>
+  <line x1="665" y1="190" x2="705" y2="190" class="data"/>
+  <text x="713" y="194" class="note">Data plane</text>
+  <line x1="815" y1="190" x2="855" y2="190" class="primary"/>
+  <text x="863" y="194" class="note">VLAN 93 WAN</text>
 
-  <rect x="805" y="170" width="290" height="680" rx="14" class="wan-zone"/>
-  <text x="950" y="790" text-anchor="middle" class="label">WAN / SERVICE ABSTRACTIONS</text>
-  <text x="950" y="810" text-anchor="middle" class="tiny">CE · L2VPN · routed intersite · Internet/Partner are outside OpenFlow domain</text>
+  <text x="30" y="214" class="section">HQ</text>
+  <text x="1410" y="214" text-anchor="end" class="section">BRANCH</text>
 
-  <rect x="1115" y="170" width="760" height="680" rx="14" class="site"/>
-  <text x="1852" y="202" text-anchor="end" class="site-title">BRANCH</text>
-  <text x="1852" y="222" text-anchor="end" class="small">2 controlled OVS · 10 corporate users · Branch IoT</text>
+  <!-- All connectors are orthogonal and remain behind node blocks. -->
+  <!-- Row 2: firewalls and external services -->
+  <path d="M320 250 H600 M840 250 H1120" class="external-link"/>
+  <path d="M160 278 V326 H300 V350 M1280 278 V326 H1140 V350" class="data"/>
+  <path d="M240 278 V310 H560 M880 310 H1200 V278" class="routed"/>
 
-  <!-- Control plane links -->
-  <path d="M875 145 C760 225 545 300 385 430" class="control"/>
-  <path d="M840 145 C650 300 245 430 190 590" class="control"/>
-  <path d="M880 145 C735 315 530 430 475 590" class="control"/>
-  <path d="M900 145 C800 300 690 410 645 520" class="control"/>
-  <path d="M1020 145 C1220 300 1430 410 1475 430" class="control"/>
-  <path d="M1060 145 C1290 315 1435 455 1435 590" class="control"/>
+  <!-- Row 3: VLAN 93 Primary/Backup -->
+  <path d="M420 370 H560 M880 370 H1020" class="primary"/>
+  <path d="M420 400 H540 V426 H560 M880 426 H940 V400 H1020" class="backup"/>
 
-  <!-- Internet and partner zone -->
-  <rect x="820" y="185" width="260" height="82" rx="12" class="external"/>
-  <text x="950" y="207" text-anchor="middle" class="label">INTERNET / PARTNER SERVICES</text>
-  <rect x="835" y="217" width="110" height="36" rx="8" class="pill"/>
-  <text x="890" y="239" text-anchor="middle" class="small">CRM</text>
-  <rect x="955" y="217" width="110" height="36" rx="8" class="pill"/>
-  <text x="1010" y="234" text-anchor="middle" class="small">PBX /</text>
-  <text x="1010" y="247" text-anchor="middle" class="tiny">Contact Center</text>
+  <!-- Row 3 to row 4: internal OVS fabric -->
+  <path d="M240 420 V466 H155 V520 M300 420 V483 H395 V520 M360 420 V500 H675 V520 M1140 420 V520" class="data"/>
 
-  <!-- Firewalls -->
-  <rect x="270" y="240" width="230" height="70" rx="11" class="firewall"/>
-  <text x="385" y="268" text-anchor="middle" class="label">FIREWALL HQ</text>
-  <text x="385" y="289" text-anchor="middle" class="small">nftables · active HA abstraction</text>
+  <!-- Row 4 to row 5: endpoint attachment -->
+  <path d="M120 580 V638 H85 V690 M205 580 V650 H230 V690 M340 580 V638 H375 V690 M400 580 V650 H495 V690 M465 580 V662 H635 V690 M675 580 V690 M1120 580 V650 H1065 V690 M1210 580 V638 H1295 V690" class="data"/>
 
-  <rect x="1400" y="240" width="230" height="70" rx="11" class="firewall"/>
-  <text x="1515" y="268" text-anchor="middle" class="label">FIREWALL BRANCH</text>
-  <text x="1515" y="289" text-anchor="middle" class="small">nftables · active HA abstraction</text>
+  <rect x="80" y="225" width="240" height="53" rx="10" class="firewall"/>
+  <text x="200" y="248" text-anchor="middle" class="label">FIREWALL HQ</text>
+  <text x="200" y="267" text-anchor="middle" class="small">nftables boundary</text>
 
-  <path d="M500 260 C650 225 730 225 820 225" class="routed"/>
-  <path d="M1080 225 C1200 225 1300 240 1400 260" class="routed"/>
-  <rect x="805" y="286" width="290" height="38" rx="18" class="pill"/>
-  <text x="950" y="302" text-anchor="middle" class="small">IPv4 ROUTED INTERSITE ABSTRACTION</text>
-  <text x="950" y="316" text-anchor="middle" class="tiny">No IKE / ESP / XFRM claim</text>
-  <path d="M500 285 C650 325 760 305 805 305" class="tunnel"/>
-  <path d="M1095 305 C1170 305 1300 325 1400 285" class="tunnel"/>
+  <rect x="600" y="225" width="240" height="53" rx="10" class="external"/>
+  <text x="720" y="248" text-anchor="middle" class="label">INTERNET / PARTNER</text>
+  <text x="720" y="267" text-anchor="middle" class="small">CRM · PBX / Contact Center</text>
 
-  <!-- HQ OVS fabric -->
-  <rect x="270" y="430" width="230" height="70" rx="11" class="ovs"/>
-  <text x="385" y="457" text-anchor="middle" class="label">core_hq</text>
-  <text x="385" y="478" text-anchor="middle" class="small">OVS · DPID 3 · L2/L3 gateway</text>
-  <path d="M385 310 L385 430" class="routed"/>
+  <rect x="1120" y="225" width="240" height="53" rx="10" class="firewall"/>
+  <text x="1240" y="248" text-anchor="middle" class="label">FIREWALL BRANCH</text>
+  <text x="1240" y="267" text-anchor="middle" class="small">nftables boundary</text>
 
-  <rect x="60" y="590" width="260" height="60" rx="10" class="ovs"/>
-  <text x="190" y="615" text-anchor="middle" class="label">access_floor1</text>
-  <text x="190" y="635" text-anchor="middle" class="small">OVS · DPID 1 · VLAN 93/101/120/140</text>
+  <rect x="560" y="293" width="320" height="34" rx="17" class="pill"/>
+  <text x="720" y="315" text-anchor="middle" class="small">IPv4 routed intersite abstraction</text>
 
-  <rect x="340" y="590" width="260" height="60" rx="10" class="ovs"/>
-  <text x="470" y="615" text-anchor="middle" class="label">access_floor2</text>
-  <text x="470" y="635" text-anchor="middle" class="small">OVS · DPID 2 · VLAN 103/104/110</text>
+  <!-- Row 3: core, WAN, distribution -->
+  <rect x="180" y="350" width="240" height="70" rx="11" class="ovs"/>
+  <text x="300" y="378" text-anchor="middle" class="label">core_hq</text>
+  <text x="300" y="400" text-anchor="middle" class="small">OVS · DPID 3 · L2/L3 gateway</text>
 
-  <rect x="535" y="520" width="220" height="60" rx="10" class="ovs"/>
-  <text x="645" y="545" text-anchor="middle" class="label">infra_access</text>
-  <text x="645" y="565" text-anchor="middle" class="small">OVS · DPID 6 · VLAN 100</text>
+  <rect x="520" y="338" width="400" height="112" rx="12" class="wan"/>
+  <rect x="560" y="352" width="320" height="36" rx="18" class="primary-box"/>
+  <text x="720" y="375" text-anchor="middle" class="label">VLAN 93 PRIMARY · ACTIVE</text>
+  <rect x="560" y="408" width="320" height="36" rx="18" class="backup-box"/>
+  <text x="720" y="431" text-anchor="middle" class="label">VLAN 93 BACKUP · STANDBY</text>
+  <text x="720" y="466" text-anchor="middle" class="note">Automatic attachment-link failover · CE/L2VPN abstraction</text>
 
-  <path d="M190 590 C205 535 280 510 330 500" class="trunk"/>
-  <path d="M470 590 C470 555 440 520 420 500" class="trunk"/>
-  <path d="M535 550 C500 545 475 520 450 500" class="trunk"/>
+  <rect x="1020" y="350" width="240" height="70" rx="11" class="ovs"/>
+  <text x="1140" y="378" text-anchor="middle" class="label">dist_branch</text>
+  <text x="1140" y="400" text-anchor="middle" class="small">OVS · DPID 5 · Branch L3</text>
 
-  <rect x="535" y="620" width="220" height="72" rx="10" class="infra"/>
-  <text x="645" y="645" text-anchor="middle" class="label">INFRASTRUCTURE · VLAN 100</text>
-  <text x="645" y="664" text-anchor="middle" class="tiny">DHCP · DNS · AD · File</text>
-  <text x="645" y="680" text-anchor="middle" class="tiny">NMS · Backup · NTP</text>
-  <path d="M645 580 L645 620" class="data"/>
+  <!-- Row 4: access and infrastructure OVS -->
+  <rect x="50" y="520" width="210" height="60" rx="10" class="ovs"/>
+  <text x="155" y="545" text-anchor="middle" class="label">access_floor1</text>
+  <text x="155" y="565" text-anchor="middle" class="small">DPID 1 · V93/101/120/140</text>
 
-  <!-- HQ endpoint groups -->
-  <rect x="45" y="710" width="130" height="92" rx="9" class="endpoint"/>
-  <text x="110" y="739" text-anchor="middle" class="label">PROJECT 1</text>
-  <text x="110" y="758" text-anchor="middle" class="small">20 user · VLAN 101</text>
-  <text x="110" y="780" text-anchor="middle" class="tiny">10.10.101.0/24</text>
+  <rect x="290" y="520" width="210" height="60" rx="10" class="ovs"/>
+  <text x="395" y="545" text-anchor="middle" class="label">access_floor2</text>
+  <text x="395" y="565" text-anchor="middle" class="small">DPID 2 · V103/104/110</text>
 
-  <rect x="185" y="710" width="130" height="92" rx="9" class="project93"/>
-  <text x="250" y="739" text-anchor="middle" class="label">PROJECT 2 · HQ</text>
-  <text x="250" y="758" text-anchor="middle" class="small">10 user · VLAN 93</text>
-  <text x="250" y="780" text-anchor="middle" class="tiny">GW 10.10.93.1 · HQ</text>
+  <rect x="570" y="520" width="210" height="60" rx="10" class="ovs"/>
+  <text x="675" y="545" text-anchor="middle" class="label">infra_access</text>
+  <text x="675" y="565" text-anchor="middle" class="small">DPID 6 · VLAN 100</text>
 
-  <rect x="325" y="710" width="130" height="92" rx="9" class="endpoint"/>
-  <text x="390" y="739" text-anchor="middle" class="label">PROJECT 3</text>
-  <text x="390" y="758" text-anchor="middle" class="small">20 user · VLAN 103</text>
-  <text x="390" y="780" text-anchor="middle" class="tiny">10.10.103.0/24</text>
+  <rect x="1060" y="520" width="210" height="60" rx="10" class="ovs"/>
+  <text x="1165" y="545" text-anchor="middle" class="label">access_branch</text>
+  <text x="1165" y="565" text-anchor="middle" class="small">DPID 4 · VLAN 50/93</text>
 
-  <rect x="465" y="710" width="130" height="92" rx="9" class="endpoint"/>
-  <text x="530" y="739" text-anchor="middle" class="label">PROJECT 4</text>
-  <text x="530" y="758" text-anchor="middle" class="small">20 user · VLAN 104</text>
-  <text x="530" y="780" text-anchor="middle" class="tiny">10.10.104.0/24</text>
+  <!-- Row 5: endpoint groups -->
+  <rect x="30" y="690" width="110" height="82" rx="9" class="endpoint"/>
+  <text x="85" y="719" text-anchor="middle" class="label">PROJECT 1</text>
+  <text x="85" y="742" text-anchor="middle" class="small">20 users</text>
+  <text x="85" y="759" text-anchor="middle" class="note">VLAN 101</text>
 
-  <rect x="605" y="710" width="150" height="42" rx="9" class="endpoint"/>
-  <text x="680" y="728" text-anchor="middle" class="label">IT SUPPORT</text>
-  <text x="680" y="744" text-anchor="middle" class="tiny">10 user · VLAN 110</text>
-  <rect x="605" y="760" width="70" height="42" rx="9" class="endpoint"/>
-  <text x="640" y="779" text-anchor="middle" class="small">GUEST</text>
-  <text x="640" y="793" text-anchor="middle" class="tiny">V120</text>
-  <rect x="685" y="760" width="70" height="42" rx="9" class="endpoint"/>
-  <text x="720" y="779" text-anchor="middle" class="small">HQ IoT</text>
-  <text x="720" y="793" text-anchor="middle" class="tiny">V140</text>
+  <rect x="150" y="690" width="160" height="82" rx="9" class="project93"/>
+  <text x="230" y="719" text-anchor="middle" class="label">PROJECT 2 · HQ</text>
+  <text x="230" y="742" text-anchor="middle" class="small">10 users · VLAN 93</text>
+  <text x="230" y="759" text-anchor="middle" class="note">Gateway at HQ</text>
 
-  <path d="M110 710 L135 650" class="data"/>
-  <path d="M250 710 L240 650" class="data"/>
-  <path d="M390 710 L420 650" class="data"/>
-  <path d="M530 710 L505 650" class="data"/>
-  <path d="M680 710 L555 650" class="data"/>
-  <path d="M640 760 C540 700 330 680 275 650" class="data"/>
-  <path d="M720 760 C570 690 360 670 295 650" class="data"/>
+  <rect x="320" y="690" width="110" height="82" rx="9" class="endpoint"/>
+  <text x="375" y="719" text-anchor="middle" class="label">PROJECT 3</text>
+  <text x="375" y="742" text-anchor="middle" class="small">20 users</text>
+  <text x="375" y="759" text-anchor="middle" class="note">VLAN 103</text>
 
-  <!-- VLAN 93 primary and backup -->
-  <rect x="700" y="350" width="90" height="50" rx="9" class="ce"/>
-  <text x="745" y="380" text-anchor="middle" class="small">CE-HQ1</text>
-  <rect x="840" y="350" width="220" height="50" rx="24" class="primary-box"/>
-  <text x="950" y="371" text-anchor="middle" class="label">VLAN 93 L2VPN PRIMARY</text>
-  <text x="950" y="389" text-anchor="middle" class="tiny">active attachment path</text>
-  <rect x="1110" y="350" width="90" height="50" rx="9" class="ce"/>
-  <text x="1155" y="380" text-anchor="middle" class="small">CE-BR1</text>
+  <rect x="440" y="690" width="110" height="82" rx="9" class="endpoint"/>
+  <text x="495" y="719" text-anchor="middle" class="label">PROJECT 4</text>
+  <text x="495" y="742" text-anchor="middle" class="small">20 users</text>
+  <text x="495" y="759" text-anchor="middle" class="note">VLAN 104</text>
 
-  <rect x="700" y="440" width="90" height="50" rx="9" class="ce"/>
-  <text x="745" y="470" text-anchor="middle" class="small">CE-HQ2</text>
-  <rect x="840" y="440" width="220" height="50" rx="24" class="backup-box"/>
-  <text x="950" y="461" text-anchor="middle" class="label">VLAN 93 L2VPN BACKUP</text>
-  <text x="950" y="479" text-anchor="middle" class="tiny">standby attachment path</text>
-  <rect x="1110" y="440" width="90" height="50" rx="9" class="ce"/>
-  <text x="1155" y="470" text-anchor="middle" class="small">CE-BR2</text>
+  <rect x="560" y="690" width="150" height="82" rx="9" class="endpoint"/>
+  <text x="635" y="716" text-anchor="middle" class="label">IT / GUEST / IoT</text>
+  <text x="635" y="739" text-anchor="middle" class="small">IT: 10 users · V110</text>
+  <text x="635" y="758" text-anchor="middle" class="note">Guest V120 · IoT V140</text>
 
-  <path d="M500 450 C585 410 640 375 700 375" class="primary"/>
-  <path d="M790 375 L840 375" class="primary"/>
-  <path d="M1060 375 L1110 375" class="primary"/>
-  <path d="M1200 375 C1260 390 1310 430 1360 450" class="primary"/>
+  <rect x="720" y="690" width="170" height="82" rx="9" class="infra"/>
+  <text x="805" y="716" text-anchor="middle" class="label">INFRASTRUCTURE</text>
+  <text x="805" y="739" text-anchor="middle" class="small">VLAN 100</text>
+  <text x="805" y="758" text-anchor="middle" class="note">DHCP · DNS · AD · NMS</text>
 
-  <path d="M500 475 C590 490 640 465 700 465" class="backup"/>
-  <path d="M790 465 L840 465" class="backup"/>
-  <path d="M1060 465 L1110 465" class="backup"/>
-  <path d="M1200 465 C1260 480 1310 480 1360 475" class="backup"/>
+  <rect x="960" y="690" width="210" height="82" rx="9" class="project93"/>
+  <text x="1065" y="716" text-anchor="middle" class="label">PROJECT 2 · BRANCH</text>
+  <text x="1065" y="739" text-anchor="middle" class="small">10 users · VLAN 93</text>
+  <text x="1065" y="758" text-anchor="middle" class="note">No Branch SVI</text>
 
-  <!-- Branch OVS fabric -->
-  <rect x="1360" y="430" width="230" height="70" rx="11" class="ovs"/>
-  <text x="1475" y="457" text-anchor="middle" class="label">dist_branch</text>
-  <text x="1475" y="478" text-anchor="middle" class="small">OVS · DPID 5 · Branch L3</text>
-  <path d="M1515 310 L1515 430" class="routed"/>
+  <rect x="1190" y="690" width="210" height="82" rx="9" class="endpoint"/>
+  <text x="1295" y="716" text-anchor="middle" class="label">BRANCH IoT</text>
+  <text x="1295" y="739" text-anchor="middle" class="small">2 endpoints · VLAN 50</text>
+  <text x="1295" y="758" text-anchor="middle" class="note">Least-privilege segment</text>
 
-  <rect x="1305" y="590" width="260" height="60" rx="10" class="ovs"/>
-  <text x="1435" y="615" text-anchor="middle" class="label">access_branch</text>
-  <text x="1435" y="635" text-anchor="middle" class="small">OVS · DPID 4 · VLAN 50/93</text>
-  <path d="M1475 500 L1435 590" class="trunk"/>
-
-  <rect x="1150" y="710" width="260" height="92" rx="9" class="project93"/>
-  <text x="1280" y="739" text-anchor="middle" class="label">PROJECT 2 · BRANCH</text>
-  <text x="1280" y="760" text-anchor="middle" class="small">10 user · VLAN 93 · 10.10.93.0/24</text>
-  <text x="1280" y="781" text-anchor="middle" class="tiny">No Branch SVI · gateway remains at HQ</text>
-
-  <rect x="1450" y="710" width="260" height="92" rx="9" class="endpoint"/>
-  <text x="1580" y="739" text-anchor="middle" class="label">BRANCH IoT</text>
-  <text x="1580" y="760" text-anchor="middle" class="small">2 endpoint · VLAN 50</text>
-  <text x="1580" y="781" text-anchor="middle" class="tiny">10.20.50.0/24 · least privilege</text>
-
-  <path d="M1280 710 C1300 680 1360 660 1390 650" class="data"/>
-  <path d="M1580 710 C1560 675 1510 660 1480 650" class="data"/>
-
-  <!-- Footer notes -->
-  <rect x="45" y="817" width="710" height="24" rx="12" class="pill"/>
-  <text x="400" y="833" text-anchor="middle" class="tiny">90 corporate users · 7 infrastructure services · default-deny / least privilege</text>
-  <rect x="1145" y="817" width="700" height="24" rx="12" class="pill"/>
-  <text x="1495" y="833" text-anchor="middle" class="tiny">VLAN 93 automatic attachment-link failover · IPv4-only · not production-ready</text>
+  <rect x="30" y="810" width="1370" height="44" rx="12" class="band"/>
+  <text x="720" y="829" text-anchor="middle" class="small">Explicit L2/L3 forwarding · OpenFlow VLAN push/pop · default-deny / least privilege</text>
+  <text x="720" y="847" text-anchor="middle" class="note">90 corporate users · 7 infrastructure services · IPv4-only · attachment-link failover · external abstractions outside OpenFlow</text>
 </svg>
