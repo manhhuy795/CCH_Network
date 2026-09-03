@@ -4,25 +4,25 @@
   <defs>
     <style>
       text { font-family: Inter, "Segoe UI", system-ui, sans-serif; }
-      .title { font-size: 30px; font-weight: 750; fill: #172033; }
-      .subtitle { font-size: 15px; font-weight: 550; fill: #526079; }
+      .title { font-size: 30px; font-weight: 750; fill: var(--text, #172033); }
+      .subtitle { font-size: 15px; font-weight: 550; fill: var(--text-muted, #526079); }
       .section { font-size: 16px; font-weight: 750; fill: #c2410c; letter-spacing: .7px; }
-      .label { font-size: 16px; font-weight: 750; fill: #172033; }
-      .small { font-size: 14px; font-weight: 500; fill: #526079; }
-      .note { font-size: 12px; font-weight: 550; fill: #667085; }
-      .canvas { fill: #ffffff; }
-      .band { fill: #f8fafc; stroke: #d8dee9; stroke-width: 1.2; }
+      .label { font-size: 16px; font-weight: 750; fill: var(--text, #172033); }
+      .small { font-size: 14px; font-weight: 500; fill: var(--text-muted, #526079); }
+      .note { font-size: 12px; font-weight: 550; fill: var(--text-muted, #667085); }
+      .canvas { fill: var(--surface, #ffffff); }
+      .band { fill: var(--surface-muted, #f8fafc); stroke: var(--border, #d8dee9); stroke-width: 1.2; }
       .controller { fill: #eff6ff; stroke: #2563eb; stroke-width: 2.2; }
-      .ovs { fill: #ffffff; stroke: #2563eb; stroke-width: 2; }
+      .ovs { fill: var(--surface, #ffffff); stroke: #2563eb; stroke-width: 2; }
       .firewall { fill: #fff1f2; stroke: #be123c; stroke-width: 1.8; }
       .external { fill: #fff7ed; stroke: #c2410c; stroke-width: 1.8; }
-      .endpoint { fill: #ffffff; stroke: #98a2b3; stroke-width: 1.3; }
+      .endpoint { fill: var(--surface, #ffffff); stroke: #98a2b3; stroke-width: 1.3; }
       .project93 { fill: #ecfdf3; stroke: #16865c; stroke-width: 1.7; }
       .infra { fill: #fffbeb; stroke: #b7791f; stroke-width: 1.6; }
       .wan { fill: none; stroke: #cbd5e1; stroke-width: 1.3; stroke-dasharray: 6 5; }
       .primary-box { fill: #ecfdf3; stroke: #16865c; stroke-width: 1.8; }
       .backup-box { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.8; stroke-dasharray: 7 5; }
-      .pill { fill: #ffffff; stroke: #d8dee9; stroke-width: 1.1; }
+      .pill { fill: var(--surface, #ffffff); stroke: var(--border, #d8dee9); stroke-width: 1.1; }
       .control { fill: none; stroke: #2563eb; stroke-width: 1.2; stroke-dasharray: 5 5; opacity: .42; }
       .data { fill: none; stroke: #475569; stroke-width: 2; stroke-linejoin: round; }
       .external-link { fill: none; stroke: #c2410c; stroke-width: 2.2; stroke-linejoin: round; }
@@ -159,7 +159,8 @@
   <text x="1295" y="739" text-anchor="middle" class="small">2 endpoints · VLAN 50</text>
   <text x="1295" y="758" text-anchor="middle" class="note">Least-privilege segment</text>
 
-  <rect x="30" y="810" width="1370" height="44" rx="12" class="band"/>
+  <rect x="30" y="810" width="1370" height="64" rx="12" class="band"/>
   <text x="720" y="829" text-anchor="middle" class="small">Explicit L2/L3 forwarding · OpenFlow VLAN push/pop · default-deny / least privilege</text>
-  <text x="720" y="847" text-anchor="middle" class="note">90 corporate users · 7 infrastructure services · IPv4-only · attachment-link failover · external abstractions outside OpenFlow</text>
+  <text x="720" y="847" text-anchor="middle" class="note">90 corporate users · 7 infrastructure services · IPv4-only · attachment-link failover</text>
+  <text x="720" y="865" text-anchor="middle" class="note">Outside OpenFlow domain: Firewall · CE · Internet / Partner service abstractions</text>
 </svg>

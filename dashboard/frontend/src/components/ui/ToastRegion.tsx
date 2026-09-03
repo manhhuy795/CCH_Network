@@ -3,10 +3,10 @@ import { CheckCircle2, Info, TriangleAlert, X } from "lucide-react";
 export type ToastItem = {
   id: string;
   message: string;
-  tone: "success" | "error" | "info";
+  tone: "success" | "error" | "info" | "accent";
 };
 
-const icons = { success: CheckCircle2, error: TriangleAlert, info: Info };
+const icons = { success: CheckCircle2, error: TriangleAlert, info: Info, accent: CheckCircle2 };
 
 export default function ToastRegion({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: string) => void }) {
   return (

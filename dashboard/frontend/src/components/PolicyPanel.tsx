@@ -23,7 +23,7 @@ function formatTime(value: string) {
 }
 
 function policyCategory(key: string): { label: string; tone: "project" | "voice" | "wan" | "security" } {
-  if (key.includes("isolate") || key.includes("project")) return { label: "Zero-Trust & Phân đoạn", tone: "project" };
+  if (key.includes("isolate") || key.includes("project")) return { label: "Default-deny & Phân đoạn", tone: "project" };
   if (key.includes("voice") || key.includes("softphone") || key.includes("call")) return { label: "Thoại & flow priority", tone: "voice" };
   if (key.includes("vpn") || key.includes("ipsec") || key.includes("intersite")) return { label: "WAN & Intersite", tone: "wan" };
   return { label: "Internet & Bảo mật Biên", tone: "security" };
@@ -142,7 +142,7 @@ export default function PolicyPanel({ policies, onToggle, busy = false }: Props)
             className={categoryFilter === "project" ? "active" : ""}
             onClick={() => setCategoryFilter("project")}
           >
-            Zero-Trust & Phân đoạn
+            Default-deny & Phân đoạn
           </button>
           <button
             type="button"

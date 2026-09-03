@@ -42,4 +42,9 @@ describe("dashboard design system", () => {
     fireEvent.click(screen.getByTitle("Đóng thông báo"));
     expect(dismiss).toHaveBeenCalledWith("1");
   });
+
+  it("supports the orange system accent toast", () => {
+    render(<ToastRegion items={[{ id: "admin", message: "Phiên admin đã sẵn sàng.", tone: "accent" }]} onDismiss={vi.fn()} />);
+    expect(screen.getByText("Phiên admin đã sẵn sàng.").closest(".toast")).toHaveClass("accent");
+  });
 });

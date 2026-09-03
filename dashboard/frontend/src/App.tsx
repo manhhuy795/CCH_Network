@@ -146,7 +146,7 @@ export default function App() {
       setUser(result.user);
       setPage("overview");
       setPassword("");
-      notify(`Phiên ${result.user.username} đã sẵn sàng.`, "success");
+      notify(`Phiên ${result.user.username} đã sẵn sàng.`, "accent");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Không xác thực được tài khoản.";
       setAuthError(message);
@@ -209,6 +209,9 @@ export default function App() {
     actionInFlight.current = true;
     if (action === "ping" || action === "tcp" || action === "udp" || action === "quality") {
       setResultType(action);
+      setResult(undefined);
+      setDecision(undefined);
+      setMetrics({});
     }
     setBusy(true);
     const controller = new AbortController();
@@ -239,7 +242,12 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Thao tác thất bại.";
       const errorCode = error instanceof ApiClientError ? error.errorCode : "UNKNOWN_ERROR";
-      setResult({ ok: false, message, error_code: errorCode, raw: message });
+      setResult({
+        ok: false,
+        message,
+        error_code: errorCode,
+        http_status: error instanceof ApiClientError && error.status > 0 ? error.status : undefined,
+      });
       addEvent(message, "deny");
       notify(message, "error");
     } finally {
@@ -399,7 +407,7 @@ export default function App() {
     return <OverviewPage
       components={healthComponents}
       onlineHosts={online}
-      totalHosts={topology?.summary.endpoint_count ?? ((topology?.summary.user_count ?? 110) + (topology?.summary.service_count ?? 5))}
+      totalHosts={topology?.summary.endpoint_count ?? ((topology?.summary.user_count ?? 90) + (topology?.summary.service_count ?? 5))}
       failedLinks={failedLinks}
       lastError={events.find((event) => event.severity === "error")?.message}
       lastUpdated={lastUpdated}

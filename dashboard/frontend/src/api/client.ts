@@ -192,6 +192,7 @@ export type Decision = {
 export type TestResult = {
   ok: boolean;
   message: string;
+  http_status?: number;
   error_code?: string | null;
   parse_warning?: string | null;
   cleanup_warning?: string | null;

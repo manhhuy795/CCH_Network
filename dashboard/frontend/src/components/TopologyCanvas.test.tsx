@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TopologyCanvas from "./TopologyCanvas";
 import type { Topology } from "../api/client";
+import { mockTopology } from "../api/mockData";
 
 const switches = ["access_floor1", "access_floor2", "core_hq", "dist_branch", "access_branch", "infra_access"];
 const ceNodes = ["ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2"];
@@ -91,6 +92,15 @@ const defaultProps = {
 };
 
 describe("TopologyCanvas (Enterprise Full-SDN)", () => {
+  it("keeps the fallback topology at six controlled OVS and classifies CE outside OpenFlow", () => {
+    const ovs = mockTopology.nodes.filter((node) => node.type === "switch").map((node) => node.id);
+    const ce = mockTopology.nodes.filter((node) => node.type === "ce_bridge");
+    expect(ovs).toEqual(["access_floor1", "access_floor2", "core_hq", "dist_branch", "access_branch", "infra_access"]);
+    expect(ce).toHaveLength(4);
+    expect(ce.every((node) => node.controller_managed === false)).toBe(true);
+    expect(mockTopology.summary.user_count).toBe(90);
+  });
+
   it("renders the Full-SDN title without a stale simulation note", () => {
     render(<TopologyCanvas {...defaultProps} />);
     expect(

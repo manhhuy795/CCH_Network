@@ -5,7 +5,7 @@ import ConfirmDialog from "./ui/ConfirmDialog";
 import StatusBadge from "./ui/StatusBadge";
 import TaskProgress from "./ui/TaskProgress";
 import { realtimeStatusLabel, realtimeStatusTone, type RealtimeConnectionState } from "./RealtimePanel";
-import { errorGuidance, testLabels, type NetworkTestType } from "./testWorkflow";
+import { deriveTestSemanticState, errorGuidance, testLabels, type NetworkTestType } from "./testWorkflow";
 
 type Action = NetworkTestType | "simulate" | "block" | "unblock";
 
@@ -130,6 +130,10 @@ function Metric({ label, value, unit }: { label: string; value: unknown; unit?: 
   return <div className="result-metric"><span>{label}</span><strong>{value == null ? "--" : String(value)}{value == null || !unit ? "" : ` ${unit}`}</strong></div>;
 }
 
+function SemanticMetric({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return <div className="semantic-state"><span>{label}</span><strong className={`semantic-badge ${tone}`}>{value}</strong></div>;
+}
+
 export default function TestPanel(props: Props) {
   const [confirmAction, setConfirmAction] = useState<"block" | "unblock" | null>(null);
   const sourceHost = props.hosts.find((host) => host.name === props.source);
@@ -146,6 +150,12 @@ export default function TestPanel(props: Props) {
   const websocketWarning = props.websocketState === "reconnecting" || props.websocketState === "error";
   const testIcons = { ping: Activity, tcp: Gauge, udp: Gauge, quality: PhoneCall };
   const ActiveIcon = testIcons[props.resultType];
+  const resultState = props.result ? deriveTestSemanticState(props.result, policyAllowed) : undefined;
+  const resultHeadline = resultState?.testCase === "PASS"
+    ? "Test case phù hợp policy dự kiến"
+    : resultState?.testCase === "FAIL"
+      ? "Kết quả mạng không đúng policy dự kiến"
+      : "Backend/API không hoàn tất phép kiểm tra";
 
   const retry = () => {
     if (!props.busy) props.onRun(props.resultType);
@@ -171,7 +181,7 @@ export default function TestPanel(props: Props) {
         {sameEndpoint && <p className="field-error">Nguồn và đích phải khác nhau.</p>}
 
         <div className="policy-preview">
-          <div><strong>Policy preview</strong><StatusBadge status={policyAllowed === true ? "online" : policyAllowed === false ? "offline" : "unknown"} label={policyAllowed === true ? "ALLOW dự kiến" : policyAllowed === false ? "DENY dự kiến" : "Chưa xác định"} /></div>
+          <div><strong>Policy preview</strong><span className={policyAllowed === false ? "policy-preview-deny" : ""}><StatusBadge status={policyAllowed === true ? "online" : policyAllowed === false ? "offline" : "unknown"} label={policyAllowed === true ? "ALLOW dự kiến" : policyAllowed === false ? "DENY dự kiến" : "Chưa xác định"} /></span></div>
           <p>{policyNote || "Chọn endpoint để xem policy preview từ backend topology payload."}</p>
         </div>
 
@@ -200,12 +210,19 @@ export default function TestPanel(props: Props) {
         </div>
         {props.busy && <TaskProgress label={`Đang chạy ${testLabels[props.testType]}`} elapsedSeconds={props.elapsedSeconds} />}
 
-        {props.result && (
-          <div aria-live="polite" className={`test-result ${props.result.ok ? "success" : props.result.error_code === "POLICY_DENIED" ? "deny" : "error"}`}>
+        {props.result && resultState && (
+          <div aria-live="polite" className={`test-result ${resultState.testCase.toLowerCase()}`}>
             <div className="result-heading">
-              <div><ActiveIcon size={20} /><strong>{props.result.message}</strong></div>
-              <StatusBadge status={props.result.ok ? "online" : "offline"} label={props.result.ok ? "Thành công" : props.result.error_code === "POLICY_DENIED" ? "Policy DENY" : "Thất bại"} />
+              <div><ActiveIcon size={20} /><strong>{resultHeadline}</strong></div>
+              <strong className={`semantic-badge test-case-${resultState.testCase.toLowerCase()}`}>{resultState.testCase}</strong>
             </div>
+            <div className="semantic-state-grid" aria-label="Trạng thái phép kiểm tra">
+              <SemanticMetric label="Test case status" value={resultState.testCase} tone={`test-case-${resultState.testCase.toLowerCase()}`} />
+              <SemanticMetric label="Actual network result" value={resultState.actualNetwork} tone={resultState.actualNetwork === "REACHABLE" ? "positive" : resultState.actualNetwork === "DROPPED" ? "neutral" : "warning"} />
+              <SemanticMetric label="Expected policy" value={resultState.expectedPolicy} tone={resultState.expectedPolicy === "ALLOW" ? "positive" : resultState.expectedPolicy === "DENY" ? "expected-deny" : "neutral"} />
+              <SemanticMetric label="Backend/API status" value={resultState.backendApi} tone={resultState.backendOk ? "neutral" : "warning"} />
+            </div>
+            {resultState.testCase !== "ERROR" && <p className="result-message">{props.result.message}</p>}
             {props.result.error_code && (
               <div className="error-guidance" role="alert">
                 <code>{props.result.error_code}</code>
@@ -214,7 +231,6 @@ export default function TestPanel(props: Props) {
             )}
             {props.resultType === "ping" && (
               <div className="result-metrics-grid">
-                <Metric label="Kết quả" value={decision?.action?.toUpperCase() || (props.result.ok ? "ALLOW" : "DENY")} />
                 <Metric label="Packet loss" value={metrics.packet_loss_percent} unit="%" />
                 <Metric label="RTT trung bình" value={metrics.rtt_avg_ms} unit="ms" />
                 <Metric label="Enforcement" value={decision?.enforcement_switch || decision?.blocked_at} />
@@ -262,7 +278,7 @@ export default function TestPanel(props: Props) {
             )}
             <details className="technical-output">
               <summary>Chi tiết kỹ thuật</summary>
-              <pre>{props.result.raw || "Backend không trả raw output."}</pre>
+              <pre>{resultState.backendOk ? props.result.raw || "Backend không trả raw output." : "Không có output mạng hợp lệ vì backend/API không hoàn tất."}</pre>
             </details>
           </div>
         )}

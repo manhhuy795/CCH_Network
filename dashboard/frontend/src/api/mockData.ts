@@ -4,14 +4,11 @@ const switches = [
   "access_floor1",
   "access_floor2",
   "core_hq",
-  "ce_hq1",
-  "ce_hq2",
-  "ce_branch1",
-  "ce_branch2",
   "dist_branch",
   "access_branch",
   "infra_access",
 ];
+const ceNodes = ["ce_hq1", "ce_hq2", "ce_branch1", "ce_branch2"];
 
 export const mockTopology: Topology = {
   nodes: [
@@ -20,15 +17,21 @@ export const mockTopology: Topology = {
     { id: "project_2", label: "Dự án 2", type: "user_group", vlan: 93, count: 20, subnet: "10.10.93.0/24" },
     { id: "project_3", label: "Dự án 3", type: "user_group", vlan: 103, count: 20, subnet: "10.10.103.0/24" },
     { id: "project_4", label: "Dự án 4", type: "user_group", vlan: 104, count: 20, subnet: "10.10.104.0/24" },
+    { id: "it_support", label: "Office / IT Support", type: "user_group", vlan: 110, count: 10, subnet: "10.10.110.0/24" },
+    { id: "guest", label: "Guest HQ", type: "user_group", vlan: 120, count: 2, subnet: "10.10.120.0/24" },
+    { id: "iot_hq", label: "HQ IoT", type: "user_group", vlan: 140, count: 5, subnet: "10.10.140.0/24" },
+    { id: "iot_branch", label: "Branch IoT", type: "user_group", vlan: 50, count: 2, subnet: "10.20.50.0/24" },
     { id: "fw_hq", label: "Firewall HQ HA", type: "firewall" },
     { id: "fw_telesale", label: "Firewall Branch HA", type: "firewall" },
     { id: "l2vpn_primary", label: "MPLS L2VPN Primary", type: "l2vpn" },
     { id: "l2vpn_backup", label: "MPLS L2VPN Backup", type: "l2vpn" },
     { id: "ipsec_l3", label: "IPsec L3 Tunnel", type: "ipsec" },
-    { id: "h90", label: "PBX / Contact Center", type: "service", ip: "10.10.90.10" },
-    { id: "hcall", label: "Partner CRM", type: "service", ip: "10.10.90.20" },
+    { id: "h90", label: "PBX / Contact Center", type: "service", ip: "10.250.10.10" },
+    { id: "hcall", label: "Partner CRM", type: "service", ip: "10.250.10.20" },
+    { id: "internet_zone", label: "Internet / Partner Service Zone", type: "service_edge" },
     { id: "hdhcp", label: "DHCP Server", type: "infrastructure_service", vlan: 100, ip: "10.10.100.10" },
     ...switches.map((id) => ({ id, label: id, type: "switch" })),
+    ...ceNodes.map((id) => ({ id, label: id, type: "ce_bridge", controller_managed: false })),
   ],
   groups: [
     {
@@ -62,8 +65,8 @@ export const mockTopology: Topology = {
     { name: "h101_01", label: "User 101-01", ip: "10.10.101.11", kind: "user", group: "project_1", group_label: "Dự án 1", vlan: 101, site: "hq" },
     { name: "h93_01", label: "User 93 HQ", ip: "10.10.93.11", kind: "user", group: "project_2", group_label: "Dự án 2", vlan: 93, site: "hq" },
     { name: "h93_02", label: "User 93 Branch", ip: "10.10.93.12", kind: "user", group: "project_2", group_label: "Dự án 2", vlan: 93, site: "branch" },
-    { name: "h90", label: "PBX / Contact Center", ip: "10.10.90.10", kind: "service", group: "partner", group_label: "Partner", vlan: 90, site: "hq" },
-    { name: "hcall", label: "Partner CRM", ip: "10.10.90.20", kind: "service", group: "partner", group_label: "Partner", vlan: 90, site: "hq" },
+    { name: "h90", label: "PBX / Contact Center", ip: "10.250.10.10", kind: "service", group: "partner", group_label: "Partner", vlan: null, site: "internet" },
+    { name: "hcall", label: "Partner CRM", ip: "10.250.10.20", kind: "service", group: "partner", group_label: "Partner", vlan: null, site: "internet" },
   ],
   links: [
     { id: "project_1-access_floor1", source: "project_1", target: "access_floor1", type: "access", status: "up" },
@@ -72,6 +75,10 @@ export const mockTopology: Topology = {
     { id: "ce_hq1-l2vpn_primary", source: "ce_hq1", target: "l2vpn_primary", type: "l2vpn", status: "up" },
     { id: "l2vpn_primary-ce_branch1", source: "l2vpn_primary", target: "ce_branch1", type: "l2vpn", status: "up" },
     { id: "ce_branch1-dist_branch", source: "ce_branch1", target: "dist_branch", type: "l2_handoff", status: "up" },
+    { id: "core_hq-ce_hq2", source: "core_hq", target: "ce_hq2", type: "l2_handoff", status: "up" },
+    { id: "ce_hq2-l2vpn_backup", source: "ce_hq2", target: "l2vpn_backup", type: "l2vpn", status: "up" },
+    { id: "l2vpn_backup-ce_branch2", source: "l2vpn_backup", target: "ce_branch2", type: "l2vpn", status: "up" },
+    { id: "ce_branch2-dist_branch", source: "ce_branch2", target: "dist_branch", type: "l2_handoff", status: "up" },
     { id: "dist_branch-access_branch", source: "dist_branch", target: "access_branch", type: "trunk", status: "up" },
     { id: "access_branch-project_2", source: "access_branch", target: "project_2", type: "access", status: "up" },
     { id: "core_hq-fw_hq", source: "core_hq", target: "fw_hq", type: "routed", status: "up" },
@@ -126,7 +133,7 @@ export const mockFirewalls: Firewall[] = [
 export const mockPolicyInventory: PolicyInventoryItem[] = [
   {
     key: "isolate_hq_projects",
-    name: "Cô lập các dự án HQ (Zero-Trust L2/L3)",
+    name: "Cô lập các dự án HQ (default-deny L2/L3)",
     description: "Các phân đoạn Dự án 1, 2, 3, 4 tại HQ hoàn toàn cách ly nhau, ngăn chặn lây nhiễm ngang.",
     source: "VLAN 101 / 93 / 103 / 104",
     destination: "VLAN dự án khác",
@@ -371,7 +378,7 @@ export const mockPolicies: PolicyPayload = {
 };
 
 export const mockFlows: Array<Record<string, unknown>> = [
-  { switch: "core_hq", table: "0", cookie: "0x1001", priority: 40000, match: "in_port=1,ip,nw_dst=10.10.90.10,tp_dst=5060", action: "ALLOW", packets: 14520, bytes: 1887600, duration: "3600s" },
+  { switch: "core_hq", table: "0", cookie: "0x1001", priority: 40000, match: "in_port=1,ip,nw_dst=10.250.10.10,tp_dst=5060", action: "ALLOW", packets: 14520, bytes: 1887600, duration: "3600s" },
   { switch: "core_hq", table: "20", cookie: "0x1002", priority: 45000, match: "ip,nw_proto=17,tp_dst=10000-20000", action: "ALLOW", packets: 89450, bytes: 17890000, duration: "3600s" },
   { switch: "core_hq", table: "30", cookie: "0x2001", priority: 30000, match: "dl_vlan=101,nw_dst=10.10.93.0/24", action: "DROP", packets: 412, bytes: 34608, duration: "3600s" },
   { switch: "core_hq", table: "30", cookie: "0x2001", priority: 30000, match: "dl_vlan=101,nw_dst=10.10.103.0/24", action: "DROP", packets: 285, bytes: 23940, duration: "3600s" },
@@ -379,7 +386,7 @@ export const mockFlows: Array<Record<string, unknown>> = [
   { switch: "core_hq", table: "10", cookie: "0x3001", priority: 35000, match: "dl_vlan=93,in_port=3", action: "ALLOW", packets: 52400, bytes: 8384000, duration: "3600s" },
   { switch: "core_hq", table: "30", cookie: "0x7001", priority: 32000, match: "nw_src=10.10.110.0/24,tp_dst=22,3389,443", action: "ALLOW", packets: 3210, bytes: 513600, duration: "3600s" },
   { switch: "core_hq", table: "0", cookie: "0x0", priority: 0, match: "priority=0", action: "ALLOW", packets: 245000, bytes: 49000000, duration: "3600s" },
-  { switch: "access_floor1", table: "0", cookie: "0x1001", priority: 40000, match: "in_port=2,dl_vlan=101,ip,nw_dst=10.10.90.10", action: "ALLOW", packets: 8520, bytes: 1107600, duration: "3600s" },
+  { switch: "access_floor1", table: "0", cookie: "0x1001", priority: 40000, match: "in_port=2,dl_vlan=101,ip,nw_dst=10.250.10.10", action: "ALLOW", packets: 8520, bytes: 1107600, duration: "3600s" },
   { switch: "access_floor1", table: "30", cookie: "0x5002", priority: 28000, match: "dl_vlan=120,nw_dst=10.10.0.0/16", action: "DROP", packets: 95, bytes: 7980, duration: "3600s" },
   { switch: "access_floor1", table: "0", cookie: "0x0", priority: 0, match: "priority=0", action: "ALLOW", packets: 189000, bytes: 37800000, duration: "3600s" },
   { switch: "access_floor2", table: "0", cookie: "0x2001", priority: 30000, match: "dl_vlan=103,nw_dst=10.10.104.0/24", action: "DROP", packets: 140, bytes: 11760, duration: "3600s" },

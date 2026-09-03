@@ -49,37 +49,32 @@ type Hotspot = {
   isCircle?: boolean;
 };
 
-/** Coordinates mapped directly to enterprise_logical_topology_v7.svg (1900 x 880). */
+/** Coordinates mapped directly to the README architecture source (1440 x 900). */
 export const V7_HOTSPOTS: Record<string, Hotspot> = {
-  c0: { x: 760, y: 80, width: 380, height: 65, rx: 13, label: "OS-Ken SDN Controller", center: [950, 112.5] },
-  project_1: { x: 45, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 1", center: [110, 756] },
-  project_2_hq: { x: 185, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 2 · HQ", center: [250, 756] },
-  project_3: { x: 325, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 3", center: [390, 756] },
-  project_4: { x: 465, y: 710, width: 130, height: 92, rx: 9, label: "Dự án 4", center: [530, 756] },
-  it_support: { x: 605, y: 710, width: 150, height: 42, rx: 9, label: "IT Support", center: [680, 731] },
-  guest: { x: 605, y: 760, width: 70, height: 42, rx: 9, label: "Guest", center: [640, 781] },
-  iot_hq: { x: 685, y: 760, width: 70, height: 42, rx: 9, label: "HQ IoT", center: [720, 781] },
-  infra_access: { x: 535, y: 520, width: 220, height: 60, rx: 10, label: "Infrastructure Access", center: [645, 550] },
-  hdhcp: { x: 535, y: 620, width: 220, height: 72, rx: 10, label: "Infrastructure / DHCP", center: [645, 656] },
-  access_floor1: { x: 60, y: 590, width: 260, height: 60, rx: 10, label: "HQ Access Floor 1", center: [190, 620] },
-  access_floor2: { x: 340, y: 590, width: 260, height: 60, rx: 10, label: "HQ Access Floor 2", center: [470, 620] },
-  core_hq: { x: 270, y: 430, width: 230, height: 70, rx: 11, label: "CORE-DIST HQ", center: [385, 465] },
-  fw_hq: { x: 270, y: 240, width: 230, height: 70, rx: 11, label: "Firewall HQ", center: [385, 275] },
-  partner: { x: 820, y: 185, width: 260, height: 82, rx: 12, label: "Internet / Partner services", center: [950, 226] },
-  hcall: { x: 835, y: 217, width: 110, height: 36, rx: 8, label: "Partner CRM", center: [890, 235] },
-  h90: { x: 955, y: 217, width: 110, height: 36, rx: 8, label: "PBX / Contact Center", center: [1010, 235] },
-  ce_hq1: { x: 700, y: 350, width: 90, height: 50, rx: 9, label: "CE-HQ1", center: [745, 375] },
-  ce_hq2: { x: 700, y: 440, width: 90, height: 50, rx: 9, label: "CE-HQ2", center: [745, 465] },
-  l2vpn_primary: { x: 840, y: 350, width: 220, height: 50, rx: 24, label: "VLAN 93 L2VPN Primary", center: [950, 375] },
-  l2vpn_backup: { x: 840, y: 440, width: 220, height: 50, rx: 24, label: "VLAN 93 L2VPN Backup", center: [950, 465] },
-  ipsec_l3: { x: 805, y: 286, width: 290, height: 38, rx: 18, label: "IPv4 routed intersite abstraction", center: [950, 305] },
-  ce_branch1: { x: 1110, y: 350, width: 90, height: 50, rx: 9, label: "CE-BR1", center: [1155, 375] },
-  ce_branch2: { x: 1110, y: 440, width: 90, height: 50, rx: 9, label: "CE-BR2", center: [1155, 465] },
-  dist_branch: { x: 1360, y: 430, width: 230, height: 70, rx: 11, label: "CORE-DIST Branch", center: [1475, 465] },
-  access_branch: { x: 1305, y: 590, width: 260, height: 60, rx: 10, label: "Branch Access", center: [1435, 620] },
-  project_2_branch: { x: 1150, y: 710, width: 260, height: 92, rx: 9, label: "Dự án 2 · Branch", center: [1280, 756] },
-  iot_branch: { x: 1450, y: 710, width: 260, height: 92, rx: 9, label: "Mạng IoT Branch", center: [1580, 756] },
-  fw_telesale: { x: 1400, y: 240, width: 230, height: 70, rx: 11, label: "Firewall Branch", center: [1515, 275] },
+  c0: { x: 500, y: 82, width: 440, height: 66, rx: 13, label: "OS-Ken SDN Controller", center: [720, 115] },
+  project_1: { x: 30, y: 690, width: 110, height: 82, rx: 9, label: "Dự án 1", center: [85, 731] },
+  project_2_hq: { x: 150, y: 690, width: 160, height: 82, rx: 9, label: "Dự án 2 · HQ", center: [230, 731] },
+  project_3: { x: 320, y: 690, width: 110, height: 82, rx: 9, label: "Dự án 3", center: [375, 731] },
+  project_4: { x: 440, y: 690, width: 110, height: 82, rx: 9, label: "Dự án 4", center: [495, 731] },
+  it_support: { x: 560, y: 690, width: 150, height: 32, rx: 9, label: "IT Support", center: [635, 706] },
+  guest: { x: 560, y: 722, width: 75, height: 50, rx: 9, label: "Guest", center: [597.5, 747] },
+  iot_hq: { x: 635, y: 722, width: 75, height: 50, rx: 9, label: "HQ IoT", center: [672.5, 747] },
+  hdhcp: { x: 720, y: 690, width: 170, height: 82, rx: 9, label: "Infrastructure / DHCP", center: [805, 731] },
+  access_floor1: { x: 50, y: 520, width: 210, height: 60, rx: 10, label: "HQ Access Floor 1", center: [155, 550] },
+  access_floor2: { x: 290, y: 520, width: 210, height: 60, rx: 10, label: "HQ Access Floor 2", center: [395, 550] },
+  infra_access: { x: 570, y: 520, width: 210, height: 60, rx: 10, label: "Infrastructure Access", center: [675, 550] },
+  core_hq: { x: 180, y: 350, width: 240, height: 70, rx: 11, label: "CORE-DIST HQ", center: [300, 385] },
+  fw_hq: { x: 80, y: 225, width: 240, height: 53, rx: 10, label: "Firewall HQ", center: [200, 251.5] },
+  hcall: { x: 600, y: 225, width: 120, height: 53, rx: 10, label: "Partner CRM", center: [660, 251.5] },
+  h90: { x: 720, y: 225, width: 120, height: 53, rx: 10, label: "PBX / Contact Center", center: [780, 251.5] },
+  l2vpn_primary: { x: 560, y: 352, width: 320, height: 36, rx: 18, label: "VLAN 93 L2VPN Primary", center: [720, 370] },
+  l2vpn_backup: { x: 560, y: 408, width: 320, height: 36, rx: 18, label: "VLAN 93 L2VPN Backup", center: [720, 426] },
+  ipsec_l3: { x: 560, y: 293, width: 320, height: 34, rx: 17, label: "IPv4 routed intersite abstraction", center: [720, 310] },
+  dist_branch: { x: 1020, y: 350, width: 240, height: 70, rx: 11, label: "CORE-DIST Branch", center: [1140, 385] },
+  access_branch: { x: 1060, y: 520, width: 210, height: 60, rx: 10, label: "Branch Access", center: [1165, 550] },
+  project_2_branch: { x: 960, y: 690, width: 210, height: 82, rx: 9, label: "Dự án 2 · Branch", center: [1065, 731] },
+  iot_branch: { x: 1190, y: 690, width: 210, height: 82, rx: 9, label: "Mạng IoT Branch", center: [1295, 731] },
+  fw_telesale: { x: 1120, y: 225, width: 240, height: 53, rx: 10, label: "Firewall Branch", center: [1240, 251.5] },
 };
 
 export const positions: Record<string, [number, number]> = Object.fromEntries(
@@ -236,7 +231,7 @@ export default function TopologyCanvas({
       <header className="topology-command-header">
         <div className="topology-title-row">
           <span className="topology-header-icon"><Network size={20} /></span>
-          <div><h2>Enterprise Full-SDN topology</h2><p>6 OVS · OS-Ken/OpenFlow 1.3 · HQ/Branch · VLAN 93 Primary/Backup</p></div>
+          <div><h2>Enterprise Full-SDN topology</h2><p>OpenFlow domain: 6 OVS · OS-Ken 1.3 · Outside: Firewall, CE, Internet/Partner services</p></div>
         </div>
         <div className="topology-health-strip" aria-label="Trạng thái kiến trúc mạng">
           <span><i className="online" />Gateway VLAN 93 <strong>HQ · 10.10.93.1</strong></span>
@@ -263,8 +258,8 @@ export default function TopologyCanvas({
       <div className="topology-viewport-container">
         <div className="topology-canvas-stage">
           <div className="topology-interactive-stage" style={{ transform: `scale(${zoom})`, transformOrigin: "center center", transition: "transform 0.12s ease-out" }}>
-            <div role="img" aria-label="Enterprise Full-SDN architecture" className="topology-vector-underlay" dangerouslySetInnerHTML={{ __html: topologyV7Svg }} />
-            <svg viewBox="0 0 1900 880" className="topology-overlay-svg" aria-label="CCH Enterprise Full-SDN topology canvas">
+            <div className="topology-vector-underlay" dangerouslySetInnerHTML={{ __html: topologyV7Svg }} />
+            <svg viewBox="0 0 1440 900" className="topology-overlay-svg" aria-label="CCH Enterprise Full-SDN topology canvas">
               {activePathPoints.length > 1 && (
                 <g className="active-path-glow-layer">
                   <polyline points={activePathPoints.map((point) => point.join(",")).join(" ")} className="packet-trail-halo" />

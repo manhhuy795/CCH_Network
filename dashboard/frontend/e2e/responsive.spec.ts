@@ -15,6 +15,6 @@ test("responsive, keyboard và accessibility", async ({ page }) => {
   expect(results.violations.filter((item) => item.impact === "critical" || item.impact === "serious")).toEqual([]);
 
   await page.getByRole("button", { name: "Topology", exact: true }).click();
-  await expect(page.getByTitle("Zoom In")).toBeVisible();
-  await expect(page.getByTitle("Zoom Out")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Phóng to" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Thu nhỏ" })).toBeVisible();
 });

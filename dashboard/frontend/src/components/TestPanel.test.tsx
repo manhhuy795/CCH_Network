@@ -59,6 +59,55 @@ describe("TestPanel", () => {
     expect(screen.getByText("12.4 ms")).toBeInTheDocument();
     expect(screen.getByText(/project_1 → access_floor1 → core_hq → fw_hq/)).toBeInTheDocument();
     expect(screen.getByText("core_hq")).toBeInTheDocument();
+    const state = screen.getByLabelText("Trạng thái phép kiểm tra");
+    expect(state).toHaveTextContent("PASS");
+    expect(state).toHaveTextContent("REACHABLE");
+    expect(state).toHaveTextContent("ALLOW");
+    expect(state).toHaveTextContent("OK");
+  });
+
+  it("renders an expected drop as PASS without calling the network test a failure", () => {
+    render(<TestPanel {...baseProps({
+      destination: "h103_01",
+      result: {
+        ok: false,
+        message: "h101_01 → h103_01: PING THẤT BẠI",
+        error_code: "POLICY_DENIED",
+        result: { reachable: false, packet_loss_percent: 100 },
+        decision: { action: "deny", reason: "Cô lập dự án", path: ["project_1", "access_floor1"], blocked_at: "access_floor1" },
+      },
+    })} />);
+    const state = screen.getByLabelText("Trạng thái phép kiểm tra");
+    expect(state).toHaveTextContent("PASS");
+    expect(state).toHaveTextContent("DROPPED");
+    expect(state).toHaveTextContent("DENY");
+    expect(state).toHaveTextContent("OK");
+    expect(screen.queryByText("Thất bại")).not.toBeInTheDocument();
+  });
+
+  it("does not present stale ping success when the backend returned HTTP 503", () => {
+    render(<TestPanel {...baseProps({
+      destination: "h103_01",
+      result: {
+        ok: false,
+        message: "PING THÀNH CÔNG",
+        error_code: "HTTP_503",
+        http_status: 503,
+        raw: "PING THÀNH CÔNG",
+        result: { reachable: true },
+      },
+    })} />);
+    const state = screen.getByLabelText("Trạng thái phép kiểm tra");
+    expect(state).toHaveTextContent("ERROR");
+    expect(state).toHaveTextContent("NOT OBSERVED");
+    expect(state).toHaveTextContent("DENY");
+    expect(state).toHaveTextContent("HTTP 503");
+    expect(screen.queryByText("PING THÀNH CÔNG")).not.toBeInTheDocument();
+  });
+
+  it("uses a dedicated high-contrast badge for expected DENY", () => {
+    render(<TestPanel {...baseProps({ destination: "h103_01" })} />);
+    expect(screen.getByText("DENY dự kiến").closest(".policy-preview-deny")).toBeInTheDocument();
   });
 
   it("shows progress and locks configuration while a task is running", () => {

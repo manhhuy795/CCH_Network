@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 
 type MockOptions = {
+  authenticated?: boolean;
   backendOffline?: boolean;
   agentOffline?: boolean;
   verifyInvalid?: boolean;
@@ -27,6 +28,13 @@ const nodes = [
   { id: "dist_branch", label: "Distribution Branch", type: "switch", dpid: "5" },
   { id: "infra_access", label: "Infrastructure Access", type: "switch", dpid: "6" },
   { id: "fw_hq", label: "Firewall HQ", type: "firewall" },
+  { id: "fw_telesale", label: "Firewall Branch", type: "firewall" },
+  { id: "l2vpn_primary", label: "VLAN 93 L2VPN Primary", type: "l2vpn" },
+  { id: "l2vpn_backup", label: "VLAN 93 L2VPN Backup", type: "l2vpn" },
+  { id: "ce_hq1", label: "CE-HQ1", type: "ce_bridge", controller_managed: false },
+  { id: "ce_hq2", label: "CE-HQ2", type: "ce_bridge", controller_managed: false },
+  { id: "ce_branch1", label: "CE-BR1", type: "ce_bridge", controller_managed: false },
+  { id: "ce_branch2", label: "CE-BR2", type: "ce_bridge", controller_managed: false },
 ];
 
 const links = [
@@ -37,7 +45,17 @@ const links = [
   { id: "core_hq-infra_access", source: "core_hq", target: "infra_access", type: "uplink", status: "up" },
   { id: "core_hq-fw_hq", source: "core_hq", target: "fw_hq", type: "routed", status: "up" },
   { id: "fw_hq-h90", source: "fw_hq", target: "h90", type: "service", status: "up" },
+  { id: "core_hq-ce_hq1", source: "core_hq", target: "ce_hq1", type: "l2_handoff", status: "up" },
+  { id: "ce_hq1-l2vpn_primary", source: "ce_hq1", target: "l2vpn_primary", type: "l2vpn", status: "up" },
+  { id: "l2vpn_primary-ce_branch1", source: "l2vpn_primary", target: "ce_branch1", type: "l2vpn", status: "up" },
+  { id: "ce_branch1-dist_branch", source: "ce_branch1", target: "dist_branch", type: "l2_handoff", status: "up" },
+  { id: "core_hq-ce_hq2", source: "core_hq", target: "ce_hq2", type: "l2_handoff", status: "up" },
+  { id: "ce_hq2-l2vpn_backup", source: "ce_hq2", target: "l2vpn_backup", type: "l2vpn", status: "up" },
+  { id: "l2vpn_backup-ce_branch2", source: "l2vpn_backup", target: "ce_branch2", type: "l2vpn", status: "up" },
+  { id: "ce_branch2-dist_branch", source: "ce_branch2", target: "dist_branch", type: "l2_handoff", status: "up" },
 ];
+
+const adminUser = { id: "user-admin", username: "admin", role: "admin" as const };
 
 function json(route: Route, payload: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
@@ -102,8 +120,9 @@ function measurementPayload(kind: MockOptions["measurement"]) {
 }
 
 export async function installApiMocks(page: Page, options: MockOptions = {}) {
+  let authenticated = options.authenticated ?? false;
   let policyLifecycle: "Applied" | "Failed" | "Out of sync" = "Applied";
-  let linkDown = false;
+  let failedLinkId = "";
   await page.route("http://127.0.0.1:8000/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -115,7 +134,7 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
         { id: "project_3", label: "Dự án 3", type: "user_group", site: "hq", vlan: 103, count: 20, subnet: "10.10.103.0/24", switch: "access_floor2", hosts: [hosts[1]] },
       ],
       hosts,
-      links: links.map((link) => link.id === "project_1-access_floor1" ? { ...link, status: linkDown ? "down" : "up" } : link),
+      links: links.map((link) => ({ ...link, status: link.id === failedLinkId ? "down" : "up" })),
       policy_map: {
         project_1: { title: "Dự án 1", allow: ["h90"], deny: ["project_3"], notes: { h90: "Cho phép Voice", project_3: "Cô lập dự án" } },
         project_3: { title: "Dự án 3", allow: ["h90"], deny: ["project_1"], notes: { h90: "Cho phép Voice", project_1: "Cô lập dự án" } },
@@ -139,10 +158,18 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
         },
       });
     }
-    if (path === "/api/auth/status") return json(route, { operator_auth_required: true, operator_token_configured: true, token_header: "X-CCH-Operator-Token", role: "it_operator" });
-    if (path === "/api/auth/verify") {
-      if (options.verifyInvalid) return json(route, { ok: false, error_code: "AUTH_INVALID", message_vi: "Token không hợp lệ." }, 403);
-      return json(route, { ok: true, authenticated: true, role: "it_operator" });
+    if (path === "/api/auth/status") return json(route, { session_ttl_seconds: 3600, csrf_header: "X-CSRF-Token", roles: ["admin", "operator", "viewer", "auditor"] });
+    if (path === "/api/auth/me") return authenticated
+      ? json(route, { ok: true, authenticated: true, user: adminUser })
+      : json(route, { error_code: "AUTH_REQUIRED", message_vi: "Cần đăng nhập." }, 401);
+    if (path === "/api/auth/login") {
+      if (options.verifyInvalid) return json(route, { error_code: "AUTH_INVALID", message_vi: "Tài khoản hoặc mật khẩu không hợp lệ." }, 401);
+      authenticated = true;
+      return json(route, { ok: true, user: adminUser, expires_at: new Date(Date.now() + 3_600_000).toISOString() });
+    }
+    if (path === "/api/auth/logout") {
+      authenticated = false;
+      return json(route, { ok: true, message_vi: "Đã đăng xuất." });
     }
     if (path === "/api/activity") return json(route, { events: [], tasks: [], count: 0 });
     if (path === "/api/health") return json(route, { status: "online" });
@@ -157,11 +184,11 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
       return json(route, { ok: policyLifecycle === "Applied", message: policyLifecycle === "Applied" ? "Policy đã áp dụng." : "Policy reload thất bại.", status: policyLifecycle });
     }
     if (path === "/api/link/fail") {
-      linkDown = true;
-      return json(route, { ok: true, message: "Link đã DOWN.", failed_links: ["project_1-access_floor1"] });
+      failedLinkId = String((route.request().postDataJSON() as { link_id?: string }).link_id || "");
+      return json(route, { ok: true, message: "Link đã DOWN.", failed_links: [failedLinkId] });
     }
     if (path === "/api/link/recover") {
-      linkDown = false;
+      failedLinkId = "";
       return json(route, { ok: true, message: "Link đã UP.", failed_links: [] });
     }
     if (path === "/api/simulate/path") return json(route, measurementPayload("ping_allow").decision);
@@ -171,10 +198,9 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
 }
 
 export async function openAuthenticated(page: Page, options: MockOptions = {}) {
-  await page.addInitScript(() => window.localStorage.setItem("cch_operator_token", "mock-operator-token"));
-  await installApiMocks(page, options);
+  await installApiMocks(page, { ...options, authenticated: true });
   await page.goto("/");
-  await page.getByText("Tổng quan vận hành").waitFor();
+  await page.getByRole("heading", { name: "Tổng quan hệ thống" }).waitFor();
 }
 
 export async function installMockWebSocket(page: Page, closeFirst = false) {

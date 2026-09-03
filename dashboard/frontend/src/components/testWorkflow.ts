@@ -2,6 +2,18 @@ import { ApiClientError, type TestResult } from "../api/client";
 
 export type NetworkTestType = "ping" | "tcp" | "udp" | "quality";
 
+export type TestCaseStatus = "PASS" | "FAIL" | "ERROR";
+export type NetworkResultStatus = "REACHABLE" | "DROPPED" | "NOT OBSERVED";
+export type ExpectedPolicyStatus = "ALLOW" | "DENY" | "UNKNOWN";
+
+export type TestSemanticState = {
+  testCase: TestCaseStatus;
+  actualNetwork: NetworkResultStatus;
+  expectedPolicy: ExpectedPolicyStatus;
+  backendApi: string;
+  backendOk: boolean;
+};
+
 export const testLabels: Record<NetworkTestType, string> = {
   ping: "Ping",
   tcp: "TCP Throughput",
@@ -33,4 +45,42 @@ export function ensureTestResult(value: unknown): TestResult {
     throw new ApiClientError("Backend trả response không đúng contract phép đo.", "MALFORMED_RESPONSE");
   }
   return value as TestResult;
+}
+
+export function deriveTestSemanticState(result: TestResult, expectedAllow?: boolean): TestSemanticState {
+  const expectedPolicy: ExpectedPolicyStatus = expectedAllow === true
+    ? "ALLOW"
+    : expectedAllow === false
+      ? "DENY"
+      : result.decision?.action === "allow"
+        ? "ALLOW"
+        : result.decision?.action === "deny"
+          ? "DENY"
+          : "UNKNOWN";
+  const backendOk = !result.http_status && !result.error_code;
+  const measuredReachable = result.result?.reachable;
+  const actualNetwork: NetworkResultStatus = !backendOk && result.error_code !== "POLICY_DENIED"
+    ? "NOT OBSERVED"
+    : typeof measuredReachable === "boolean"
+      ? measuredReachable ? "REACHABLE" : "DROPPED"
+      : result.error_code === "POLICY_DENIED"
+      ? "DROPPED"
+      : result.ok || result.measurement_completed
+        ? "REACHABLE"
+        : "DROPPED";
+  const matchesPolicy = (expectedPolicy === "ALLOW" && actualNetwork === "REACHABLE")
+    || (expectedPolicy === "DENY" && actualNetwork === "DROPPED");
+  const testCase: TestCaseStatus = !backendOk && result.error_code !== "POLICY_DENIED"
+    ? "ERROR"
+    : matchesPolicy && (expectedPolicy === "DENY" || result.ok)
+      ? "PASS"
+      : "FAIL";
+
+  return {
+    testCase,
+    actualNetwork,
+    expectedPolicy,
+    backendApi: result.http_status ? `HTTP ${result.http_status}` : backendOk || result.error_code === "POLICY_DENIED" ? "OK" : "UNAVAILABLE",
+    backendOk: backendOk || result.error_code === "POLICY_DENIED",
+  };
 }
