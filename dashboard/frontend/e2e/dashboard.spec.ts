@@ -12,6 +12,10 @@ async function openTestWorkspace(page: Page, destination = "h90") {
 test("1. đăng nhập và hiển thị toast accent", async ({ page }) => {
   await installApiMocks(page);
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "Xem trước Dashboard" })).toHaveCount(0);
+  await expect(page.getByText(/Tài khoản mặc định/)).toHaveCount(0);
+  await page.getByLabel("Tên đăng nhập").fill("admin");
+  await page.getByLabel("Mật khẩu").fill("CCH@1234");
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   const toast = page.locator(".toast.accent").filter({ hasText: "Phiên admin đã sẵn sàng." });
   await expect(toast).toBeVisible();
@@ -26,6 +30,8 @@ test("2. tổng quan online", async ({ page }) => {
 test("3. backend offline", async ({ page }) => {
   await installApiMocks(page, { backendOffline: true });
   await page.goto("/");
+  await page.getByLabel("Tên đăng nhập").fill("admin");
+  await page.getByLabel("Mật khẩu").fill("CCH@1234");
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await expect(page.getByText(/Không kết nối được FastAPI backend/).first()).toBeVisible();
 });
@@ -145,6 +151,7 @@ test("14. WebSocket tự reconnect", async ({ page }) => {
 test("15. đăng nhập không hợp lệ", async ({ page }) => {
   await installApiMocks(page, { verifyInvalid: true });
   await page.goto("/");
+  await page.getByLabel("Tên đăng nhập").fill("admin");
   await page.getByLabel("Mật khẩu").fill("wrong-password");
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await expect(page.getByText(/Tài khoản hoặc mật khẩu không hợp lệ/).first()).toBeVisible();

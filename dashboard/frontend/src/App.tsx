@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { mockFlows, mockPolicies, mockTopology } from "./api/mockData";
 import { ApiClientError, api, type ActivityEvent, type AuthStatus, type AuthUser, type DashboardPreflight, type Decision, type PolicyPayload, type TaskHistoryItem, type TestResult, type Topology } from "./api/client";
 import AppShell, { type DashboardPage } from "./components/layout/AppShell";
 import ClusterDetailPanel from "./components/ClusterDetailPanel";
@@ -48,8 +47,8 @@ export default function App() {
   const [runtime, setRuntime] = useState<Record<string, unknown>>({});
   const [websocketState, setWebsocketState] = useState<RealtimeConnectionState>("idle");
   const [user, setUser] = useState<AuthUser>();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("CCH@1234");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(true);
   const [authStatus, setAuthStatus] = useState<AuthStatus>();
@@ -282,28 +281,6 @@ export default function App() {
   const togglePolicy = async (key: string, enabled: boolean) => {
     setPolicyBusy(true);
     try {
-      if (user?.id === "preview-admin") {
-        setPolicies((prev) => {
-          const updatedInventory = (prev.inventory || []).map((item) =>
-            item.key === key
-              ? {
-                  ...item,
-                  enabled,
-                  configuration_status: enabled ? ("Enabled" as const) : ("Disabled" as const),
-                  lifecycle_status: "Applied" as const,
-                  updated_at: new Date().toISOString(),
-                }
-              : item
-          );
-          return {
-            ...prev,
-            policies: { ...prev.policies, [key]: enabled },
-            inventory: updatedInventory,
-          };
-        });
-        notify(`Chính sách ${key} đã được ${enabled ? "bật" : "tắt"} (Đồng bộ OpenFlow ACK)`, "success");
-        return;
-      }
       const payload = await api.post<{ ok: boolean; message: string }>("/api/policy/toggle", { key, enabled });
       addEvent(payload.message, payload.ok ? "allow" : "deny");
       notify(payload.message, payload.ok ? "success" : "error");
@@ -340,22 +317,6 @@ export default function App() {
     onDestination: selectDestination,
   };
 
-  const handlePreviewMode = () => {
-    setUser({
-      id: "preview-admin",
-      username: "admin",
-      role: "admin",
-      disabled: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    setTopology(mockTopology);
-    setPolicies(mockPolicies);
-    setFlows(mockFlows);
-    setPage("overview");
-    setFailedLinks([]);
-  };
-
   const pageContent = () => {
     if (authChecking) return <FeedbackState kind="loading" title="Kiểm tra phiên đăng nhập" message="Dashboard đang xác thực phiên làm việc." />;
     if (!user) {
@@ -368,7 +329,6 @@ export default function App() {
           onUsername={setUsername}
           onPassword={setPassword}
           onSubmit={() => void authenticate()}
-          onPreview={handlePreviewMode}
         />
       );
     }

@@ -42,6 +42,11 @@ describe("App authentication navigation", () => {
     apiMock.activity.mockResolvedValue({ events: [], tasks: [] });
 
     render(<App />);
+    expect(await screen.findByRole("heading", { name: "Đăng nhập hệ thống" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Xem trước Dashboard" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tài khoản mặc định/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tên đăng nhập"), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "CCH@1234" } });
     fireEvent.click(await screen.findByRole("button", { name: "Đăng nhập" }));
 
     expect(await screen.findByRole("heading", { name: "Tổng quan hệ thống" })).toBeInTheDocument();

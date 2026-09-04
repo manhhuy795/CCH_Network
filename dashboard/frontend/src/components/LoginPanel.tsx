@@ -8,7 +8,6 @@ type Props = {
   onUsername: (value: string) => void;
   onPassword: (value: string) => void;
   onSubmit: () => void;
-  onPreview?: () => void;
 };
 
 export default function LoginPanel(props: Props) {
@@ -33,18 +32,7 @@ export default function LoginPanel(props: Props) {
             <LogIn size={17} aria-hidden="true" />
             {props.busy ? "Đang xác thực..." : "Đăng nhập"}
           </button>
-          {props.onPreview && (
-            <button
-              type="button"
-              className="secondary auth-submit"
-              style={{ marginTop: 8 }}
-              onClick={props.onPreview}
-            >
-              Xem trước Dashboard
-            </button>
-          )}
         </form>
-        <p className="auth-note">Tài khoản mặc định: <strong>admin</strong> / <strong>CCH@1234</strong></p>
       </div>
     </section>
   );
