@@ -31,6 +31,16 @@ Các lần sau:
 
 Topology Mininet phải được khởi động riêng bằng `sudo ./sdn_mpls_demo/run_topology.sh`.
 
+## Authentication và RBAC
+
+Tạo tài khoản admin đầu tiên bằng prompt mật khẩu ẩn:
+
+```bash
+./scripts/bootstrap_admin.py
+```
+
+Dashboard dùng session cookie `HttpOnly`, CSRF và RBAC phía backend. Các role hiện hành là `admin`, `operator`, `viewer` và `auditor`; operator token chỉ dành cho script/runtime machine-to-machine, không đưa vào frontend.
+
 ## Test frontend
 
 ```bash

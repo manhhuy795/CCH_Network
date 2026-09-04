@@ -8,8 +8,10 @@ const clusters = [
   ["project_2_branch", "Dự án 2 (VLAN 93 · Chi nhánh)"],
   ["project_3", "Dự án 3 (VLAN 103)"],
   ["project_4", "Dự án 4 (VLAN 104)"],
-  ["telesale", "Mạng IoT & Telesale (VLAN 50)"],
-  ["it_support", "Hạ tầng & IT Support (VLAN 110)"],
+  ["it_support", "IT Support (VLAN 110)"],
+  ["guest", "Guest (VLAN 120)"],
+  ["iot_hq", "HQ IoT (VLAN 140)"],
+  ["iot_branch", "Branch IoT (VLAN 50)"],
 ];
 
 export default function ClusterDetailPanel() {

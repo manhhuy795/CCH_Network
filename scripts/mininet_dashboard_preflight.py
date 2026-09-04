@@ -14,7 +14,7 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.redesign_runtime_common import agent_request, model_hosts, ping, require_linux_root, verify_fabric
+from scripts.runtime_common import agent_request, model_hosts, ping, require_linux_root, verify_fabric
 
 
 ROOT = Path(__file__).resolve().parents[1]

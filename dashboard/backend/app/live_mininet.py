@@ -9,15 +9,13 @@ import threading
 import time
 import uuid
 import hashlib
-from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from . import repo  # Đảm bảo repository root có trong sys.path.
 from . import mininet_control
-from scripts.common import load_vars
-from scripts.network_model import architecture_links, controlled_switches, load_network_model, runtime_switch_map, runtime_switch_name
+from scripts.network_model import controlled_switches, load_network_model, runtime_switch_map, runtime_switch_name
 from sdn_mpls_demo.firewall_nftables import FIREWALL_NAMES, build_firewall_plans
 from sdn_mpls_demo.policy_engine import GROUP_PATHS, POLICY_FLOW_PROFILES, PolicyEngine
 
@@ -26,7 +24,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 POLICY_FILE = REPO_ROOT / "sdn_mpls_demo" / "policy.yml"
 RUNTIME_FLOWS_FILE = REPO_ROOT / "sdn_mpls_demo" / "runtime" / "installed_flows.json"
 NETWORK_MODEL = load_network_model()
-SOURCE_TRUTH = load_vars()
 ENGINE = PolicyEngine(POLICY_FILE)
 CONTROLLED_SWITCHES = controlled_switches(NETWORK_MODEL)
 MANUAL_BLOCK_COOKIE_BASE = 0x9000
@@ -64,13 +61,10 @@ CLUSTER_SOURCES = {
     "project_2_branch": ("h93_11", "Dự án 2 / VLAN 93 (Chi nhánh)"),
     "project_3": ("h103_01", "Dự án 3 / VLAN 103"),
     "project_4": ("h104_01", "Dự án 4 / VLAN 104"),
-    "telesale": ("h50_01", "Mạng IoT & Telesale / VLAN 50"),
-    "it_support": ("h110_01", "Hạ tầng & IT Support / VLAN 110"),
-    # Compatibility aliases for legacy dashboard queries
-    "project_a": ("h101_01", "Dự án 1 / VLAN 101"),
-    "project_b": ("h93_01", "Dự án 2 / VLAN 93 (HQ)"),
-    "project_c": ("h103_01", "Dự án 3 / VLAN 103"),
-    "backoffice": ("h104_01", "Dự án 4 / VLAN 104"),
+    "it_support": ("h110_01", "IT Support / VLAN 110"),
+    "guest": ("guest_01", "Guest / VLAN 120"),
+    "iot_hq": ("iot_cam_01", "HQ IoT / VLAN 140"),
+    "iot_branch": ("iot_branch_cam_01", "Branch IoT / VLAN 50"),
 }
 
 CLUSTER_ALLOW_TARGETS = {
@@ -79,28 +73,22 @@ CLUSTER_ALLOW_TARGETS = {
     "project_2_branch": ("h90", "hcall", "hinternet"),
     "project_3": ("h90", "hcall", "hinternet"),
     "project_4": ("h90", "hcall", "hinternet"),
-    "telesale": ("h90", "hcall", "hinternet"),
-    "it_support": ("h101_01", "h93_01", "h103_01", "h104_01", "h50_01", "h90", "hcall", "hinternet"),
-    # Compatibility aliases
-    "project_a": ("h90", "hcall", "hinternet"),
-    "project_b": ("h90", "hcall", "hinternet"),
-    "project_c": ("h90", "hcall", "hinternet"),
-    "backoffice": ("h90", "hcall", "hinternet"),
+    "it_support": ("h101_01", "h93_01", "h103_01", "h104_01", "iot_branch_cam_01", "h90", "hcall", "hinternet"),
+    "guest": ("hdns", "hntp", "hinternet"),
+    "iot_hq": ("hmonitor",),
+    "iot_branch": ("hmonitor",),
 }
 
 CLUSTER_DENY_TARGETS = {
-    "project_1": ("h103_01", "h104_01", "h50_01", "hsocial"),
+    "project_1": ("h103_01", "h104_01", "iot_branch_cam_01", "hsocial"),
     "project_2": ("h101_01", "h103_01", "h104_01", "hsocial"),
     "project_2_branch": ("h101_01", "h103_01", "h104_01", "hsocial"),
-    "project_3": ("h101_01", "h104_01", "h50_01", "hsocial"),
-    "project_4": ("h101_01", "h103_01", "h50_01", "hsocial"),
-    "telesale": ("h101_01", "h103_01", "h104_01", "hsocial"),
+    "project_3": ("h101_01", "h104_01", "iot_branch_cam_01", "hsocial"),
+    "project_4": ("h101_01", "h103_01", "iot_branch_cam_01", "hsocial"),
     "it_support": ("hsocial",),
-    # Compatibility aliases
-    "project_a": ("h103_01", "h104_01", "h50_01", "hsocial"),
-    "project_b": ("h101_01", "h103_01", "h104_01", "hsocial"),
-    "project_c": ("h101_01", "h104_01", "h50_01", "hsocial"),
-    "backoffice": ("h101_01", "h103_01", "h50_01", "hsocial"),
+    "guest": ("h101_01", "h93_01", "hmonitor", "hsocial"),
+    "iot_hq": ("h101_01", "hinternet", "hsocial"),
+    "iot_branch": ("h101_01", "h93_01", "hinternet", "hsocial"),
 }
 
 
@@ -108,62 +96,15 @@ def reload_policy_engine() -> None:
     global ENGINE
     ENGINE = PolicyEngine(POLICY_FILE)
 
-INFRA_NODES = [
-    ("c0", NETWORK_MODEL["infrastructure"]["c0"]["label"], "controller", NETWORK_MODEL["infrastructure"]["c0"].get("subtitle", "")),
-    *(
-        (name, switch["label"], "switch", switch.get("subtitle", ""))
-        for name, switch in NETWORK_MODEL["switches"].items()
-    ),
-    *(
-        (name, node["label"], node["type"], node.get("subtitle", ""))
-        for name, node in NETWORK_MODEL["infrastructure"].items()
-        if name != "c0"
-    ),
-]
-
-ARCHITECTURE_LINKS = architecture_links(NETWORK_MODEL)
 RUNTIME_BRIDGE_MAP = runtime_switch_map(NETWORK_MODEL)
-COMBINED_ACCEPTANCE_FILE = REPO_ROOT / "runtime_reports" / "phase44_45_combined_summary.json"
-DASHBOARD_SITE_LABELS = {
-    "hq": "Trụ sở chính HQ",
-    "telesale": "Telesale",
-}
 
 
 def dashboard_site_id(source_site: str | None) -> str:
-    """Map source-of-truth site IDs to the two public physical site IDs."""
-    return "telesale" if source_site == "branch_telesale" else str(source_site or "unknown")
-
-
-def phase44_runtime_status() -> dict[str, Any]:
-    """Expose evidence state without treating static config or stale files as live proof."""
-    pending = {
-        "status": "pending",
-        "message_vi": "Chưa chạy Combined Acceptance trên Ubuntu; firewall/NAT runtime chưa được xác minh.",
-        "evidence_available": False,
-        "nat_conclusion": "NAT REQUIREMENT NOT YET CONCLUDED",
-    }
-    live = mininet_control.live_status()
-    if not isinstance(live, dict) or live.get("ok") is not True or live.get("available") is False:
-        return pending
-    try:
-        payload = json.loads(COMBINED_ACCEPTANCE_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return pending
-    if payload.get("overall_status") != "PASS" or payload.get("phase44_runtime_verified") is not True:
-        return {**pending, "evidence_available": True, "message_vi": "Có evidence nhưng chưa đủ điều kiện xác nhận runtime."}
-    return {
-        "status": "verified",
-        "message_vi": "Combined Acceptance đã xác nhận runtime Phase 44 trên Ubuntu.",
-        "evidence_available": True,
-        "nat_conclusion": str(payload.get("nat_conclusion") or "NAT REQUIREMENT NOT YET CONCLUDED"),
-        "checked_at": payload.get("checked_at"),
-    }
+    return str(source_site or "unknown")
 
 
 def firewall_inventory() -> list[dict[str, Any]]:
     """Return two-site firewall contract; counters are null until read from live nftables."""
-    acceptance = phase44_runtime_status()
     try:
         plans = build_firewall_plans()
     except (KeyError, OSError, ValueError) as exc:
@@ -195,11 +136,11 @@ def firewall_inventory() -> list[dict[str, Any]]:
             "expected_rule_count": len(plan.get("rules", ())) + 8 if plan else None,
             "counters": runtime.get("counters") if runtime_ok else None,
             "nftables_status": "available" if runtime_ok else "unavailable",
-            "runtime_status": acceptance["status"] if acceptance["status"] == "verified" else ("pending" if runtime_ok else "unavailable"),
+            "runtime_status": "verified" if runtime_ok else "unavailable",
             "nat": {
                 "configured": bool(plan.get("nat", {}).get("enabled")) if plan else False,
-                "status": acceptance["status"] if acceptance["status"] == "verified" else "pending",
-                "conclusion": acceptance["nat_conclusion"],
+                "status": "disabled" if not plan.get("nat", {}).get("enabled") else ("verified" if runtime_ok else "unavailable"),
+                "conclusion": "NAT disabled in the current lab model" if not plan.get("nat", {}).get("enabled") else "Read from live nftables",
             },
             "error_code": None if runtime_ok else str(runtime.get("error_code") or ("FIREWALL_PLAN_INVALID" if plan_error else "FIREWALL_UNAVAILABLE")),
             "technical_detail": runtime if runtime else {"plan_error": plan_error},
@@ -213,297 +154,6 @@ def now_iso() -> str:
 
 def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
-
-
-def _design_node(
-    node_id: str,
-    node_type: str,
-    label: str,
-    *,
-    runtime_node: str | None = None,
-    runtime_state: str = "design_only",
-    site: str = "logical",
-    role: str | None = None,
-) -> dict[str, Any]:
-    """Create an explicit design-only object without adding it to runtime nodes."""
-    return {
-        "id": node_id,
-        "logical_name": node_id,
-        "label": label,
-        "type": node_type,
-        "role": role or node_type,
-        "site": dashboard_site_id(site),
-        "runtime_node": runtime_node,
-        "runtime_state": runtime_state,
-        "representation": "design_only",
-        "controller_managed": False,
-        "status": "design_only",
-        "status_source": "source_of_truth",
-        "runtime_bridge": None,
-    }
-
-
-def topology_design_payload() -> dict[str, Any]:
-    """Expose the diagram's enterprise design layer separately from live Mininet."""
-    edge = deepcopy(NETWORK_MODEL.get("edge_design", {}))
-    provider = edge.get("provider_domain", {})
-    circuits = provider.get("circuits", {})
-    handoffs = deepcopy(SOURCE_TRUTH.get("provider_handoff_paths", {}))
-    firewall_design = deepcopy(edge.get("firewalls", {}))
-    firewall_policy = SOURCE_TRUTH.get("firewall_policy", {}).get("sites", {})
-    server_zone = deepcopy(NETWORK_MODEL.get("server_zone_design", {}))
-    design_nodes: list[dict[str, Any]] = []
-
-    for circuit_name, circuit in circuits.items():
-        design_nodes.append(_design_node(
-            str(circuit.get("id")),
-            "provider_circuit",
-            str(circuit.get("label", circuit_name)),
-            runtime_state="design_only",
-            site="wan",
-            role=circuit_name,
-        ))
-    for circuit_name, handoff in handoffs.items():
-        design_nodes.append(_design_node(
-            str(handoff.get("handoff_id")),
-            "wan_handoff",
-            str(handoff.get("label", circuit_name)),
-            runtime_state="design_only",
-            site="wan",
-            role=circuit_name,
-        ))
-
-    for site_name, firewall in firewall_design.items():
-        members = []
-        for member_key in ("primary_member", "backup_member"):
-            member = firewall.get(member_key)
-            if member:
-                members.append(str(member))
-                design_nodes.append(_design_node(
-                    str(member),
-                    "firewall_peer",
-                    str(member),
-                    runtime_node=str(firewall.get("runtime_node")),
-                    runtime_state="design_only",
-                    site=site_name,
-                    role=member_key.removesuffix("_member"),
-                ))
-        policy = firewall_policy.get(site_name, {})
-        firewall["runtime_state"] = "runtime_namespace"
-        firewall["representation"] = "design_metadata"
-        firewall["policy_site"] = site_name
-        firewall["outside_circuits"] = list(firewall.get("outside_circuits", []))
-        firewall["design_members"] = members or None
-        firewall["runtime_interfaces"] = deepcopy(policy.get("runtime_interfaces", {}))
-
-    for component_name, component in server_zone.get("components", {}).items():
-        runtime_node = component.get("runtime_node")
-        design_nodes.append(_design_node(
-            component_name,
-            "server_zone_component",
-            component_name.replace("_", " ").title(),
-            runtime_node=str(runtime_node) if runtime_node is not None else None,
-            runtime_state=str(component.get("runtime_state", "design_only")),
-            site="hq",
-            role=str(component.get("design_role") or component.get("runtime_kind") or "server_zone"),
-        ))
-
-    return {
-        "source_of_truth": [
-            "vars/network_model.yml",
-            "vars/routing.yml",
-            "vars/firewall_policies.yml",
-        ],
-        "runtime_authority": "Mininet Control Agent and live OVS/nftables evidence",
-        "design_only_is_runtime": False,
-        "provider_domain": {
-            "label": provider.get("label"),
-            "handoff_layer": provider.get("handoff_layer"),
-            "mode": provider.get("mode"),
-            "circuits": circuits,
-        },
-        "provider_handoff_paths": handoffs,
-        "firewall_redundancy": firewall_design,
-        "server_zone": server_zone,
-        "design_nodes": design_nodes,
-    }
-
-
-
-def topology_payload() -> dict[str, Any]:
-    nodes: list[dict[str, Any]] = []
-    groups: list[dict[str, Any]] = []
-    hosts = sorted(
-        [{**host, "site": dashboard_site_id(host.get("site"))} for host in ENGINE.hosts.values()],
-        key=lambda item: (item["kind"] != "user", item["name"]),
-    )
-    for name, group in ENGINE.groups.items():
-        group_hosts = [host for host in hosts if host.get("group") == name]
-        item = {
-            "id": name,
-            "label": group["label"],
-            "type": "user_group" if group.get("host_kind", "user") == "user" else "endpoint_group",
-            "site": dashboard_site_id(group.get("site")),
-            "sites": sorted({str(host.get("site")) for host in group_hosts}),
-            "vlan": int(group["vlan"]),
-            "count": int(group["count"]),
-            "subnet": group["subnet"],
-            "switch": group["switch"],
-            "floor": group.get("floor"),
-            "placements": group.get("placements", []),
-            "addressing": group.get("addressing", "static"),
-            "hosts": group_hosts,
-        }
-        nodes.append(item)
-        groups.append(item)
-
-    devices: list[dict[str, Any]] = []
-    for node_id, label, node_type, subtitle in INFRA_NODES:
-        switch = NETWORK_MODEL.get("switches", {}).get(node_id)
-        infrastructure = NETWORK_MODEL.get("infrastructure", {}).get(node_id, {})
-        source = switch or infrastructure
-        is_controlled = bool(switch and switch.get("controlled"))
-        device = {
-            "id": node_id,
-            "logical_name": node_id,
-            "label": label,
-            "type": node_type,
-            "role": source.get("role", node_type),
-            "subtitle": subtitle,
-            "site": dashboard_site_id(source.get("site")),
-            "dpid": source.get("dpid"),
-            "runtime_bridge": runtime_switch_name(NETWORK_MODEL, node_id) if switch else source.get("runtime_name"),
-            "controller_managed": is_controlled,
-            "representation": "runtime",
-            "runtime_state": "unknown",
-            "status": "unknown",
-            "status_source": "live_mininet",
-        }
-        nodes.append(device)
-        devices.append(device)
-
-    for service_name, service in ENGINE.services.items():
-        nodes.append({
-            "id": service_name,
-            "logical_name": service_name,
-            "label": service["label"],
-            "type": "blocked_service" if service_name == "hsocial" else "service",
-            "site": "internet",
-            "ip": service["ip"],
-            "controller_managed": False,
-            "status": "unknown",
-            "status_source": "live_mininet",
-        })
-
-    for service_name, service in ENGINE.infrastructure_services.items():
-        nodes.append({
-            "id": service_name,
-            "logical_name": service_name,
-            "label": service["label"],
-            "type": "infrastructure_service",
-            "site": dashboard_site_id(service.get("site")),
-            "ip": service["ip"],
-            "vlan": int(service["vlan"]),
-            "role": service.get("role"),
-            "controller_managed": False,
-            "status": "unknown",
-            "status_source": "live_mininet",
-        })
-
-    links = [
-        {
-            "id": f"{source}-{target}",
-            "source": source,
-            "target": target,
-            "type": link_type,
-            "status": "up",
-        }
-        for source, target, link_type in ARCHITECTURE_LINKS
-    ]
-    site_groups = {
-        site_id: [group["id"] for group in groups if site_id in group.get("sites", [group["site"]])]
-        for site_id in ("hq", "telesale")
-    }
-    site_devices = {
-        site_id: [device["logical_name"] for device in devices if device["site"] == site_id]
-        for site_id in ("hq", "telesale")
-    }
-    sites = [
-        {
-            "id": site_id,
-            "label": DASHBOARD_SITE_LABELS[site_id],
-            "kind": "physical",
-            "source_id": "branch_telesale" if site_id == "telesale" else site_id,
-            "groups": site_groups[site_id],
-            "devices": site_devices[site_id],
-        }
-        for site_id in ("hq", "telesale")
-    ]
-    firewalls = firewall_inventory()
-    design_contract = topology_design_payload()
-    return {
-        "nodes": nodes,
-        "groups": groups,
-        "hosts": hosts,
-        "links": links,
-        "metadata": ENGINE.data["metadata"],
-        "sites": sites,
-        "site_ids": ["hq", "telesale"],
-        "devices": devices,
-        "logical_switches": [device for device in devices if device["controller_managed"]],
-        "runtime_bridge_map": dict(RUNTIME_BRIDGE_MAP),
-        "ce_nodes": [device for device in devices if device["type"] == "router"],
-        "firewalls": firewalls,
-        "topology_contract": design_contract,
-        "design_nodes": deepcopy(design_contract["design_nodes"]),
-        "mpls": {
-            "primary": {"id": "mpls_primary", "status": "active", "metric": 10, "path_between": ["ce_hq", "mpls_primary", "ce_telesale"]},
-            "backup": {"id": "mpls_backup", "status": "standby", "metric": 100, "path_between": ["ce_hq", "mpls_backup", "ce_telesale"]},
-            "failover_policy": "Primary DOWN -> Backup active; Primary RECOVER -> failback; both DOWN -> intersite unavailable.",
-            "controller_managed": False,
-        },
-        "l2vpn": {
-            "service": "vlan40_project_c",
-            "type": "VPWS / E-Line logic",
-            "customer_vlan": 40,
-            "sites": ["hq", "telesale"],
-            "gateway_site": "hq",
-            "gateway_node": "core_hq",
-            "runtime_node": "l2vpn_vpws40",
-            "runtime_bridge": "l2vpn40",
-            "controller_managed": False,
-            "presentation_path": deepcopy(NETWORK_MODEL["l2vpn_services"]["vlan40_project_c"]["presentation_path"]),
-            "attachment_circuits": deepcopy(NETWORK_MODEL["l2vpn_services"]["vlan40_project_c"]["attachment_circuits"]),
-            "simulation_scope": "Transparent Ethernet forwarding; no MPLS labels or PE/P signaling",
-        },
-        "enterprise_zones": {
-            "iot_hq": {"vlan": 110, "subnet": "172.16.110.0/24", "endpoint_count": 5, "addressing": "reservation", "site": "hq"},
-            "iot_branch": {"vlan": 111, "subnet": "172.16.111.0/24", "endpoint_count": 2, "addressing": "reservation", "site": "branch_telesale"},
-            "guest": {"vlan": 120, "subnet": "172.16.120.0/24", "endpoint_count": 2, "addressing": "dhcp", "site": "hq", "internal_access": "deny"},
-            "infrastructure_services": {"vlan": 100, "subnet": "172.16.100.0/24", "service_count": len(ENGINE.infrastructure_services), "dhcp_relay": ["core_hq", "dist_branch"]},
-        },
-        "internet_zone": {"id": "internet_zone", "status": "logical_only", "controller_managed": False},
-        "phase44_runtime": phase44_runtime_status(),
-        "policy_map": policy_map_payload(),
-        "summary": {
-            "user_count": sum(
-                int(group["count"])
-                for group in ENGINE.groups.values()
-                if group.get("host_kind", "user") == "user"
-            ),
-            "service_count": len(ENGINE.services),
-            "iot_hq_count": sum(1 for host in hosts if host.get("kind") == "iot" and host.get("group") == "iot_hq"),
-            "iot_branch_count": sum(1 for host in hosts if host.get("kind") == "iot" and host.get("group") == "iot_branch"),
-            "guest_count": sum(1 for host in hosts if host.get("kind") == "guest"),
-            "infrastructure_service_count": len(ENGINE.infrastructure_services),
-            "endpoint_count": len(hosts),
-            "controlled_ovs_count": len(CONTROLLED_SWITCHES),
-            "site_count": 2,
-            "ce_count": 2,
-            "firewall_count": 2,
-            "l2vpn_service_count": 1,
-        },
-    }
 
 
 def representative_endpoint(node_id: str) -> str:
@@ -739,12 +389,14 @@ def _lookup_live_runtime_flow(source: str, destination: str, decision: dict[str,
 def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str:
     source_data = ENGINE.endpoint(source)
     destination_data = ENGINE.endpoint(destination)
+    source_group = source_data.get("group") if source_data else None
+    destination_group = destination_data.get("group") if destination_data else None
     reason = str(decision.get("reason", "")).lower()
     if decision.get("failed_link"):
         return "link_down"
-    if (source == "h70_01" or destination == "h70_01") and (source == "hsocial" or destination == "hsocial"):
+    if "it_support" in {source_group, destination_group} and "hsocial" in {source, destination}:
         return "it_social_block"
-    if destination == "h70_01" and decision.get("action") == "deny":
+    if destination_group == "it_support" and decision.get("action") == "deny":
         return "it_inbound_block"
     if "least privilege" in reason and decision.get("action") == "deny":
         return "reactive_policy_drop"
@@ -758,8 +410,8 @@ def _policy_hint(source: str, destination: str, decision: dict[str, Any]) -> str
         return "firewall_inbound_block"
     if destination == "hsocial" or source == "hsocial":
         return "firewall_social_block"
-    if "vlan 50" in reason or "vlan 60" in reason:
-        return "telesale_backoffice_isolation"
+    if "iot_branch" in {source_group, destination_group}:
+        return "branch_iot_isolation"
     if "vlan" in reason or "cach ly" in reason:
         return "hq_project_isolation"
     if decision.get("action") == "deny":
@@ -1211,13 +863,17 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
     source, label = CLUSTER_SOURCES[cluster]
     cases: list[dict[str, Any]] = []
 
-    voice_payload = call_quality(source, "h90", seconds=seconds)
-    cases.append(_case_result("Softphone Cfone/Gphone -> PBX/SBC Voice Service", "voice", "allow", voice_payload))
-
-    if "hcall" in CLUSTER_ALLOW_TARGETS[cluster]:
-        cases.append(_case_result("Call App/CRM TCP throughput", "application", "allow", iperf(source, "hcall", "tcp", seconds)))
-    if "hinternet" in CLUSTER_ALLOW_TARGETS[cluster]:
-        cases.append(_case_result("Internet test reachability", "internet", "allow", ping(source, "hinternet", count=3)))
+    for target in CLUSTER_ALLOW_TARGETS[cluster]:
+        if target == "h90":
+            payload = call_quality(source, target, seconds=seconds)
+            name, category = "Softphone Cfone/Gphone -> PBX/SBC Voice Service", "voice"
+        elif target == "hcall":
+            payload = iperf(source, target, "tcp", seconds)
+            name, category = "Call App/CRM TCP throughput", "application"
+        else:
+            payload = ping(source, target, count=3)
+            name, category = f"Policy cho phép {source} -> {target}", "connectivity"
+        cases.append(_case_result(name, category, "allow", payload))
 
     for target in CLUSTER_DENY_TARGETS[cluster]:
         cases.append(_case_result(f"Policy chặn {source} -> {target}", "segmentation", "deny", ping(source, target, count=2)))
@@ -1252,7 +908,7 @@ def cluster_detail_test(cluster: str, seconds: int = 3) -> dict[str, Any]:
         "softphone_note": (
             "Cfono/Gphone là softphone cài trên máy agent: lab chỉ cho user VLAN đi tới "
             "cụm PBX/SBC/SIP-RTP và Call App cần thiết. Không mở ping ngang giữa "
-            "Project/Telesale/BackOffice; chỉ IT Support có quyền remote/support có kiểm soát."
+            "Project/Guest/IoT; chỉ IT Support có quyền remote/support có kiểm soát."
         ),
     }
 

@@ -29,7 +29,7 @@ check_cmd() {
 check_port "Controller" 6653
 check_port "Backend" 8000
 check_port "Frontend" 5173
-check_cmd "Mininet topology process" "pgrep -f '[t]opology_hybrid_sdn.py'"
+check_cmd "Mininet topology process" "pgrep -f '[t]opology_enterprise_v7.py'"
 
 OVS_PREFIX=()
 if [[ "$(id -u)" -ne 0 ]]; then

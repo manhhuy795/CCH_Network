@@ -48,9 +48,9 @@ sudo ovs-ofctl -O OpenFlow13 dump-flows access_floor1 table=30
 ## Gates
 
 ```bash
-./scripts/phase47_full_regression_gate.sh static
-./scripts/phase47_full_regression_gate.sh frontend
-./scripts/phase47_full_regression_gate.sh runtime
+./scripts/run_validation.sh static
+./scripts/run_validation.sh frontend
+./scripts/run_validation.sh runtime
 ```
 
 Runtime mode yêu cầu Ubuntu, topology đang chạy và quyền đọc OVS/namespace.

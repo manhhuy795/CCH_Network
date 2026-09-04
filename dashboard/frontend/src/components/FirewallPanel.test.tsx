@@ -33,15 +33,11 @@ const firewalls: Firewall[] = [
 
 describe("FirewallPanel", () => {
   it("renders both site firewalls and keeps pending runtime explicit", () => {
-    render(<FirewallPanel firewalls={firewalls} phase44Runtime={{
-      status: "pending",
-      message_vi: "Chua co evidence runtime.",
-      evidence_available: false,
-      nat_conclusion: "NAT REQUIREMENT NOT YET CONCLUDED",
-    }} />);
+    render(<FirewallPanel firewalls={firewalls} />);
 
     expect(screen.getByText("fw_hq")).toBeInTheDocument();
     expect(screen.getByText("fw_telesale")).toBeInTheDocument();
+    expect(screen.getByText("Runtime unavailable")).toBeInTheDocument();
     expect(screen.getAllByText("pending").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Chưa có counter runtime/)).toHaveLength(8);
     expect(screen.getAllByText("NAT REQUIREMENT NOT YET CONCLUDED")).toHaveLength(2);

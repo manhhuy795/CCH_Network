@@ -3,7 +3,7 @@ import type { ActivityEvent, TaskHistoryItem } from "../api/client";
 import EventLog from "./EventLog";
 
 const entries: ActivityEvent[] = [
-  { id: "1", timestamp: new Date().toISOString(), severity: "info", component: "mininet_control_agent", event_type: "ping", source: "h30_01", destination: "h90", message: "Ping thành công", technical_detail: { rtt: 8 } },
+  { id: "1", timestamp: new Date().toISOString(), severity: "info", component: "mininet_control_agent", event_type: "ping", source: "h103_01", destination: "h90", message: "Ping thành công", technical_detail: { rtt: 8 } },
   { id: "2", timestamp: new Date().toISOString(), severity: "error", component: "controller", event_type: "policy", source: "block_social_media", message: "Reload thất bại", error_code: "CONTROLLER_OFFLINE" },
 ];
 const tasks: TaskHistoryItem[] = [{
@@ -14,7 +14,7 @@ const tasks: TaskHistoryItem[] = [{
   ended_at: new Date().toISOString(),
   duration_ms: 42,
   result_summary: "Ping thành công",
-  source: "h30_01",
+  source: "h103_01",
   destination: "h90",
 }];
 
@@ -25,8 +25,8 @@ describe("EventLog", () => {
     expect(screen.getByText("Reload thất bại")).toBeInTheDocument();
     expect(screen.queryByText("Ping thành công", { selector: "article p" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Lọc severity"), { target: { value: "all" } });
-    fireEvent.change(screen.getByLabelText("Lọc source destination"), { target: { value: "h30_01" } });
-    expect(screen.getByText("h30_01 → h90")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Lọc source destination"), { target: { value: "h103_01" } });
+    expect(screen.getByText("h103_01 → h90")).toBeInTheDocument();
   });
 
   it("shows task history and copies only technical detail", async () => {

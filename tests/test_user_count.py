@@ -1,7 +1,7 @@
 from scripts.network_model import build_host_inventory, load_network_model, user_count
 
 
-def test_v7_runtime_has_ninety_corporate_users():
+def test_full_sdn_runtime_has_ninety_corporate_users():
     model = load_network_model()
     assert user_count(model) == 90
     hosts = build_host_inventory(model)

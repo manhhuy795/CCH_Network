@@ -1,4 +1,4 @@
-"""Small, evidence-first runtime helpers for the enterprise v7 Mininet lab."""
+"""Small, evidence-first helpers for the enterprise Full-SDN Mininet lab."""
 
 from __future__ import annotations
 

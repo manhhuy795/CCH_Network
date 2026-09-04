@@ -13,7 +13,7 @@ while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --reuse-running|--verbose) ;;
     --start-missing)
-      echo "BLOCKED: v7 gate does not auto-start runtime; run sdn_mpls_demo/run_topology.sh and scripts/start_demo.sh first." >&2
+      echo "BLOCKED: validation does not auto-start runtime; run sdn_mpls_demo/run_topology.sh and scripts/start_demo.sh first." >&2
       exit 3
       ;;
     --report-dir|--case) shift ;;
@@ -38,9 +38,9 @@ run() {
 
 static_checks() {
   run "$PYTHON_BIN" scripts/validate_vars.py
-  run "$PYTHON_BIN" scripts/validate_redesigned_topology.py
-  run "$PYTHON_BIN" -c 'from scripts.phase46_automation_docs_gate import ROOT_DIR, docs_reference_errors; errors=docs_reference_errors(ROOT_DIR); print("\n".join(errors)); raise SystemExit(bool(errors))'
-  run "$PYTHON_BIN" -c 'from scripts.phase46_automation_docs_gate import ROOT_DIR, secret_scan; errors=secret_scan(ROOT_DIR); print("\n".join(errors)); raise SystemExit(bool(errors))'
+  run "$PYTHON_BIN" scripts/validate_topology.py
+  run "$PYTHON_BIN" -c 'from scripts.repository_guard import ROOT_DIR, docs_reference_errors; errors=docs_reference_errors(ROOT_DIR); print("\n".join(errors)); raise SystemExit(bool(errors))'
+  run "$PYTHON_BIN" -c 'from scripts.repository_guard import ROOT_DIR, secret_scan; errors=secret_scan(ROOT_DIR); print("\n".join(errors)); raise SystemExit(bool(errors))'
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
@@ -87,7 +87,7 @@ runtime_checks() {
 case "$MODE" in
   preflight)
     run "$PYTHON_BIN" scripts/validate_vars.py
-    run "$PYTHON_BIN" scripts/validate_redesigned_topology.py
+    run "$PYTHON_BIN" scripts/validate_topology.py
     ;;
   source|static|automation) static_checks ;;
   frontend) frontend_checks ;;
@@ -99,4 +99,4 @@ case "$MODE" in
     ;;
 esac
 
-echo "PASS: enterprise v7 $MODE gate"
+echo "PASS: enterprise Full-SDN $MODE gate"

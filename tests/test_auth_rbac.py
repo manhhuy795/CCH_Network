@@ -27,7 +27,7 @@ def make_client(monkeypatch, tmp_path):
 def create_user(username: str, role: str) -> str:
     if username == "admin":
         return auth_store.DEFAULT_ADMIN_PASSWORD
-    password = f"Phase49-{username}-" + ("x" * 16) + "!"
+    password = f"AuthTest-{username}-" + ("x" * 16) + "!"
     auth_store.create_user(username, password, role)
     return password
 

@@ -126,7 +126,6 @@ export type Topology = {
   mpls?: Record<string, unknown>;
   l2vpn?: Record<string, unknown>;
   internet_zone?: Record<string, unknown>;
-  phase44_runtime?: PhaseRuntimeStatus;
   topology_contract?: TopologyContract;
   design_nodes?: DesignNode[];
   policy_map: Record<string, { title: string; allow: string[]; deny: string[]; notes: Record<string, string> }>;
@@ -165,14 +164,6 @@ export type Firewall = {
   runtime_status?: "verified" | "pending" | "failed" | "unavailable";
   nat?: { configured: boolean; status: string; conclusion: string };
   error_code?: string | null;
-};
-
-export type PhaseRuntimeStatus = {
-  status: "verified" | "pending" | "failed" | "unavailable";
-  message_vi: string;
-  evidence_available: boolean;
-  nat_conclusion?: string;
-  checked_at?: string;
 };
 
 export type Decision = {
@@ -322,7 +313,6 @@ export type PolicyPayload = {
   inventory: PolicyInventoryItem[];
   enforcement_layers?: Record<string, { engine: string; devices: string[]; responsibilities: string[] }>;
   firewalls?: Firewall[];
-  phase44_runtime?: PhaseRuntimeStatus;
 };
 
 export type ActivityEvent = {
@@ -449,7 +439,7 @@ export const api = {
   topology: () => request<Topology>("/api/topology"),
   sites: () => request<{ sites: Topology["sites"] }>("/api/sites"),
   devices: () => request<{ devices: Array<Record<string, unknown>>; logical_switches: Array<Record<string, unknown>>; runtime_bridge_map: Record<string, string> }>("/api/devices"),
-  firewalls: () => request<{ firewalls: Firewall[]; phase44_runtime: PhaseRuntimeStatus }>("/api/firewalls"),
+  firewalls: () => request<{ firewalls: Firewall[] }>("/api/firewalls"),
   authStatus: () => request<AuthStatus>("/api/auth/status"),
   policies: () => request<PolicyPayload>("/api/policies"),
   flows: () => request<{ flows: Array<Record<string, unknown>> }>("/api/flows"),

@@ -9,7 +9,7 @@ SAFE_ID_PATTERN = r"^[A-Za-z0-9_.:-]+$"
 
 
 class HostPair(BaseModel):
-    source: str = Field(..., pattern=SAFE_ID_PATTERN, examples=["h20_01"])
+    source: str = Field(..., pattern=SAFE_ID_PATTERN, examples=["h101_01"])
     destination: str = Field(..., pattern=SAFE_ID_PATTERN, examples=["hcall"])
 
     @field_validator("source", "destination")

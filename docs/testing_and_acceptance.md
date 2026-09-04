@@ -17,7 +17,7 @@ Mốc live 27/27 được ghi nhận trên Ubuntu lab ngày 2026-08-26. Kết qu
 python -m pytest -q tests/test_full_sdn_fabric.py
 python -m pytest -q
 python scripts/validate_vars.py
-python scripts/validate_redesigned_topology.py
+python scripts/validate_topology.py
 ```
 
 Kỳ vọng file `tests/test_full_sdn_fabric.py` thu đúng 24 cases.
@@ -27,8 +27,8 @@ Kỳ vọng file `tests/test_full_sdn_fabric.py` thu đúng 24 cases.
 ```bash
 python -m pytest -q \
   tests/test_dashboard_health_api.py \
-  tests/test_phase38_activity_history.py \
-  tests/test_phase49_auth_rbac.py \
+  tests/test_activity_history.py \
+  tests/test_auth_rbac.py \
   tests/test_mininet_control_timeouts.py \
   tests/test_mininet_control_transport.py
 ```

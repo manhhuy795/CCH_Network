@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small non-Mininet smoke check for enterprise v7."""
+"""Small non-Mininet smoke check for the enterprise Full-SDN topology."""
 
 from __future__ import annotations
 

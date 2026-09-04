@@ -228,11 +228,11 @@ def test_health_and_live_status_expose_all_components(monkeypatch):
     }
     monkeypatch.setattr(api, "system_health", lambda: payload)
     monkeypatch.setattr(api, "live_health_payload", lambda: {**payload, "available": True})
-    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "phase49-health-secret")
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "health-test-secret")
     client = TestClient(app)
 
     health = client.get("/api/health")
-    live = client.get("/api/live/status", headers={"X-CCH-Operator-Token": "phase49-health-secret"})
+    live = client.get("/api/live/status", headers={"X-CCH-Operator-Token": "health-test-secret"})
     assert health.status_code == 200
     assert live.status_code == 200
     for response in (health, live):
@@ -268,17 +268,17 @@ def test_unhandled_exception_hides_traceback_but_logs_request_id(monkeypatch, ca
     from fastapi.testclient import TestClient
     from app.main import app
 
-    @app.get("/api/test-phase32-crash")
+    @app.get("/api/test-error-boundary")
     def crash_route():
-        raise RuntimeError("phase32-sensitive-trace")
+        raise RuntimeError("test-sensitive-trace")
 
     caplog.set_level(logging.ERROR)
     client = TestClient(app, raise_server_exceptions=False)
-    response = client.get("/api/test-phase32-crash", headers={"X-Request-ID": "phase32-request"})
+    response = client.get("/api/test-error-boundary", headers={"X-Request-ID": "error-boundary-request"})
     body = response.json()
     assert response.status_code == 500
     assert body["error_code"] == "INTERNAL_ERROR"
-    assert body["request_id"] == "phase32-request"
-    assert "phase32-sensitive-trace" not in json.dumps(body)
-    assert "phase32-sensitive-trace" in caplog.text
-    assert "phase32-request" in caplog.text
+    assert body["request_id"] == "error-boundary-request"
+    assert "test-sensitive-trace" not in json.dumps(body)
+    assert "test-sensitive-trace" in caplog.text
+    assert "error-boundary-request" in caplog.text

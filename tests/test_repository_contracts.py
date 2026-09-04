@@ -3,9 +3,10 @@ from pathlib import Path
 from scripts.common import load_vars
 from scripts.generate_configs import generate_configs
 from scripts.network_model import build_host_inventory, controlled_switches, load_network_model
-from scripts.validate_redesigned_topology import validate
+from scripts.validate_topology import validate
 from scripts.validate_vars import validate_all
 from scripts.verify_network import verify_generated
+from dashboard.backend.app.live_mininet import CLUSTER_ALLOW_TARGETS, CLUSTER_DENY_TARGETS, CLUSTER_SOURCES, ENGINE as DASHBOARD_ENGINE
 from sdn_mpls_demo.firewall_nftables import build_firewall_plans, render_nftables_ruleset
 from sdn_mpls_demo.policy_engine import PolicyEngine
 from sdn_mpls_demo.runtime_contract import source_truth_runtime_links
@@ -15,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "sdn_mpls_demo" / "policy.yml"
 
 
-def test_v7_source_of_truth_is_internally_consistent():
+def test_full_sdn_source_of_truth_is_internally_consistent():
     model = load_network_model()
     config = load_vars()
 
@@ -114,7 +115,7 @@ def test_provider_circuits_are_site_local():
     assert len({item["id"] for item in circuits.values()}) == 4
 
 
-def test_v7_policy_paths_and_least_privilege():
+def test_full_sdn_policy_paths_and_least_privilege():
     engine = PolicyEngine(POLICY)
 
     l2 = engine.decide("h93_11", "h93_01")
@@ -145,7 +146,7 @@ def test_v7_policy_paths_and_least_privilege():
     ]
 
 
-def test_generated_candidate_configs_match_v7_contract(tmp_path: Path):
+def test_generated_candidate_configs_match_current_contract(tmp_path: Path):
     rendered = {path.name for path in generate_configs(tmp_path)}
     assert {
         "hq-core-dist.cfg",
@@ -179,3 +180,11 @@ def test_generated_candidate_configs_match_v7_contract(tmp_path: Path):
         policy = (tmp_path / name).read_text(encoding="utf-8")
         assert "tunnel:" in policy
         assert "allow-corporate-ipsec-overlay" in policy
+
+
+def test_dashboard_cluster_catalog_only_uses_current_endpoints():
+    assert CLUSTER_SOURCES.keys() == CLUSTER_ALLOW_TARGETS.keys() == CLUSTER_DENY_TARGETS.keys()
+    for source, _label in CLUSTER_SOURCES.values():
+        assert DASHBOARD_ENGINE.endpoint(source) is not None
+    for targets in (*CLUSTER_ALLOW_TARGETS.values(), *CLUSTER_DENY_TARGETS.values()):
+        assert all(DASHBOARD_ENGINE.endpoint(target) is not None for target in targets)

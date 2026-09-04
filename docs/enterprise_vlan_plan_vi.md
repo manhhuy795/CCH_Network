@@ -1,6 +1,6 @@
-# Kế hoạch VLAN Enterprise v7
+# Kế hoạch VLAN Enterprise Full-SDN
 
-## VLAN chốt theo sơ đồ logic
+## VLAN theo sơ đồ logic hiện hành
 
 | VLAN | Zone | Subnet | Gateway | Phạm vi |
 |---:|---|---|---|---|
@@ -12,7 +12,7 @@
 
 ## VLAN implementation choice trong lab
 
-Sơ đồ v7 không chốt ID cụ thể cho Server Farm, Office/IT, Guest và HQ IoT. Runtime chọn các VLAN sau để mô phỏng nhất quán; đây là **implementation choice**, không phải yêu cầu business bắt buộc:
+Sơ đồ logic không chốt ID cụ thể cho Server Farm, Office/IT, Guest và HQ IoT. Runtime chọn các VLAN sau để mô phỏng nhất quán; đây là **implementation choice**, không phải yêu cầu business bắt buộc:
 
 | VLAN | Zone | Subnet | Gateway |
 |---:|---|---|---|

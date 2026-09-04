@@ -5,7 +5,7 @@ metadata:
   enforcement_note: "Project isolation is enforced on controlled OVS. Partner/Internet and intersite tunnel access are enforced by local nftables firewall abstractions."
 
 # Định nghĩa các nhóm máy trạm (Host Groups) chuẩn Enterprise v7
-# Thay thế hoàn toàn các nhóm cũ: project_a, project_b, project_c, telesale, backoffice
+# Nhóm endpoint hiện hành của topology Full-SDN
 host_groups:
   project_1:
     vlan: 101

@@ -370,11 +370,6 @@ export const mockPolicies: PolicyPayload = {
     "vlan93_l2vpn_backup_standby",
   ].includes(policy.key)),
   firewalls: mockFirewalls,
-  phase44_runtime: {
-    status: "verified",
-    message_vi: "Phase 44 runtime acceptance verified on both sites (fw_hq & fw_telesale).",
-    evidence_available: true,
-  },
 };
 
 export const mockFlows: Array<Record<string, unknown>> = [

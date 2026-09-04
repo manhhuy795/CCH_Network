@@ -54,7 +54,7 @@ def test_activity_api_returns_real_tracked_ping_without_token_leak(monkeypatch, 
     from dashboard.backend.app import activity, api as api_module
     from dashboard.backend.app.main import app
 
-    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "phase38-secret")
+    monkeypatch.setenv("CCH_DASHBOARD_OPERATOR_TOKEN", "activity-test-secret")
     monkeypatch.setattr(activity, "ACTIVITY_FILE", tmp_path / "dashboard_activity.jsonl")
     monkeypatch.setattr(activity, "CONTROLLER_EVENTS_FILE", tmp_path / "controller_events.jsonl")
     monkeypatch.setattr(api_module, "run_ping", lambda *_args: {
@@ -65,7 +65,7 @@ def test_activity_api_returns_real_tracked_ping_without_token_leak(monkeypatch, 
         "raw": "0% packet loss",
     })
     client = TestClient(app)
-    headers = {"X-CCH-Operator-Token": "phase38-secret"}
+    headers = {"X-CCH-Operator-Token": "activity-test-secret"}
 
     response = client.post("/api/test/ping", json={"source": "h101_01", "destination": "h90"}, headers=headers)
     history = client.get("/api/activity", headers=headers)
@@ -75,4 +75,4 @@ def test_activity_api_returns_real_tracked_ping_without_token_leak(monkeypatch, 
     assert history.status_code == 200
     assert history.json()["tasks"][0]["status"] == "success"
     assert history.json()["events"][0]["event_type"] == "ping"
-    assert "phase38-secret" not in json.dumps(history.json())
+    assert "activity-test-secret" not in json.dumps(history.json())

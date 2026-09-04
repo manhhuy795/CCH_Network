@@ -388,7 +388,7 @@ export default function App() {
     if (page === "policy") return (
       <div className="main-column">
         <PolicyPanel policies={policies} onToggle={togglePolicy} busy={policyBusy} />
-        <FirewallPanel firewalls={policies.firewalls || topology?.firewalls || []} phase44Runtime={policies.phase44_runtime || topology?.phase44_runtime} />
+        <FirewallPanel firewalls={policies.firewalls || topology?.firewalls || []} />
       </div>
     );
     if (page === "sdn") return (

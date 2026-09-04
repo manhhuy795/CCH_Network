@@ -224,7 +224,7 @@ def render_nftables_ruleset(plan: dict[str, Any]) -> str:
         "",
     ])
     if bool(plan["nat"].get("enabled")):
-        raise FirewallPolicyError("NAT da bat nhung Phase 44 chua co runtime proof cho phep render NAT")
+        raise FirewallPolicyError("NAT da bat nhung chua co runtime proof cho phep render NAT")
     return "\n".join(lines)
 
 

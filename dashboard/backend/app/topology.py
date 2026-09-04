@@ -4,7 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from . import mininet_control
-from .live_mininet import firewall_inventory, phase44_runtime_status
+from .live_mininet import firewall_inventory
 from scripts.common import load_vars
 from scripts.network_model import build_host_inventory, controlled_switches, load_network_model, runtime_switch_map, runtime_switch_name
 from sdn_mpls_demo.policy_engine import PolicyEngine
@@ -271,7 +271,6 @@ def get_topology() -> dict:
             "simulation_scope": "Firewall-to-firewall routed path behavior only; no IKE/ESP/XFRM proof",
         },
         "internet_zone": {"id": "internet_zone", "status": "logical_runtime", "controller_managed": False},
-        "phase44_runtime": phase44_runtime_status(),
         "policy_map": _policy_map(),
         "summary": {
             "user_count": sum(host["kind"] == "user" for host in hosts),

@@ -11,7 +11,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.redesign_runtime_common import agent_request, command, ping, require_linux_root, verify_fabric, write_json
+from scripts.runtime_common import agent_request, command, ping, require_linux_root, verify_fabric, write_json
 
 
 def flow(switch: str) -> str:

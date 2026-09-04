@@ -288,7 +288,7 @@ echo
 echo "Da khoi dong dashboard."
 echo "Dashboard dung dang nhap human account voi RBAC; operator token chi danh cho runtime script/backend."
 echo "Neu chua co admin, tao tai khoan an toan bang:"
-echo "  $ROOT_DIR/scripts/phase49_bootstrap_admin.py"
+echo "  $ROOT_DIR/scripts/bootstrap_admin.py"
 echo "Mo trong Ubuntu VM:"
 echo "  Dashboard: http://127.0.0.1:5173"
 echo "  Backend:   http://127.0.0.1:8000"

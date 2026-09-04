@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Shared documentation and secret checks used by the enterprise v7 gate.
-
-The old Phase 46 runtime gate encoded the pre-v7 eight-bridge topology. Runtime
-acceptance now lives in ``phase47_full_regression_gate.sh``; keep only the two
-small reusable checks here.
-"""
+"""Documentation-link and tracked-secret checks for repository validation."""
 
 from __future__ import annotations
 

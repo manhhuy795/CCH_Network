@@ -12,7 +12,7 @@ from scripts.network_model import (
 from sdn_mpls_demo.runtime_contract import source_truth_runtime_links
 
 
-def test_v7_collapsed_core_inventory_is_complete_and_valid():
+def test_full_sdn_collapsed_core_inventory_is_complete_and_valid():
     model = load_network_model()
     assert validate_network_model(model) == []
     assert set(model["switches"]) == EXPECTED_CONTROLLED_SWITCHES

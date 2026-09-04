@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from . import auth_store, mininet_control
 from .activity import activity_payload, append_event, record_operation, utc_now
 from .errors import ApiError, ERROR_HTTP_STATUS
-from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, firewall_inventory, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, phase44_runtime_status, policy_decision, temporary_block
+from .live_mininet import cluster_detail_test, current_metrics, enrich_decision, firewall_inventory, iperf_runtime_status, live_status, ovs_flows, pair_realtime_metrics, policy_decision, temporary_block
 from .metrics import run_call_quality, run_iperf, run_ping
 from .models import (
     ClusterTestRequest,
@@ -171,7 +171,6 @@ def api_devices(principal: dict = Depends(require_permission("dashboard.read")))
 def api_firewalls(principal: dict = Depends(require_permission("dashboard.read"))):
     return {
         "firewalls": firewall_inventory(),
-        "phase44_runtime": phase44_runtime_status(),
     }
 
 
@@ -320,7 +319,6 @@ def api_live_status(principal: dict = Depends(require_permission("dashboard.read
         "preflight": dashboard_preflight_status(),
         "iperf_sessions": iperf_runtime_status(),
         "firewalls": firewall_inventory(),
-        "phase44_runtime": phase44_runtime_status(),
     }
 
 

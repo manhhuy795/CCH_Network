@@ -21,7 +21,5 @@
 - [Firewall policy](firewall_policy.md)
 - [Ubuntu installation](installation_ubuntu.md)
 - [Troubleshooting](troubleshooting.md)
-- [Dashboard design system](dashboard_design_system_vi.md)
-- [Authentication/RBAC](phase49_authentication_design.md)
 
-Các runbook mang tên `phase*` là hồ sơ lịch sử/acceptance hỗ trợ. Khi có khác biệt, tài liệu canonical và `vars/network_model.yml` là nguồn hiện hành.
+Khi có khác biệt, `vars/network_model.yml` và tài liệu canonical ở trên là nguồn hiện hành.

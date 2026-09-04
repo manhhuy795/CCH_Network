@@ -147,7 +147,6 @@ def get_policy_payload() -> dict:
         },
     }
     payload["firewalls"] = live_mininet.firewall_inventory()
-    payload["phase44_runtime"] = live_mininet.phase44_runtime_status()
     return payload
 
 

@@ -1,17 +1,18 @@
 import { ShieldAlert } from "lucide-react";
-import type { Firewall, PhaseRuntimeStatus } from "../api/client";
+import type { Firewall } from "../api/client";
 import StatusBadge from "./ui/StatusBadge";
 
 function counterText(value: { packets: number; bytes: number } | null | undefined) {
   return value ? `${value.packets.toLocaleString("vi-VN")} packets · ${value.bytes.toLocaleString("vi-VN")} bytes` : "Chưa có counter runtime";
 }
 
-export default function FirewallPanel({ firewalls, phase44Runtime }: { firewalls: Firewall[]; phase44Runtime?: PhaseRuntimeStatus }) {
+export default function FirewallPanel({ firewalls }: { firewalls: Firewall[] }) {
+  const runtimeReady = firewalls.length > 0 && firewalls.every((firewall) => firewall.runtime_status === "verified");
   return (
     <section className="firewall-panel">
       <div className="section-title">
         <div><h2>Firewall Internet hai site</h2><span>nftables chỉ thực thi tại fw_hq và fw_telesale</span></div>
-        <StatusBadge status={phase44Runtime?.status === "verified" ? "online" : phase44Runtime?.status === "failed" ? "offline" : "degraded"} label={`Phase 44: ${phase44Runtime?.status || "pending"}`} />
+        <StatusBadge status={runtimeReady ? "online" : "degraded"} label={runtimeReady ? "Runtime verified" : "Runtime unavailable"} />
       </div>
       <div className="firewall-grid">
         {firewalls.map((firewall) => (
@@ -36,7 +37,7 @@ export default function FirewallPanel({ firewalls, phase44Runtime }: { firewalls
         ))}
         {!firewalls.length && <p className="empty-inline">Chưa có inventory firewall runtime.</p>}
       </div>
-      <p className="firewall-note">Trạng thái pending/unavailable là trung thực khi chưa chạy Combined Acceptance trên Ubuntu; không dùng counter 0 để giả lập runtime.</p>
+      <p className="firewall-note">Trạng thái unavailable là trung thực khi chưa đọc được nftables runtime; không dùng counter 0 để giả lập dữ liệu.</p>
     </section>
   );
 }
