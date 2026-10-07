@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -38,6 +39,7 @@ from sdn_mpls_demo.controller_fabric import (
     source_truth_port_profiles,
     tcp,
     udp,
+    vlan,
 )
 
 CONTROLLER_FABRIC_FILE = Path(__file__).resolve().parents[1] / "sdn_mpls_demo" / "controller_fabric.py"
@@ -99,6 +101,121 @@ class MockDatapath:
 
     def send_msg(self, msg: Any) -> None:
         self.sent_msgs.append(msg)
+
+
+@pytest.mark.parametrize("source_name,destination_name,tagged", [
+    ("iot_branch_cam_01", "hmonitor", False),
+    ("iot_branch_cam_01", "hmonitor", True),
+    ("ups_branch_01", "hdns", True),
+    ("ups_branch_01", "hntp", True),
+    ("h110_01", "iot_branch_cam_01", True),
+])
+def test_routed_intersite_both_lans_and_real_gateway_arp(monkeypatch, source_name, destination_name, tagged):
+    # Exercise the existing ingress policy, cold gateway ARP, and both LANs.
+    app = FullSDNFabricController()
+    for (switch, port_name), profile in source_truth_port_profiles().items():
+        dpid = NAME_DPIDS[switch]
+        app.datapaths.setdefault(dpid, MockDatapath(dpid))
+        port = len(app.port_profiles[dpid]) + 1
+        app.topo.register_port(switch, port, port_name)
+        app._configure_port_profile(dpid, port, port_name)
+    for dpid in app.datapaths:
+        app._build_topology_links(dpid)
+    assert app.topo.shortest_path("access_branch", "core_hq", vlan=50) is None
+
+    source = app.hosts_by_ip[app.policy.endpoint(source_name)["ip"]]
+    destination = app.hosts_by_ip[app.policy.endpoint(destination_name)["ip"]]
+    dp = app.datapaths[NAME_DPIDS[source["switch"]]]
+    eth = SimpleNamespace(src="00:00:00:00:aa:01", dst=GATEWAY_MAC_BRANCH)
+    ip = SimpleNamespace(src=source["ip"], dst=destination["ip"], proto=1)
+    msg = SimpleNamespace(buffer_id=MockOfproto.OFP_NO_BUFFER, data=b"tagged" if tagged else b"")
+
+    original_get_protocol = packet.Packet.get_protocol
+    def get_protocol(self, cls):
+        if self.data == b"tagged":
+            return vlan.vlan(vid=source["vlan"]) if cls is vlan.vlan else None
+        return original_get_protocol(self, cls)
+    monkeypatch.setattr(packet.Packet, "get_protocol", get_protocol)
+
+    app._handle_ipv4(dp, source["port"], eth, ip, source["vlan"], msg)
+    assert app.pending_routed_packets
+    assert not any(m.get("table_id") == TABLE_FORWARDING for d in app.datapaths.values() for m in d.sent_msgs)
+
+    # A forged gateway reply on a host port must not satisfy next-hop discovery.
+    key = next(iter(app.pending_routed_packets))
+    gateway_ip = "10.20.50.1" if key[2] == 50 else "10.10.110.1"
+    reply = SimpleNamespace(opcode=2, src_ip=gateway_ip, src_mac="00:00:00:00:bb:01", dst_mac=eth.src, dst_ip="0.0.0.0")
+    app._handle_arp(dp, source["port"], eth, reply, source["vlan"])
+    assert not app.routed_gateway_macs
+
+    for _ in range(2):
+        key = next(iter(app.pending_routed_packets))
+        reply.src_ip = "10.20.50.1" if key[2] == 50 else f"10.10.{key[2]}.1"
+        reply.src_mac = f"02:00:00:00:{key[2]:02x}:01"
+        app._handle_arp(app.datapaths[key[0]], key[1], eth, reply, key[2])
+    assert not app.pending_routed_packets
+    assert destination["kind"] != "service"
+
+    # Explicit expected LAN paths: no VLAN 50/100 forwarding over L2VPN.
+    hq_vlan = 110 if source_name == "h110_01" else 100
+    hq_access = "access_floor2" if hq_vlan == 110 else "infra_access"
+    for switch, local_vlan, outward_name, inward_name in (
+        ("access_branch", 50, "br-eth99", "iotb-u01" if destination_name == "iot_branch_cam_01" or source_name == "iot_branch_cam_01" else "iotb-u02"),
+        ("dist_branch", 50, "bd-eth02", "bd-eth01"),
+        ("core_hq", hq_vlan, "core-eth03", "core-eth02" if hq_vlan == 110 else "core-eth04"),
+        (hq_access, hq_vlan, "f2-eth99" if hq_vlan == 110 else "inf-eth99",
+         "h110-u01" if hq_vlan == 110 else {"hmonitor": "inf-s05", "hdns": "inf-s02", "hntp": "inf-s07"}[destination_name]),
+    ):
+        local = source if source["vlan"] == local_vlan else destination
+        remote = destination if local is source else source
+        switch_dp = app.datapaths[NAME_DPIDS[switch]]
+        flows = [m for m in switch_dp.sent_msgs if m.get("table_id") == TABLE_FORWARDING]
+        assert len(flows) == 2
+        for flow in flows:
+            assert flow["match"]["vlan_vid"] == local_vlan | 0x1000
+            outward = flow["match"]["ipv4_src"] == local["ip"]
+            assert flow["match"]["ipv4_dst"] == (remote["ip"] if outward else local["ip"])
+            actions = flow["instructions"][0]["actions"]
+            port_name = outward_name if outward else inward_name
+            assert actions[-1] == {"action": "OUTPUT", "port": app.topo.port_name_to_no[switch][port_name]}
+            assert not any(a["action"] in {"DEC_NW_TTL", "PUSH_VLAN"} or "vlan_vid" in a for a in actions)
+            if outward and switch in {"dist_branch", "core_hq"}:
+                assert actions[0] == {"action": "SET_FIELD", "eth_dst": f"02:00:00:00:{local_vlan:02x}:01"}
+            if not outward and switch in {"access_branch", hq_access}:
+                assert actions[0]["action"] == "POP_VLAN"
+        returns = [m for m in switch_dp.sent_msgs if m.get("table_id") == TABLE_SECURITY_POLICY]
+        assert len(returns) == 1
+        assert returns[0]["match"]["icmpv4_type"] == 0
+        assert returns[0]["match"]["ipv4_src"] == destination["ip"]
+        assert returns[0]["match"]["ipv4_dst"] == source["ip"]
+    initial = [m for m in dp.sent_msgs if "buffer_id" in m][-1]
+    assert sum(a["action"] == "PUSH_VLAN" for a in initial["actions"]) == (0 if tagged else 1)
+
+    # A new gateway-side PacketIn is delivered locally, never sent back into the tunnel.
+    dst_gateway = "dist_branch" if destination["vlan"] == 50 else "core_hq"
+    dst_dp = app.datapaths[NAME_DPIDS[dst_gateway]]
+    gateway_port = app.topo.port_name_to_no[dst_gateway]["bd-eth02" if dst_gateway == "dist_branch" else "core-eth03"]
+    app._handle_ipv4(dst_dp, gateway_port, eth, ip, destination["vlan"], msg)
+    delivered = [m for m in dst_dp.sent_msgs if "buffer_id" in m][-1]
+    assert delivered["actions"][-1]["port"] != gateway_port
+
+    # Policy denial must still happen before any routed flow installation.
+    before = sum(m.get("table_id") == TABLE_FORWARDING for d in app.datapaths.values() for m in d.sent_msgs)
+    for denied in ("h101_01", "hinternet"):
+        blocked = SimpleNamespace(src="10.20.50.101", dst=app.policy.endpoint(denied)["ip"], proto=1)
+        app._handle_ipv4(app.datapaths[NAME_DPIDS["access_branch"]], 1, eth, blocked, 50, msg)
+    assert before == sum(m.get("table_id") == TABLE_FORWARDING for d in app.datapaths.values() for m in d.sent_msgs)
+
+    # Physical site differences must not reroute stretched VLAN 93 or PBX.
+    def unexpected_intersite(*args):
+        pytest.fail("VLAN 93/PBX must retain their existing forwarding handlers")
+    monkeypatch.setattr(app, "_route_intersite", unexpected_intersite)
+    for left, right in (("h93_01", "h93_11"), ("h93_11", "h93_01"), ("h101_01", "h90")):
+        left_host, right_host = app.policy.endpoint(left), app.policy.endpoint(right)
+        packet_ip = SimpleNamespace(src=left_host["ip"], dst=right_host["ip"], proto=1)
+        host_record = app.hosts_by_ip[left_host["ip"]]
+        app._handle_ipv4(app.datapaths[NAME_DPIDS[left_host["switch"]]], host_record["port"],
+                         eth, packet_ip, left_host["vlan"], msg)
 
 
 def test_zero_ofpp_normal_in_controller_fabric():

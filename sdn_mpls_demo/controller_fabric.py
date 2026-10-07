@@ -542,6 +542,8 @@ class FullSDNFabricController(app_manager.OSKenApp):
             "failover_count": 0,
         }
         self.active_sessions: set[tuple[str, str]] = set()
+        self.routed_gateway_macs: dict[tuple[int, int, int], str] = {}
+        self.pending_routed_packets: dict[tuple[int, int, int], tuple[Any, ...]] = {}
         self.vlan93_active_circuit = "primary"
         self.dhcp_client_records: dict[str, dict[str, Any]] = {}
 
@@ -1787,6 +1789,19 @@ class FullSDNFabricController(app_manager.OSKenApp):
         sender_ip = arp_pkt.src_ip
         sender_mac = arp_pkt.src_mac
 
+        # Learn real router MACs only on the declared gateway attachment.
+        profile = self.port_profiles[dpid].get(in_port, {})
+        if (profile.get("role") == "gateway"
+                and vlan_id in profile.get("allowed_vlans", set())
+                and sender_ip == VLAN_GATEWAYS.get(vlan_id)
+                and arp_pkt.opcode == arp.ARP_REPLY):
+            key = (dpid, in_port, vlan_id)
+            self.routed_gateway_macs[key] = sender_mac
+            pending = self.pending_routed_packets.pop(key, None)
+            if pending:
+                self._handle_ipv4(*pending)
+            return
+
         # Learn IP-MAC binding
         if sender_ip in self.hosts_by_ip:
             self.hosts_by_ip[sender_ip]["mac"] = sender_mac
@@ -2280,6 +2295,12 @@ class FullSDNFabricController(app_manager.OSKenApp):
         dst_vlan = dst_host["vlan"]
         is_inter_vlan = src_vlan != dst_vlan
 
+        source = self.policy.endpoint_by_ip(src_ip)
+        destination = self.policy.endpoint_by_ip(dst_ip)
+        if source and destination and self.policy._gateway_site(source) != self.policy._gateway_site(destination):
+            self._route_intersite(datapath, in_port, eth, ip_pkt, src_vlan, msg, source, destination)
+            return
+
         # Determine path
         if not is_inter_vlan:
             path = self.topo.shortest_path(src_switch, dst_switch, vlan=src_vlan)
@@ -2462,6 +2483,100 @@ class FullSDNFabricController(app_manager.OSKenApp):
                     data=msg.data if msg.buffer_id == datapath.ofproto.OFP_NO_BUFFER else None,
                 )
             )
+
+    def _route_intersite(self, datapath, in_port, eth, ip_pkt, vlan_id, msg, source, destination) -> None:
+        """Bridge each LAN to its real router; Linux/firewalls own intersite L3.
+
+        Gateway ownership (not physical site) keeps stretched VLAN 93 on HQ.
+        This is called only after _handle_ipv4 has accepted the policy.
+        """
+        legs = []
+        for endpoint in (source, destination):
+            local_vlan = int(endpoint["vlan"])
+            gateway = self.policy._site_gateway(self.policy._gateway_site(endpoint))
+            path = self.topo.shortest_path(endpoint["switch"], gateway, vlan=local_vlan)
+            gateway_dpid = NAME_DPIDS[gateway]
+            gateway_port = next((
+                port for port, profile in self.port_profiles[gateway_dpid].items()
+                if profile.get("role") == "gateway" and local_vlan in profile.get("allowed_vlans", set())
+            ), None)
+            host_port = self._find_host_port(NAME_DPIDS[endpoint["switch"]], endpoint["name"], local_vlan)
+            if not path or not gateway_port or not host_port or any(NAME_DPIDS[sw] not in self.datapaths for sw in path):
+                self.logger.warning("ROUTE_INTERSITE not ready: %s VLAN %s via %s", endpoint["name"], local_vlan, gateway)
+                return
+            key = (gateway_dpid, gateway_port, local_vlan)
+            legs.append((endpoint, local_vlan, path, gateway_port, host_port, key))
+
+        # Proxy-ARP MACs belong to the controller, not the Linux router NICs.
+        # Resolve the actual next-hop MAC before releasing the initial packet.
+        for endpoint, local_vlan, path, gateway_port, host_port, key in legs:
+            if key in self.routed_gateway_macs:
+                continue
+            gateway_dp = self.datapaths[key[0]]
+            parser = gateway_dp.ofproto_parser
+            probe_mac = GATEWAY_MAC_BRANCH if self.policy._gateway_site(endpoint) == "branch" else GATEWAY_MAC_HQ
+            probe = packet.Packet()
+            probe.add_protocol(ethernet.ethernet(src=probe_mac, dst="ff:ff:ff:ff:ff:ff", ethertype=0x8100))
+            probe.add_protocol(vlan.vlan(vid=local_vlan, ethertype=ether_types.ETH_TYPE_ARP))
+            probe.add_protocol(arp.arp(opcode=arp.ARP_REQUEST, src_mac=probe_mac, src_ip="0.0.0.0",
+                                       dst_mac="00:00:00:00:00:00", dst_ip=VLAN_GATEWAYS[local_vlan]))
+            probe.serialize()
+            # ponytail: one waiting packet per gateway/VLAN; use a bounded queue if concurrent cold starts matter.
+            self.pending_routed_packets[key] = (datapath, in_port, eth, ip_pkt, vlan_id, msg)
+            gateway_dp.send_msg(parser.OFPPacketOut(
+                datapath=gateway_dp, buffer_id=gateway_dp.ofproto.OFP_NO_BUFFER,
+                in_port=gateway_dp.ofproto.OFPP_CONTROLLER,
+                actions=[parser.OFPActionOutput(gateway_port)], data=probe.data,
+            ))
+            return
+
+        proto, sport, dport, icmp_type = self._extract_l4_details(msg, ip_pkt)
+        self._install_dynamic_return_policy(
+            ip_pkt.src, ip_pkt.dst, proto, sport, dport, icmp_type,
+            list(dict.fromkeys(sw for leg in legs for sw in leg[2])),
+        )
+        packet_actions = None
+        for endpoint, local_vlan, path, gateway_port, host_port, key in legs:
+            outbound_src = endpoint["ip"]
+            outbound_dst = destination["ip"] if endpoint is source else source["ip"]
+            for index, switch in enumerate(path):
+                dp = self.datapaths[NAME_DPIDS[switch]]
+                parser = dp.ofproto_parser
+                outbound_port = (gateway_port if index == len(path) - 1 else
+                                 self.topo.egress_port_for_next_hop(switch, path[index + 1], vlan=local_vlan))
+                inbound_port = (host_port if index == 0 else
+                                self.topo.egress_port_for_next_hop(switch, path[index - 1], vlan=local_vlan))
+                outbound_actions = []
+                if index == len(path) - 1:
+                    outbound_actions.append(parser.OFPActionSetField(eth_dst=self.routed_gateway_macs[key]))
+                outbound_actions.append(parser.OFPActionOutput(outbound_port))
+                inbound_actions = [parser.OFPActionPopVlan()] if index == 0 else []
+                inbound_actions.append(parser.OFPActionOutput(inbound_port))
+                for src, dst, actions in (
+                    (outbound_src, outbound_dst, outbound_actions),
+                    (outbound_dst, outbound_src, inbound_actions),
+                ):
+                    self.add_flow(
+                        dp, table_id=TABLE_FORWARDING, priority=250,
+                        match=parser.OFPMatch(vlan_vid=local_vlan | ofproto_v1_3.OFPVID_PRESENT,
+                                              eth_type=ether_types.ETH_TYPE_IP, ipv4_src=src, ipv4_dst=dst),
+                        actions=actions, reason=f"Routed intersite LAN via {path[-1]}",
+                        policy="intersite_routing", idle_timeout=180, src=src, dst=dst,
+                    )
+                    if dp.id == datapath.id and local_vlan == vlan_id and src == ip_pkt.src:
+                        packet_actions = actions
+        self.stats["l3_flow_count"] += sum(len(leg[2]) for leg in legs)
+        self.logger.info("ROUTE_INTERSITE: %s -> %s LANs=%s", ip_pkt.src, ip_pkt.dst, [leg[2] for leg in legs])
+        if packet_actions is not None:
+            parser = datapath.ofproto_parser
+            actions = []
+            if not packet.Packet(msg.data).get_protocol(vlan.vlan):
+                actions = [parser.OFPActionPushVlan(0x8100),
+                           parser.OFPActionSetField(vlan_vid=vlan_id | ofproto_v1_3.OFPVID_PRESENT)]
+            datapath.send_msg(parser.OFPPacketOut(
+                datapath=datapath, buffer_id=datapath.ofproto.OFP_NO_BUFFER, in_port=in_port,
+                actions=actions + packet_actions, data=msg.data,
+            ))
 
     def _route_multi_hop_external(
         self,
